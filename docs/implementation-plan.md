@@ -47,8 +47,8 @@ Knowledge Map → Markdown → Paste Policy → Sources → Revision → Fact Ch
 
 ## Scopeと引き継ぎ
 
-Phase 3のMarkdown Documentsまで実装済み。Paste Policy / Reviewは後続Issueです。
-次のIssueは [#3 Paste Policy](https://github.com/taiseimiyaji/kakudo/issues/3) です。
+Phase 4のPaste Policyまで実装済み。Resources / Reviewは後続Issueです。
+次のIssueは [#4 Sources](https://github.com/taiseimiyaji/kakudo/issues/4) です。
 各ドメインのtableは実装Issueでmigrationとともに追加します。
 Source Verificationは#7、MapのDocs / Sources / Review件数は#8に含めています。
 学習ノート本文はseedで生成しません。仕様§44の人間が指定したMap / Objectives / Resourceだけを該当Phaseでseedへ追加します。

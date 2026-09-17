@@ -72,3 +72,6 @@ details { margin-top: 15px; }
 .markdown-preview h1 { font-size: 28px; }
 .markdown-preview blockquote { border-left: 3px solid var(--line); margin-left: 0; padding-left: 16px; color: var(--muted); }
 @media(max-width:800px) { .editor-split { grid-template-columns: 1fr; } }
+dialog { width: min(600px, 90vw); border: 1px solid var(--line); border-radius: 12px; padding: 24px; color: var(--ink); }
+dialog::backdrop { background: #183b2f66; }
+dialog .secondary { margin-top: 15px; background: #e4ebe2; color: var(--ink); }

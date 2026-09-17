@@ -49,3 +49,9 @@ export const documentWriteIntents = pgTable("document_write_intents", {
   id: text("id").primaryKey(), documentId: text("document_id").notNull().unique(), path: text("path").notNull(),
   kind: text("kind").$type<"CREATE" | "UPDATE" | "DELETE">().notNull(), before: text("before"), after: text("after"),
 });
+
+export const quotes = pgTable("quotes", {
+  id: text("id").primaryKey(), documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  text: text("text").notNull(), sourceUrl: text("source_url").notNull(), sourceTitle: text("source_title"),
+  accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("quotes_document_idx").on(t.documentId)]);

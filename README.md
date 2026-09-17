@@ -12,8 +12,8 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 3（Markdown Documents）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policy / Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
+現在はPhase 4（Paste Policy）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
 
@@ -50,7 +50,7 @@ npm start
 標準URLは http://127.0.0.1:43171 。Honoが `dist/client` のSPAとAPIを同じoriginから配信します。
 `HOST`（標準127.0.0.1）/ `PORT`（標準43171）でlisten先を指定できます。
 例えば別ポートで起動する場合は `PORT=8080 npm start`。
-PostgreSQLの接続先は `DATABASE_URL`、Markdown保存先は `CONTENT_STORAGE_ROOT` で設定します（ContentStorage実装は後続Issue）。
+PostgreSQLの接続先は `DATABASE_URL`、Markdown保存先は `CONTENT_STORAGE_ROOT` で設定します。
 
 Cloudflare Tunnelを使う場合は、この本番HTTPサーバーをTunnelのoriginに指定します（標準では `http://127.0.0.1:43171`）。
 Workersへのdeployは不要です。通常サーバーでも同じNodeアプリを起動し、入口のproxy等から転送します。
@@ -65,7 +65,7 @@ Workersへのdeployは不要です。通常サーバーでも同じNodeアプリ
 - 接続設定: `.env`（git管理外）、雛形 `.env.example`
 
 `npm run db:setup` はmigrationとseedを順番に実行。再実行してもWorkspaceを重複作成せず、既存の名前を上書きしません。
-現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges / documents / document_nodesと保存回復用journal。学習ノート本文は生成しません。
+現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges / documents / document_nodes / quotesと保存回復用journal。学習ノート本文は生成しません。
 
 ```sh
 npm run db:generate
@@ -108,7 +108,7 @@ workspace-data/      Markdown正本の保存領域
 dist/                build生成物（git管理外）
 ```
 
-ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageとReviewProviderは対応Issueで導入します。
+ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageは導入済み、ReviewProviderはIssue #6で導入します。
 依存の正確なversionとnpm lockfileを保存。Drizzle Kitの推移依存esbuildは修正済み0.25系へoverrideしています。
 
 開発配信の確認には `E2E_DEV=1 npm run test:browser` を使用できます。ViteのAPI proxyは `/api` と `/api/` 配下だけに適用します。
@@ -118,3 +118,9 @@ ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentSto
 Node DetailsのDocumentsから空のノートを作成し、自分で本文を入力します。Nodeは削除してもノートを削除せず、WorkspaceのDocuments一覧から引き続き開けます。本文のFront Matterはそのまま保持します。
 保存はContentStorage経由のatomic renameとDBの補償journalで扱い、次のアクセス時に中断した保存を回復します。PoCは1つのNode.jsプロセスが保存先を所有する前提です。複数レプリカから同じ保存先への同時書込みは対応しません。
 外部エディタで変更された本文を古い画面から上書きしないよう、保存時に前回Hashを照合します。Raw HTMLと自動画像取得はPreviewで無効です。
+
+## Paste Policy
+
+通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開きます（登録保存はIssue #4）。
+
+AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。実装はIssue #6です。

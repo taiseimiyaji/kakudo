@@ -1,8 +1,9 @@
+import { quoteInput, quoteMarkdown } from "../../shared/quote";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import { getDatabase, type DatabaseTransaction, type Database } from "../../db/client";
-import { documents, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
+import { quotes, documents, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
 import { documentCreate, documentSave } from "../../shared/document";
 import type { ContentStorage } from "../storage/content-storage";
 import { getContentStorage } from "../storage/local";
@@ -74,6 +75,19 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
         await tx.update(documents).set({ title: data.title, updatedAt: new Date(), lastWriteId: operationId }).where(eq(documents.id, id));
       });
       return { document: await row(id, workspaceId), contentHash: contentHash(data.content) };
+    }); },
+    quote(id: string, workspaceId: string, input: z.infer<typeof quoteInput>) { return run(async () => {
+      const data = quoteInput.parse(input); const doc = await row(id, workspaceId); const before = await storage.read(doc.path);
+      if (contentHash(before) !== data.baseHash) throw new DomainError("Document changed. Reload before adding a quote.", 409);
+      const quoted = quoteMarkdown(data.text, data.sourceUrl, data.sourceTitle);
+      const after = data.content.slice(0, data.from) + quoted + data.content.slice(data.to);
+      if (after.length > 2_000_000) throw new DomainError("Document is too large");
+      const operationId = randomUUID(); const quoteId = randomUUID();
+      await mutate({ id: operationId, documentId: id, path: doc.path, kind: "UPDATE", before, after }, async (tx) => {
+        await tx.update(documents).set({ title: data.title, updatedAt: new Date(), lastWriteId: operationId }).where(eq(documents.id, id));
+        await tx.insert(quotes).values({ id: quoteId, documentId: id, text: data.text, sourceUrl: data.sourceUrl, sourceTitle: data.sourceTitle });
+      });
+      return { quoteId, content: after, contentHash: contentHash(after) };
     }); },
     remove(id: string, workspaceId: string) { return run(async () => {
       const doc = await row(id, workspaceId); const before = await storage.read(doc.path);

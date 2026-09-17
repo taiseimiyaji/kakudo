@@ -1,3 +1,4 @@
+import { quoteInput } from "../shared/quote";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { Database } from "../db/client";
@@ -12,6 +13,7 @@ export function documentRoutes(database?: () => Database, storage?: () => Conten
   api.post("/documents", async (c) => c.json({ document: await service().create(c.req.query("workspaceId") ?? "default", documentCreate.parse(await c.req.json())) }, 201));
   api.get("/documents/:id", async (c) => c.json(await service().get(c.req.param("id"), c.req.query("workspaceId") ?? "default")));
   api.put("/documents/:id", async (c) => c.json(await service().save(c.req.param("id"), c.req.query("workspaceId") ?? "default", documentSave.parse(await c.req.json()))));
+  api.post("/documents/:id/quotes", async (c) => c.json(await service().quote(c.req.param("id"), c.req.query("workspaceId") ?? "default", quoteInput.parse(await c.req.json())), 201));
   api.delete("/documents/:id", async (c) => { await service().remove(c.req.param("id"), c.req.query("workspaceId") ?? "default"); return c.body(null, 204); });
   return api;
 }
