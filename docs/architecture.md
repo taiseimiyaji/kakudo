@@ -11,6 +11,7 @@
 | Frontend | ReactのSPA。Viteで開発・build |
 | 配置 | PC + Cloudflare Tunnel、または通常サーバー |
 | 本番配信 | Honoがbuild済みSPAとAPIを同一originで提供 |
+| AI Review | ローカルCodex SDK / OpenAI APIを切替可能。初期設定はCodex SDK、テストはMock |
 | DB | 既存のPostgreSQL / Drizzle構成を維持 |
 | Content | ローカルfilesystem上のMarkdown。ContentStorageは後続Issueで実装 |
 
@@ -57,3 +58,9 @@ Goは今回採用しない。Honoの採用理由はWorkersへの配置や性能�
 - [Hono Node.js adapter / static配信](https://hono.dev/docs/getting-started/nodejs)
 - [Vite development server / proxy](https://vite.dev/config/server-options)
 - [Vite build](https://vite.dev/config/build-options)
+
+## AI接続先（2026-09-17 ユーザー確定）
+
+ReviewProviderを介し、ローカルCodex SDKとOpenAI APIの両方に対応する。初期設定はCodex SDK。実装はIssue #6で行う。接続先にかかわらずReviewer専用のschemaと本文を変更しない原則を適用する。SDKはサーバー側でのみ起動し、学習ファイルを変更する権限を与えない。テストは外部LLM不要のMockを利用する。
+
+参考: [公式Codex SDKドキュメント](https://learn.chatgpt.com/docs/codex-sdk)。

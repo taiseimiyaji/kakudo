@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { createDatabase } from "../../db/client";
-import { documents, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
+import { documents, quotes, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
 import { readTestDatabaseUrl } from "../../lib/env";
 import { LocalFileSystemStorage } from "../../modules/storage/local";
 import { documentService, contentHash } from "../../modules/document/service";
@@ -24,6 +24,26 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); await rm(root, { recursive: true, force: true }); });
 describe("document persistence", () => {
+  it("requires source URLs and commits quote metadata together with the learner draft", async () => {
+    const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
+    const service = documentService(db, storage);
+    const doc = await service.create(workspaceId, { title: "Quoted", content: "original", nodeIds: [] });
+    const body = { text: "copied\nsecond", sourceUrl: "", sourceTitle: "Primary", title: "Quoted", content: "learner draft", baseHash: contentHash("original"), from: 13, to: 13 };
+    const post = (value: unknown) => app.request(`/api/documents/${doc.id}/quotes?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+    expect((await post(body)).status).toBe(400);
+    expect(await storage.read(doc.path)).toBe("original");
+    const response = await post({ ...body, sourceUrl: "https://example.com/source" }); expect(response.status).toBe(201);
+    const result = await response.json();
+    expect(result.content).toContain("learner draft\n\n> copied\n> second");
+    expect(await storage.read(doc.path)).toBe(result.content);
+    const [quote] = await db.select().from(quotes).where(eq(quotes.documentId, doc.id));
+    expect(quote.text).toBe(body.text); expect(quote.sourceUrl).toBe("https://example.com/source"); expect(quote.accessedAt).toBeInstanceOf(Date);
+    expect((await post({ ...body, sourceUrl: "https://example.com/source" })).status).toBe(409);
+    expect(await db.select().from(quotes).where(eq(quotes.documentId, doc.id))).toHaveLength(1);
+    await service.remove(doc.id, workspaceId);
+    expect(await db.select().from(quotes).where(eq(quotes.documentId, doc.id))).toHaveLength(0);
+  });
+
   it("round-trips exact content via API and real .md; enforces scope and optimistic concurrency", async () => {
     const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
     const api = (path: string, method = "GET", body?: unknown) => app.request(`/api${path}?workspaceId=${workspaceId}`, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
