@@ -1,0 +1,62 @@
+[
+  {
+    "number": 1,
+    "title": "[Phase 2] Knowledge Map：Roadmap / Node / Edge CRUDとReact Flow",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/1",
+    "body": "docs/issues/01-knowledge-map.md"
+  },
+  {
+    "number": 2,
+    "title": "[Phase 3] Markdown Documents：ContentStorage・CodeMirror・Preview",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/2",
+    "body": "docs/issues/02-markdown.md"
+  },
+  {
+    "number": 3,
+    "title": "[Phase 4] Paste Policy：引用必須・URL分岐・Code Block例外",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/3",
+    "body": "docs/issues/03-paste-policy.md"
+  },
+  {
+    "number": 4,
+    "title": "[Phase 5] Sources：Node / Document資料管理とSSRF対策",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/4",
+    "body": "docs/issues/04-resources-security.md"
+  },
+  {
+    "number": 5,
+    "title": "[Phase 5.5] Revision：保存時Snapshot・SHA-256・重複抑制",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/5",
+    "body": "docs/issues/05-revisions.md"
+  },
+  {
+    "number": 6,
+    "title": "[Phase 6a] Review Provider：Reviewer契約・Mock・Claim抽出",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/6",
+    "body": "docs/issues/06-review-provider-claims.md"
+  },
+  {
+    "number": 7,
+    "title": "[Phase 6b] Fact / Source Check：根拠探索・Revision固定・Finding保存",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/7",
+    "body": "docs/issues/07-fact-source-review.md"
+  },
+  {
+    "number": 8,
+    "title": "[Phase 7] Review UI：Evidence・Resolve / Dismiss・Outdated Review",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/8",
+    "body": "docs/issues/08-review-ui.md"
+  },
+  {
+    "number": 9,
+    "title": "[Phase 8] Coverage / Logic：Objectives検証とGuiding Questions",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/9",
+    "body": "docs/issues/09-coverage-logic.md"
+  },
+  {
+    "number": 10,
+    "title": "[PoC検証] 全Acceptance Criteria・必須テスト・学習体験の確認",
+    "url": "https://github.com/taiseimiyaji/kakudo/issues/10",
+    "body": "docs/issues/10-poc-acceptance.md"
+  }
+]

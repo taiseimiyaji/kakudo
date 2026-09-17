@@ -1,0 +1,17 @@
+node_modules/
+dist/
+out/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+.env*
+!.env.example
+.DS_Store
+workspace-data/**
+!workspace-data/default/
+!workspace-data/default/docs/
+!workspace-data/default/docs/.gitkeep
+!workspace-data/default/research/
+!workspace-data/default/research/.gitkeep
+.local/
