@@ -1,3 +1,5 @@
+import { documentRoutes } from "./document-routes";
+import type { ContentStorage } from "../modules/storage/content-storage";
 import { ZodError } from "zod";
 import { HTTPException } from "hono/http-exception";
 import { DomainError } from "../lib/errors";
@@ -10,6 +12,7 @@ import { findWorkspace } from "../modules/workspace/service";
 
 export interface ApiServices {
   database?: () => Database;
+  storage?: () => ContentStorage;
   checkDatabase(): Promise<void>;
   findWorkspace(id: string): ReturnType<typeof findWorkspace>;
 }
@@ -39,6 +42,7 @@ export function createApi(services: ApiServices = defaultServices) {
     }
   });
   api.route("/", roadmapRoutes(services.database));
+  api.route("/", documentRoutes(services.database, services.storage));
   api.notFound((c) => c.json({ error: "API route not found" }, 404));
   api.onError((error, c) => {
     if (error instanceof ZodError) return c.json({ error: "Invalid input", issues: error.issues.map((i) => ({ path: i.path, message: i.message })) }, 400);

@@ -1,3 +1,4 @@
+import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { z } from "zod";
@@ -64,9 +65,9 @@ export default function RoadmapPage() {
             onDeleteEdge={(id) => act(async () => { await request(`/edges/${id}${scope}`, "DELETE"); })} />
         </> : <p className="empty-state">Roadmapを選択するか、新しく作成してください。</p>}
       </section>
-      <aside className="node-details">{node ? <NodeDetails key={`${node.id}:${loadedVersion}`} node={node} busy={busy}
+      <aside className="node-details">{node ? <><NodeDetails key={`${node.id}:${loadedVersion}`} node={node} busy={busy}
         onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }

@@ -12,8 +12,8 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 2（Knowledge Map）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。Editor / Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
+現在はPhase 3（Markdown Documents）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policy / Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
 
@@ -65,7 +65,7 @@ Workersへのdeployは不要です。通常サーバーでも同じNodeアプリ
 - 接続設定: `.env`（git管理外）、雛形 `.env.example`
 
 `npm run db:setup` はmigrationとseedを順番に実行。再実行してもWorkspaceを重複作成せず、既存の名前を上書きしません。
-現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges。学習ノート本文は生成しません。
+現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges / documents / document_nodesと保存回復用journal。学習ノート本文は生成しません。
 
 ```sh
 npm run db:generate
@@ -112,3 +112,9 @@ ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentSto
 依存の正確なversionとnpm lockfileを保存。Drizzle Kitの推移依存esbuildは修正済み0.25系へoverrideしています。
 
 開発配信の確認には `E2E_DEV=1 npm run test:browser` を使用できます。ViteのAPI proxyは `/api` と `/api/` 配下だけに適用します。
+
+## Markdown保存
+
+Node DetailsのDocumentsから空のノートを作成し、自分で本文を入力します。Nodeは削除してもノートを削除せず、WorkspaceのDocuments一覧から引き続き開けます。本文のFront Matterはそのまま保持します。
+保存はContentStorage経由のatomic renameとDBの補償journalで扱い、次のアクセス時に中断した保存を回復します。PoCは1つのNode.jsプロセスが保存先を所有する前提です。複数レプリカから同じ保存先への同時書込みは対応しません。
+外部エディタで変更された本文を古い画面から上書きしないよう、保存時に前回Hashを照合します。Raw HTMLと自動画像取得はPreviewで無効です。

@@ -35,9 +35,10 @@ export default function WorkspacePage() {
       <p className="connection"><span aria-hidden="true">●</span> Workspaceの準備ができました</p>
       <p className="intro">学びの道筋と、自分の理解をここに。</p>
       <Link className="primary-link" to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>Knowledge Mapを開く</Link>
+      <Link className="primary-link" to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>Documentsを開く</Link>
       <div className="workspace-grid">
         {[ ["Knowledge Map", "学習する概念と、そのつながり。"], ["Documents", "自分の言葉で書くMarkdownノート。"], ["Sources / Quotes", "読んだ資料と、出典のある引用。"], ["Reviews", "問題点と根拠をもとに、理解を確かめる。"] ].map(([title, description]) => (
-          <section key={title}><span className="badge">{title === "Knowledge Map" ? "利用可能" : "準備中"}</span><h2>{title}</h2><p>{description}</p></section>
+          <section key={title}><span className="badge">{(title === "Knowledge Map" || title === "Documents") ? "利用可能" : "準備中"}</span><h2>{title}</h2><p>{description}</p></section>
         ))}
       </div>
       <p className="muted">Knowledge Mapを利用できます。ノートとレビュー機能は順次実装します。</p>
