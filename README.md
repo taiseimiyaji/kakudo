@@ -12,7 +12,7 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 5.5（Revision）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+現在はPhase 6a（Review Provider）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
 Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
@@ -123,7 +123,7 @@ Node DetailsのDocumentsから空のノートを作成し、自分で本文を�
 
 通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開き、Documentの資料として登録します。
 
-AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。実装はIssue #6です。
+AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。Provider基盤は実装済み、Review API / UIは次のIssueで接続します。
 
 ## 資料取得
 
@@ -132,3 +132,13 @@ Node / Document / Workspaceに資料を登録でき、登録済み資料を再�
 ## Revision
 
 Document作成・通常保存・引用追加時に、保存した本文のSHA-256とSnapshotをDBに記録します。直前と同内容ならRevisionを再利用し、A→B→Aは3つのRevisionになります。タイトルだけの変更では増やしません。既存Documentの初回Revisionは次の保存時に作成します。過去Snapshotは更新しません。現在のRevisionをEditorに表示し、履歴はGET /api/documents/:id/revisionsで確認できます。
+
+## AI Reviewerの接続
+
+既定は `REVIEW_PROVIDER=codex`。ローカルで `codex login` 済みの認証をCodex SDKが使用します。任意の `CODEX_MODEL` / `CODEX_PATH`、共通timeout `REVIEW_TIMEOUT_MS` を設定できます。SDKは一時作業ディレクトリ、read-only sandbox、shell / MCP / plugin / hook / web search無効で起動します。本文の保存先は渡しません。Codexの認証・標準ログ保存はローカル設定に従います。
+
+OpenAI APIは `REVIEW_PROVIDER=openai` と `OPENAI_MODEL` / `OPENAI_API_KEY` で切替可能です。Responses APIのstrict JSON schema、toolsなし、store=falseを使用します。APIキーをVITE_環境変数へ入れないでください。外部LLM不要のテストやデモには `REVIEW_PROVIDER=mock` を明示します。Mock結果は実AIレビューと区別します。
+
+`npx tsx scripts/review-smoke.ts` は設定された実Providerへ、仕様にあるOAuthの誤りとRFCの短い根拠を送信して検証します。通常の `npm run check` は外部LLMへ接続しません。Claim抽出からコード・引用・Front Matterを除外し、原文offsetと出力schemaを検証します。Review対象は60,000文字以内です。
+
+参考: [公式Codex SDK](https://learn.chatgpt.com/docs/codex-sdk)、[Codex設定](https://learn.chatgpt.com/docs/config-file/config-reference)、[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)。
