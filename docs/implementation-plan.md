@@ -47,8 +47,8 @@ Knowledge Map → Markdown → Paste Policy → Sources → Revision → Fact Ch
 
 ## Scopeと引き継ぎ
 
-Phase 6aのReview Providerまで実装済み。Review API / UIは後続Issueです。
-次のIssueは [#7 Fact / Source Check](https://github.com/taiseimiyaji/kakudo/issues/7) です。
+Phase 6bのFact / Source Checkまで実装済み。Review UIの拡張とLogic / Coverageは後続Issueです。
+次のIssueは [#8 Review UI](https://github.com/taiseimiyaji/kakudo/issues/8) です。
 各ドメインのtableは実装Issueでmigrationとともに追加します。
 Source Verificationは#7、MapのDocs / Sources / Review件数は#8に含めています。
 学習ノート本文はseedで生成しません。仕様§44の人間が指定したMap / Objectives / Resourceだけを該当Phaseでseedへ追加します。

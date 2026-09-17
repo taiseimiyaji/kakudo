@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     command: development ? "npm run dev" : "npm run start",
-    env: { PORT: development ? "43171" : "43172", HOST: "127.0.0.1" },
+    env: { REVIEW_PROVIDER: "mock", SEARCH_PROVIDER: "mock", PORT: development ? "43171" : "43172", HOST: "127.0.0.1" },
     url,
     reuseExistingServer: development && !process.env.CI,
     timeout: 60000,

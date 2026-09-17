@@ -1,3 +1,4 @@
+import { ReviewPanel } from "../../components/reviews/review-panel";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { PasteDialog } from "../../components/editor/paste-dialog";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
@@ -50,7 +51,8 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash });
       setRevisionId(result.document.currentRevisionId); setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash }); setPaste(null); setStatus("引用を追加して保存しました");
     }} />}
+    <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} />
-    <footer><span>Reviewsは準備中です。本文は自分の言葉で書きます。</span><button className="danger" disabled={busy} onClick={() => { if (!confirm("このDocumentとMarkdownファイルを削除しますか？")) return; setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE").then(() => navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true })).catch((e) => { setError(e.message); setBusy(false); }); }}>Documentを削除</button></footer>
+    <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy} onClick={() => { if (!confirm("このDocumentとMarkdownファイルを削除しますか？")) return; setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE").then(() => navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true })).catch((e) => { setError(e.message); setBusy(false); }); }}>Documentを削除</button></footer>
   </main>;
 }

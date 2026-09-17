@@ -1,3 +1,4 @@
+import { reviewService } from "../modules/review/service";
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { createApp } from "./app";
@@ -6,6 +7,7 @@ import { closeDatabase } from "../db/client";
 const port = Number(process.env.PORT ?? 43171);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535");
 const hostname = process.env.HOST ?? "127.0.0.1";
+await reviewService().recoverInterrupted();
 const server = serve({ fetch: createApp().fetch, port, hostname }, () => {
   console.log(`Kakudo listening on http://${hostname}:${port}`);
 });
