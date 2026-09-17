@@ -47,8 +47,8 @@ Knowledge Map → Markdown → Paste Policy → Sources → Revision → Fact Ch
 
 ## Scopeと引き継ぎ
 
-Phase 7のReview UIまで実装済み。Logic / Coverageは後続Issueです。
-次のIssueは [#9 Coverage / Logic](https://github.com/taiseimiyaji/kakudo/issues/9) です。
+Phase 8のCoverage / Logicまで実装済み。
+次のIssueは [#10 PoC受け入れ検証](https://github.com/taiseimiyaji/kakudo/issues/10) です。
 各ドメインのtableは実装Issueでmigrationとともに追加します。
 Source Verificationは#7、MapのDocs / Sources / Review件数は#8に含めています。
 学習ノート本文はseedで生成しません。仕様§44の人間が指定したMap / Objectives / Resourceだけを該当Phaseでseedへ追加します。

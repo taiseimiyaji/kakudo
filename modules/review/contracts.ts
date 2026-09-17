@@ -10,7 +10,7 @@ export const findingInput = z.object({ category: z.enum(categories), severity: z
 export type ReviewFindingInput = z.infer<typeof findingInput>;
 export const verificationSchema = z.object({ verdict: z.enum(verdicts), explanation: z.string().min(1).max(3000), guidingQuestion: z.string().max(1000).nullable(), evidenceIds: z.array(z.string()).max(20) }).strict();
 export type ClaimVerification = z.infer<typeof verificationSchema>;
-export type LearningObjective = { id: string; text: string };
+export type LearningObjective = { id: string; text: string; nodeTitle?: string };
 export const coverageSchema = z.object({ objectiveId: z.string(), status: z.enum(["COVERED", "PARTIALLY_COVERED", "NOT_COVERED"]), explanation: z.string().max(3000), guidingQuestion: z.string().max(1000).nullable() }).strict();
 export type CoverageResult = z.infer<typeof coverageSchema>;
 export interface ReviewProvider {

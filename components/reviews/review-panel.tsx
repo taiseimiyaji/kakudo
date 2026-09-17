@@ -25,13 +25,18 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   const running = busy || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="Reviews"><h2>Reviews</h2>
-    {([ ["FULL", "Review"], ["FACT_CHECK", "Check Facts"], ["SOURCE", "Check Sources"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running} onClick={() => { void start(type); }}>{label}</button>)}
+    {([ ["FULL", "Review"], ["FACT_CHECK", "Check Facts"], ["SOURCE", "Check Sources"], ["LOGIC", "Check Logic"], ["COVERAGE", "Check Coverage"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running} onClick={() => { void start(type); }}>{label}</button>)}
     {(dirty || !revisionId) && <p>本文を保存してからReviewしてください。</p>}{error && <p role="alert">{error}</p>}
     {history.length > 0 && <label>Review履歴<select value={runId ?? ""} onChange={(e) => { onSelect(null); setDetail(null); setRunId(e.target.value); }}>{history.map((run) => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} · {run.type} · {run.revisionId.slice(0, 8)}</option>)}</select></label>}
     {detail && <><p aria-label="Review Status">{detail.run.status} / {detail.run.stage}</p><p>Provider: {detail.run.provider === "mock" ? "Mock（実AI・実資料取得ではありません）" : detail.run.provider}</p><small>対象Revision: {detail.run.revisionId}</small>
       {detail.run.error && <p role="alert">{detail.run.error}</p>}
-      {stale && <div className="stale-review"><p>Outdated Review — このレビュー後にDocumentが変更されています。</p><button disabled={dirty || !revisionId || running} onClick={() => { void start(detail.run.type); }}>Review Again</button><p>過去の結果です。本文のハイライトは無効です。</p></div>}
-      {detail.run.status === "COMPLETED" && !detail.findings.length && <p>指摘はありません（正確性や理解の保証ではありません）。</p>}
+      {stale && <div className="stale-review"><p>Outdated Review — {detail.objectivesChanged ? "Learning Objectivesが変更されています。" : "このレビュー後にDocumentが変更されています。"}</p><button disabled={dirty || !revisionId || running} onClick={() => { void start(detail.run.type); }}>Review Again</button><p>過去の結果です。本文のハイライトは無効です。</p></div>}
+      {detail.run.status === "COMPLETED" && !detail.findings.length && !(detail.run.type === "COVERAGE" && !detail.run.objectives.length) && <p>指摘はありません（正確性や理解の保証ではありません）。</p>}
+      {["COVERAGE", "FULL"].includes(detail.run.type) && !detail.run.objectives.length && <p>Learning Objectivesが未設定です。Coverageは評価していません。Nodeに自分で目標を設定してください。</p>}
+      {detail.run.coverage.length > 0 && <section aria-label="Coverage Results"><h3>Learning Objective Coverage</h3><p>関連する全Nodeの、レビュー開始時のObjectivesを評価しています。</p>{detail.run.coverage.map((result) => {
+        const objective = detail.run.objectives.find((o) => o.id === result.objectiveId);
+        return <div className="coverage-result" key={result.objectiveId}><strong>{objective?.nodeTitle ? `${objective.nodeTitle}: ` : ""}{objective?.text}</strong><span>{({ COVERED: "✓ Covered", PARTIALLY_COVERED: "△ Partially Covered", NOT_COVERED: "○ Not Covered" } as Record<string, string>)[result.status]}</span><p>{result.explanation}</p>{result.guidingQuestion && <p>Think about: {result.guidingQuestion}</p>}</div>;
+      })}</section>}
       {detail.findings.map((finding) => <article key={finding.id} aria-label={`${finding.category} Finding`} data-status={finding.status}><header><h3>{finding.category} · {finding.severity}</h3><span>{finding.status}</span></header>
         {finding.targetText && <blockquote>{finding.targetText}</blockquote>}<p>{finding.explanation}</p>{finding.verdict && <small>{finding.verdict}</small>}{finding.guidingQuestion && <p>Think about: {finding.guidingQuestion}</p>}
         <ul>{finding.evidence.map((e) => <li key={e.id}><a href={e.url} target="_blank" rel="noreferrer">{e.title}</a><small> · {e.sourceType} · {new Date(e.accessedAt).toLocaleDateString()}</small>{e.excerpt && <details><summary>取得資料の抜粋</summary><blockquote>{e.excerpt}</blockquote></details>}</li>)}</ul>

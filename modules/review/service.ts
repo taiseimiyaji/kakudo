@@ -1,3 +1,4 @@
+import { learningReview, objectivesChanged } from "./learning-review";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDatabase, type Database } from "../../db/client";
@@ -11,7 +12,7 @@ import { createResourceFetcher, type ResourceFetcher } from "../resource/fetcher
 import { createReviewProvider } from "./provider";
 import { createSearchProvider } from "./search";
 import type { SearchProvider } from "./evidence";
-import { type ReviewProvider, ReviewProviderError } from "./contracts";
+import { type ReviewProvider, type CoverageResult, ReviewProviderError } from "./contracts";
 import { factSourcePipeline } from "./pipeline";
 import { mockReviewFetcher } from "./fixtures";
 import { DomainError, requireFound } from "../../lib/errors";
@@ -30,14 +31,20 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
     try {
       const revision = requireFound((await db.select().from(documentRevisions).where(eq(documentRevisions.id, job.revisionId)))[0], "Revision");
       const reviewer = provider();
-      const result = await factSourcePipeline({ markdown: revision.contentSnapshot, type: job.type as "FACT_CHECK" | "SOURCE" | "FULL", groups: job.resourceSnapshot, quotes: job.quoteSnapshot }, { provider: reviewer, fetcher: suppliedFetcher ?? (reviewer.name === "mock" ? mockReviewFetcher : createResourceFetcher()), search: suppliedSearch ?? createSearchProvider(), stage: async (stage) => { await db.update(reviewRuns).set({ stage }).where(eq(reviewRuns.id, id)); } });
+      const stage = async (stage: string) => { await db.update(reviewRuns).set({ stage }).where(eq(reviewRuns.id, id)); };
+      const result = ["FACT_CHECK", "SOURCE", "FULL"].includes(job.type) ? await factSourcePipeline({ markdown: revision.contentSnapshot, type: job.type as "FACT_CHECK" | "SOURCE" | "FULL", groups: job.resourceSnapshot, quotes: job.quoteSnapshot }, { provider: reviewer, fetcher: suppliedFetcher ?? (reviewer.name === "mock" ? mockReviewFetcher : createResourceFetcher()), search: suppliedSearch ?? createSearchProvider(), stage }) : { findings: [], notices: [], sourceChecks: [] };
+      let coverage: CoverageResult[] = [];
+      if (["LOGIC", "COVERAGE", "FULL"].includes(job.type)) {
+        const learning = await learningReview(revision.contentSnapshot, job.objectives, job.type as "LOGIC" | "COVERAGE" | "FULL", reviewer, stage);
+        result.findings.push(...learning.findings); result.notices.push(...learning.notices); coverage = learning.coverage;
+      }
       await db.transaction(async (tx) => {
         for (const finding of result.findings) {
           const findingId = randomUUID(); const { evidence, ...fields } = finding;
           await tx.insert(reviewFindings).values({ id: findingId, reviewRunId: id, ...fields });
           for (const item of evidence) await tx.insert(findingEvidence).values({ id: randomUUID(), findingId, url: item.url, title: item.title, excerpt: item.text.slice(0, 1500) || null, sourceType: item.sourceType, accessedAt: new Date(item.accessedAt) });
         }
-        await tx.update(reviewRuns).set({ status: "COMPLETED", stage: "COMPLETED", sourceChecks: result.sourceChecks, notices: result.notices, completedAt: new Date() }).where(eq(reviewRuns.id, id));
+        await tx.update(reviewRuns).set({ status: "COMPLETED", stage: "COMPLETED", sourceChecks: result.sourceChecks, coverage, notices: result.notices, completedAt: new Date() }).where(eq(reviewRuns.id, id));
       });
     } catch (error) {
       await db.update(reviewRuns).set({ status: "FAILED", stage: "FAILED", error: error instanceof ReviewProviderError ? error.message : "レビューが失敗しました。接続設定・Documentの長さ（主張20件以内）を確認して再実行してください。", completedAt: new Date() }).where(eq(reviewRuns.id, id));
@@ -57,7 +64,6 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
     async recoverInterrupted() { await db.update(reviewRuns).set({ status: "FAILED", stage: "INTERRUPTED", error: "アプリの停止により中断しました。再実行してください。", completedAt: new Date() }).where(inArray(reviewRuns.status, ["QUEUED", "RUNNING"])); },
     async start(documentId: string, workspaceId: string, input: z.infer<typeof reviewStart>, autoStart = true) {
       const data = reviewStart.parse(input);
-      if (["LOGIC", "COVERAGE"].includes(data.type)) throw new DomainError("Logic / Coverageは次の実装で利用できます。");
       const reviewer = provider();
       await documentService(db, storage).recover();
       const job = await serializeContent(async () => {
@@ -68,9 +74,10 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         if (revision.contentSnapshot.length > 60000) throw new DomainError("Reviewは60,000文字以内に対応しています。");
         const links = await db.select().from(documentNodes).where(eq(documentNodes.documentId, documentId));
         const nodes = links.length ? await db.select().from(learningNodes).where(inArray(learningNodes.id, links.map((link) => link.nodeId))) : [];
+        if (nodes.reduce((total, node) => total + node.learningObjectives.length, 0) > 100) throw new DomainError("関連NodeのLearning Objectivesは合計100件以内にしてください。");
         const rs = resourceService(db); const groups = [await rs.list(workspaceId, { kind: "document", id: documentId }), (await Promise.all(nodes.map((node) => rs.list(workspaceId, { kind: "node", id: node.id })))).flat(), await rs.list(workspaceId)];
         const quoteSnapshot = (await db.select().from(quotes).where(eq(quotes.documentId, documentId))).filter((q) => revision.contentSnapshot.includes(quoteMarkdown(q.text, q.sourceUrl, q.sourceTitle ?? undefined).trim())).map(({ id, text, sourceUrl, sourceTitle }) => ({ id, text, sourceUrl, sourceTitle }));
-        const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
+        const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text, nodeTitle: node.title }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
         return job;
       });
       if (autoStart) { reviewQueue = reviewQueue.then(() => execute(job.id)).catch(() => {}); }
@@ -82,7 +89,9 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
       const revision = requireFound((await db.select().from(documentRevisions).where(eq(documentRevisions.id, job.revisionId)))[0], "Revision");
       const findings = await db.select().from(reviewFindings).where(eq(reviewFindings.reviewRunId, id));
       const evidence = findings.length ? await db.select().from(findingEvidence).where(inArray(findingEvidence.findingId, findings.map((f) => f.id))) : [];
-      return { run: job, revision, stale: reviewIsStale(job.revisionId, current.document.currentRevisionId, revision.contentHash, current.contentHash), findings: findings.map((finding) => ({ ...finding, evidence: evidence.filter((item) => item.findingId === finding.id) })) };
+      const currentNodes = current.nodeIds.length ? await db.select().from(learningNodes).where(inArray(learningNodes.id, current.nodeIds)) : [];
+      const changedObjectives = ["COVERAGE", "FULL"].includes(job.type) && objectivesChanged(job.objectives, currentNodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text }))));
+      return { run: job, revision, objectivesChanged: changedObjectives, stale: changedObjectives || reviewIsStale(job.revisionId, current.document.currentRevisionId, revision.contentHash, current.contentHash), findings: findings.map((finding) => ({ ...finding, evidence: evidence.filter((item) => item.findingId === finding.id) })) };
     },
   };
 }

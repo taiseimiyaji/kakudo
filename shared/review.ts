@@ -6,7 +6,7 @@ export type SourceCheck = { quoteId: string; status: "VERIFIED" | "PARTIAL_MATCH
 export type QuoteSnapshot = { id: string; text: string; sourceUrl: string; sourceTitle: string | null };
 export type SourceSnapshot = { id: string; url: string; title: string; type: string };
 export type ReviewDetail = {
-  run: { id: string; documentId: string; revisionId: string; type: typeof reviewTypes[number]; status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED"; provider: string; stage: string; error: string | null; createdAt: string; sourceChecks: SourceCheck[]; notices: string[]; coverage: { objectiveId: string; status: string; explanation: string; guidingQuestion: string | null }[]; objectives: { id: string; text: string }[] };
+  run: { id: string; documentId: string; revisionId: string; type: typeof reviewTypes[number]; status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED"; provider: string; stage: string; error: string | null; createdAt: string; sourceChecks: SourceCheck[]; notices: string[]; coverage: { objectiveId: string; status: string; explanation: string; guidingQuestion: string | null }[]; objectives: { id: string; text: string; nodeTitle?: string }[] };
   findings: { id: string; category: string; severity: string; status: "OPEN" | "RESOLVED" | "DISMISSED"; targetText: string | null; startOffset: number | null; endOffset: number | null; explanation: string; guidingQuestion: string | null; verdict: string | null; evidence: { id: string; url: string; title: string; excerpt: string | null; sourceType: string; accessedAt: string }[] }[];
-  revision: { id: string; contentHash: string; contentSnapshot: string }; stale: boolean;
+  revision: { id: string; contentHash: string; contentSnapshot: string }; stale: boolean; objectivesChanged: boolean;
 };

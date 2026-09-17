@@ -12,8 +12,8 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 7（Review UI）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
+現在はPhase 8（Coverage / Logic）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewに対応。RouterはTanStack Routerです。
 
 ## 開発
 
@@ -108,7 +108,7 @@ workspace-data/      Markdown正本の保存領域
 dist/                build生成物（git管理外）
 ```
 
-ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageは導入済み、ReviewProviderはIssue #6で導入します。
+ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageは導入済み、ReviewProviderも導入済みです。
 依存の正確なversionとnpm lockfileを保存。Drizzle Kitの推移依存esbuildは修正済み0.25系へoverrideしています。
 
 開発配信の確認には `E2E_DEV=1 npm run test:browser` を使用できます。ViteのAPI proxyは `/api` と `/api/` 配下だけに適用します。
@@ -123,7 +123,7 @@ Node DetailsのDocumentsから空のノートを作成し、自分で本文を�
 
 通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開き、Documentの資料として登録します。
 
-AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。Provider基盤は実装済み、Review API / UIは次のIssueで接続します。
+AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。Review API / UIも実装済みです。
 
 ## 資料取得
 
@@ -151,10 +151,14 @@ Editorで保存してからReviewを起動します。Revision・Objectives・�
 
 `SEARCH_PROVIDER` は既定で `REVIEW_PROVIDER` に追従します（codex / openai / mock / none）。検索はReviewerとは別のURL探索用呼び出しで、本文や回答を返しません。Codex検索時だけweb searchとその実行hostを有効にし、shell / MCP / plugin等は無効のままです。検索結果のURLは共通のSSRF対策付きFetcherで再取得します。OpenAI検索はweb searchのcitation annotationだけを採用します。検索不能・無効はUNAVAILABLEとして明示します。
 
-Mockモードでは明示したRFC fixtureと空の検索結果を使い、画面にMockと表示します。実資料取得・実AI判定と混同しないでください。`npx tsx scripts/review-pipeline-smoke.ts` で実接続を確認できます。検証用Documentは終了時に削除します。Logic / CoverageはIssue #9で接続します。
+Mockモードでは明示したRFC fixtureと空の検索結果を使い、画面にMockと表示します。実資料取得・実AI判定と混同しないでください。`npx tsx scripts/review-pipeline-smoke.ts` で実接続を確認できます。検証用Documentは終了時に削除します。Logic / Coverageも利用できます。
 
 ## Reviewの判断と履歴
 
 Findingの「本文で確認」で対象箇所を表示できます。Revisionまたは編集中の本文が変わるとOutdated Reviewとなり、古い位置のハイライトを解除します。保存後にReview Againで再確認します。Resolve / Dismiss / Reopenは指摘の状態だけを更新し、本文を変更しません。Document内のReview履歴とWorkspaceのReviews一覧から過去結果を開けます。
 
 MapのDocs / Sourcesは関連データの件数です。SourcesはNodeと関連Documentの資料を重複除外。Review件数は各Documentの直近の完了レビューだけの未解決件数を集計し、Revisionが古い場合はOutdated件数も表示します。
+
+## Coverage / Logic
+
+Check Coverageは関連Nodeに人間が設定したObjectivesを評価し、Covered / Partially Covered / Not Coveredと問いを表示します。未設定なら評価を行わず、目標を生成しません。複数Nodeの目標を開始時に固定し、目標を編集・削除すると過去結果はOutdatedになります。Check Logicは論理の飛躍や説明不足を指摘します。どちらも本文を変更しません。実Providerの確認は `npx tsx scripts/learning-review-smoke.ts`。
