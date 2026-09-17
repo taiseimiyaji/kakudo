@@ -12,7 +12,7 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 6a（Review Provider）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+現在はPhase 6b（Fact / Source Check）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
 Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
@@ -142,3 +142,13 @@ OpenAI APIは `REVIEW_PROVIDER=openai` と `OPENAI_MODEL` / `OPENAI_API_KEY` で
 `npx tsx scripts/review-smoke.ts` は設定された実Providerへ、仕様にあるOAuthの誤りとRFCの短い根拠を送信して検証します。通常の `npm run check` は外部LLMへ接続しません。Claim抽出からコード・引用・Front Matterを除外し、原文offsetと出力schemaを検証します。Review対象は60,000文字以内です。
 
 参考: [公式Codex SDK](https://learn.chatgpt.com/docs/codex-sdk)、[Codex設定](https://learn.chatgpt.com/docs/config-file/config-reference)、[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)。
+
+## Review / Check Facts / Check Sources
+
+Editorで保存してからReviewを起動します。Revision・Objectives・引用・資料関連を開始時に固定し、QUEUED→RUNNING→COMPLETED / FAILEDを記録します。Review中に編集しても対象は変わりません。アプリ再起動で中断したReviewはFAILEDとして再実行できます。PoCは1つのNodeプロセスがDB・保存先を所有する前提です。
+
+根拠探索はDocument→Node→Workspace→Web Search。各範囲の先頭12資料（範囲内は一次資料優先）、検索3件までで、探索範囲や取得不能を結果へ表示します。長い資料は原文から語句に関連する範囲を抽出し、生成した抜粋は使いません。1回のReviewは60,000文字・主張20件以内。学習内容の長い場合はDocumentを分けてください。
+
+`SEARCH_PROVIDER` は既定で `REVIEW_PROVIDER` に追従します（codex / openai / mock / none）。検索はReviewerとは別のURL探索用呼び出しで、本文や回答を返しません。Codex検索時だけweb searchとその実行hostを有効にし、shell / MCP / plugin等は無効のままです。検索結果のURLは共通のSSRF対策付きFetcherで再取得します。OpenAI検索はweb searchのcitation annotationだけを採用します。検索不能・無効はUNAVAILABLEとして明示します。
+
+Mockモードでは明示したRFC fixtureと空の検索結果を使い、画面にMockと表示します。実資料取得・実AI判定と混同しないでください。`npx tsx scripts/review-pipeline-smoke.ts` で実接続を確認できます。検証用Documentは終了時に削除します。Logic / CoverageはIssue #9で接続します。

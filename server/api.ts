@@ -1,3 +1,6 @@
+import { reviewRoutes } from "./review-routes";
+import type { ReviewProvider } from "../modules/review/contracts";
+import type { SearchProvider } from "../modules/review/evidence";
 import { resourceRoutes } from "./resource-routes";
 import type { ResourceFetcher } from "../modules/resource/fetcher";
 import { documentRoutes } from "./document-routes";
@@ -13,6 +16,9 @@ import { getDatabase } from "../db/client";
 import { findWorkspace } from "../modules/workspace/service";
 
 export interface ApiServices {
+  reviewProvider?: ReviewProvider;
+  reviewFetcher?: ResourceFetcher;
+  searchProvider?: SearchProvider;
   resourceFetcher?: ResourceFetcher;
   database?: () => Database;
   storage?: () => ContentStorage;
@@ -47,6 +53,7 @@ export function createApi(services: ApiServices = defaultServices) {
   api.route("/", roadmapRoutes(services.database));
   api.route("/", documentRoutes(services.database, services.storage));
   api.route("/", resourceRoutes(services.database, services.resourceFetcher));
+  api.route("/", reviewRoutes(services));
   api.notFound((c) => c.json({ error: "API route not found" }, 404));
   api.onError((error, c) => {
     if (error instanceof ZodError) return c.json({ error: "Invalid input", issues: error.issues.map((i) => ({ path: i.path, message: i.message })) }, 400);

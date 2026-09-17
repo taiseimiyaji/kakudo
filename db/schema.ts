@@ -1,6 +1,6 @@
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { check, doublePrecision, foreignKey, index, jsonb, pgEnum, unique, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { check, integer, doublePrecision, foreignKey, index, jsonb, pgEnum, unique, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 // Add each domain's tables with its implementation phase and a migration.
 export const workspaces = pgTable("workspaces", {
@@ -78,3 +78,29 @@ export const documentRevisions = pgTable("document_revisions", {
   contentHash: text("content_hash").notNull(), contentSnapshot: text("content_snapshot").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("revisions_document_idx").on(t.documentId), unique("revisions_document_id_unique").on(t.documentId, t.id)]);
+
+export const reviewType = pgEnum("review_type", ["FACT_CHECK", "LOGIC", "COVERAGE", "SOURCE", "FULL"]);
+export const reviewStatus = pgEnum("review_status", ["QUEUED", "RUNNING", "COMPLETED", "FAILED"]);
+export const findingCategory = pgEnum("finding_category", ["FACT", "SOURCE", "LOGIC", "COVERAGE", "FRESHNESS", "CLARITY"]);
+export const findingSeverity = pgEnum("finding_severity", ["INFO", "WARNING", "IMPORTANT"]);
+export const findingStatus = pgEnum("finding_status", ["OPEN", "RESOLVED", "DISMISSED"]);
+export const evidenceSourceType = pgEnum("evidence_source_type", ["USER_RESOURCE", "OFFICIAL", "PRIMARY", "SECONDARY"]);
+export const reviewRuns = pgTable("review_runs", {
+  id: text("id").primaryKey(), documentId: text("document_id").notNull().references((): AnyPgColumn => documents.id, { onDelete: "cascade" }), revisionId: text("revision_id").notNull(),
+  type: reviewType("type").notNull(), status: reviewStatus("status").notNull().default("QUEUED"), provider: text("provider").notNull(), stage: text("stage").notNull().default("QUEUED"), error: text("error"),
+  objectives: jsonb("objectives").$type<import("../modules/review/contracts").LearningObjective[]>().notNull().default([]),
+  quoteSnapshot: jsonb("quote_snapshot").$type<import("../shared/review").QuoteSnapshot[]>().notNull().default([]),
+  resourceSnapshot: jsonb("resource_snapshot").$type<import("../shared/review").SourceSnapshot[][]>().notNull().default([]),
+  sourceChecks: jsonb("source_checks").$type<import("../shared/review").SourceCheck[]>().notNull().default([]),
+  coverage: jsonb("coverage").$type<import("../modules/review/contracts").CoverageResult[]>().notNull().default([]), notices: jsonb("notices").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), completedAt: timestamp("completed_at", { withTimezone: true }),
+}, (t) => [foreignKey({ name: "review_revision_document_fk", columns: [t.documentId, t.revisionId], foreignColumns: [documentRevisions.documentId, documentRevisions.id] }).onDelete("cascade"), index("reviews_document_idx").on(t.documentId)]);
+export const reviewFindings = pgTable("review_findings", {
+  id: text("id").primaryKey(), reviewRunId: text("review_run_id").notNull().references(() => reviewRuns.id, { onDelete: "cascade" }),
+  category: findingCategory("category").notNull(), severity: findingSeverity("severity").notNull(), status: findingStatus("status").notNull().default("OPEN"),
+  targetText: text("target_text"), startOffset: integer("start_offset"), endOffset: integer("end_offset"), explanation: text("explanation").notNull(), guidingQuestion: text("guiding_question"), verdict: text("verdict"),
+}, (t) => [index("findings_run_idx").on(t.reviewRunId)]);
+export const findingEvidence = pgTable("finding_evidence", {
+  id: text("id").primaryKey(), findingId: text("finding_id").notNull().references(() => reviewFindings.id, { onDelete: "cascade" }), url: text("url").notNull(), title: text("title").notNull(), excerpt: text("excerpt"),
+  sourceType: evidenceSourceType("source_type").notNull(), accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull(),
+}, (t) => [index("evidence_finding_idx").on(t.findingId)]);

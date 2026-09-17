@@ -23,3 +23,11 @@ it("invokes OpenAI Responses with strict structured output, no tools, and storag
   mocks.response.mockResolvedValue({ status: "incomplete", output_text: '{"findings":[]}' });
   await expect(openaiTransport({ apiKey: "test-key", model: "test-model" })('Review', {}, schema)).rejects.toThrow();
 });
+it("enables only the separate search transport and requires an actual web-search event", async () => {
+  mocks.run.mockResolvedValue({ items: [{ type: "web_search", query: "source" }], finalResponse: '{"findings":[]}' });
+  expect(await codexTransport({ searchOnly: true })("Find URLs", {}, schema)).toEqual({ findings: [] });
+  expect(mocks.thread.mock.lastCall![0].webSearchMode).toBe("live");
+  expect(mocks.codex.mock.lastCall![0].config.features).toMatchObject({ shell_tool: false, plugins: false, code_mode_host: true });
+  mocks.run.mockResolvedValue({ items: [], finalResponse: '{"findings":[]}' });
+  await expect(codexTransport({ searchOnly: true })("Find URLs", {}, schema)).rejects.toThrow();
+});
