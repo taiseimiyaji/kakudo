@@ -1,3 +1,4 @@
+import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
@@ -46,7 +47,7 @@ export default function RoadmapPage() {
         <form onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title }); form.reset(); await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } }); }); }}>
           <label>新しいRoadmap<input name="title" required maxLength={200} /></label><button disabled={busy}>Roadmapを作成</button>
         </form>
-        <p className="muted">Documents / Sources / Reviewsは後続の実装です。</p>
+        <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>Resources</Link><p className="muted">Reviewsは準備中です。</p>
       </aside>
       <section className="map-center">
         {detail && detail.roadmap.id === roadmapId ? <>
@@ -67,7 +68,7 @@ export default function RoadmapPage() {
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={`${node.id}:${loadedVersion}`} node={node} busy={busy}
         onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
