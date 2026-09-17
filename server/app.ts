@@ -11,6 +11,6 @@ export function createApp(services?: ApiServices) {
   app.use("/assets/*", serveStatic({ root: "./dist/client" }));
   // Serve the entry point for the existing pages, including direct navigation.
   app.get("/", serveStatic({ path: "./dist/client/index.html" }));
-  app.get("/workspaces/default", serveStatic({ path: "./dist/client/index.html" }));
+  app.get("/workspaces/*", serveStatic({ path: "./dist/client/index.html" }));
   return app;
 }

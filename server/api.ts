@@ -1,9 +1,15 @@
+import { ZodError } from "zod";
+import { HTTPException } from "hono/http-exception";
+import { DomainError } from "../lib/errors";
+import type { Database } from "../db/client";
+import { roadmapRoutes } from "./roadmap-routes";
 import { Hono } from "hono";
 import { sql } from "drizzle-orm";
 import { getDatabase } from "../db/client";
 import { findWorkspace } from "../modules/workspace/service";
 
 export interface ApiServices {
+  database?: () => Database;
   checkDatabase(): Promise<void>;
   findWorkspace(id: string): ReturnType<typeof findWorkspace>;
 }
@@ -32,7 +38,14 @@ export function createApi(services: ApiServices = defaultServices) {
       return c.json({ error: "Workspace unavailable" }, 503);
     }
   });
+  api.route("/", roadmapRoutes(services.database));
   api.notFound((c) => c.json({ error: "API route not found" }, 404));
-  api.onError((_error, c) => c.json({ error: "Internal server error" }, 500));
+  api.onError((error, c) => {
+    if (error instanceof ZodError) return c.json({ error: "Invalid input", issues: error.issues.map((i) => ({ path: i.path, message: i.message })) }, 400);
+    if (error instanceof DomainError) return c.json({ error: error.message }, error.status);
+    if (error instanceof SyntaxError) return c.json({ error: "Invalid JSON" }, 400);
+    if (error instanceof HTTPException) return error.getResponse();
+    return c.json({ error: "Internal server error" }, 500);
+  });
   return api;
 }

@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 43170,
       strictPort: true,
-      proxy: { "/api": `http://127.0.0.1:${process.env.PORT ?? env.PORT ?? "43171"}` },
+      proxy: { "^/api(?:/|$)": `http://127.0.0.1:${process.env.PORT ?? env.PORT ?? "43171"}` },
     },
   };
 });

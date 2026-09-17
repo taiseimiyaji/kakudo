@@ -12,8 +12,8 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 1。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Knowledge Map / Editor / Resources / AI Reviewは後続Issueの対象です。Router libraryは未選定です。
+現在はPhase 2（Knowledge Map）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。Editor / Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
 
@@ -65,7 +65,7 @@ Workersへのdeployは不要です。通常サーバーでも同じNodeアプリ
 - 接続設定: `.env`（git管理外）、雛形 `.env.example`
 
 `npm run db:setup` はmigrationとseedを順番に実行。再実行してもWorkspaceを重複作成せず、既存の名前を上書きしません。
-現在のschemaはworkspacesのみ。学習ノート本文は生成しません。
+現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges。学習ノート本文は生成しません。
 
 ```sh
 npm run db:generate
@@ -110,3 +110,5 @@ dist/                build生成物（git管理外）
 
 ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageとReviewProviderは対応Issueで導入します。
 依存の正確なversionとnpm lockfileを保存。Drizzle Kitの推移依存esbuildは修正済み0.25系へoverrideしています。
+
+開発配信の確認には `E2E_DEV=1 npm run test:browser` を使用できます。ViteのAPI proxyは `/api` と `/api/` 配下だけに適用します。

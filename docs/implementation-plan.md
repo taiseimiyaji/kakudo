@@ -1,7 +1,7 @@
 # Kakudo PoC 実装計画
 
 Source of Truth: [PoC仕様（全50節）](poc-spec.md)。確定した技術選定は [architecture.md](architecture.md)。
-フロントのRouterは未選定のため、#1の画面構成実装前にユーザーと協議する。
+フロントのRouterは2026-09-17にユーザー指定でTanStack Routerに確定。
 
 ## Phase 1：今回の初期セットアップ
 
@@ -47,8 +47,8 @@ Knowledge Map → Markdown → Paste Policy → Sources → Revision → Fact Ch
 
 ## Scopeと引き継ぎ
 
-今回はPhase 1とIssue作成まで。Map / Editor / Reviewは未実装です。
-実装を始める次のIssueは [#1 Knowledge Map](https://github.com/taiseimiyaji/kakudo/issues/1) です。
+Phase 2のKnowledge Mapまで実装済み。Editor / Reviewは後続Issueです。
+次のIssueは [#2 Markdown Documents](https://github.com/taiseimiyaji/kakudo/issues/2) です。
 各ドメインのtableは実装Issueでmigrationとともに追加します。
 Source Verificationは#7、MapのDocs / Sources / Review件数は#8に含めています。
 学習ノート本文はseedで生成しません。仕様§44の人間が指定したMap / Objectives / Resourceだけを該当Phaseでseedへ追加します。
