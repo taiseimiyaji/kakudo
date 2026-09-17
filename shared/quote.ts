@@ -9,5 +9,5 @@ export const quoteInput = z.object({
 }).strict().refine((v) => v.from <= v.to && v.to <= v.content.length, { message: "Invalid quote selection" });
 export function quoteMarkdown(text: string, url: string, title?: string) {
   const label = (title || url).replace(/[\r\n]/g, " ").replace(/[\\[\]]/g, "\\$&");
-  return `\n\n${text.split(/\r?\n/).map((line) => `> ${line}`).join("\n")}\n>\n> Source: [${label}](<${url}>)\n\n`;
+  return `\n\n${text.split(/\r\n|\r|\n/).map((line) => `> ${line}`).join("\n")}\n>\n> Source: [${label}](<${url}>)\n\n`;
 }

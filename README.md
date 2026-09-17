@@ -5,19 +5,23 @@
 学習ロードマップ、Markdownノート、参考資料・引用、AIレビューをつなぐKnowledge Workspace。
 Markdownを書くのは人間。AIは問題点・根拠・考えるための問いを提示します。
 
-## 仕様と現在の実装
+## PoCでできること
 
-- [PoC仕様](docs/poc-spec.md) / [当初の提示仕様](docs/poc-spec-original.md)
-- [確定した技術選定：Hono + Node.js / React SPA](docs/architecture.md)
-- [実装順序とGitHub Issues](docs/implementation-plan.md)
-- [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
+- Knowledge MapのRoadmap / Node / Edge編集、位置保存、学習状態・人間が定義するObjectives。
+- Nodeと独立したDocument、CodeMirror 6によるMarkdown編集、Preview、実 `.md` ファイル保存。
+- 通常Pasteは出典必須のQuote、URLのみはResource、Code Block内は直接Paste。
+- Node / Document / Workspaceの資料管理、SSRF対策付き取得、引用元の照合。
+- 保存時のSHA-256 / Revision、同一内容の重複抑制、外部編集との競合検出。
+- Review / Check Facts / Check Sources / Check Logic / Check Coverage、根拠URL・問い・対象箇所の表示。
+- Resolve / Dismiss / Reopen、履歴、本文やObjectives変更後のOutdated Review。
 
-現在はPhase 8（Coverage / Logic）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewに対応。RouterはTanStack Routerです。
+AIの本文生成・補完・Rewrite・修正文・自動適用機能はありません。
 
-## 開発
+[PoC仕様](docs/poc-spec.md) / [技術選定](docs/architecture.md) / [実装計画](docs/implementation-plan.md) / [受け入れ検証](docs/verification/issue-10.md) / [学習体験の評価手順](docs/learning-evaluation.md)。当初仕様は[別途保存](docs/poc-spec-original.md)しています。
 
-Node.js 24、npm、Docker Composeを使用します。LLM APIキーは不要です。
+## 起動
+
+Node.js 24、npm、Docker Composeを使用します。
 
 ```sh
 cp .env.example .env
@@ -27,18 +31,15 @@ npm run db:setup
 npm run dev
 ```
 
-http://127.0.0.1:43170 から「Workspaceを開く」を選択してください。
-`npm run dev` はVite（43170）とHono（標準43171）を起動します。Ctrl+Cで両方停止します。
-Viteは `/api` をHonoへ転送するため、ブラウザ側は相対URLでアクセスします。
+http://127.0.0.1:43170 からWorkspaceを開きます。開発時はViteが43170、Honoが43171。Ctrl+Cで両方停止します。RouterはTanStack Routerです。
 
-| API | 内容 |
-| --- | --- |
-| GET /api/health | DB接続を確認。200または503 |
-| GET /api/workspaces/:id | WorkspaceとISO形式のcreatedAt。未登録404、接続不能503 |
+Backend Engineeringの8 Node、OAuthの4 Objectives、RFC 6749 / RFC 7636をseedします。学習ノートは作りません。Seedは繰り返し実行でき、既存のMap編集を上書きしません。
 
-## 本番・ローカル常用
+初期Reviewerは **ローカルCodex SDK** です。ローカルで `codex login` を済ませてください。APIキーは不要ですが、実レビューにはCodexの認証とネットワーク接続が必要です。外部LLMなしで試す場合は `.env` に `REVIEW_PROVIDER=mock` を設定します。
 
-同じ手順をPCでも通常サーバーでも使用できます。
+## 本番ビルド・Cloudflare Tunnel・通常サーバー
+
+DBと `.env` を用意し、同じNodeアプリをPCでもサーバーでも起動できます。
 
 ```sh
 npm ci
@@ -47,33 +48,53 @@ npm run build
 npm start
 ```
 
-標準URLは http://127.0.0.1:43171 。Honoが `dist/client` のSPAとAPIを同じoriginから配信します。
-`HOST`（標準127.0.0.1）/ `PORT`（標準43171）でlisten先を指定できます。
-例えば別ポートで起動する場合は `PORT=8080 npm start`。
-PostgreSQLの接続先は `DATABASE_URL`、Markdown保存先は `CONTENT_STORAGE_ROOT` で設定します。
+Honoが http://127.0.0.1:43171 でSPAとREST APIを同じoriginから配信します。`HOST` / `PORT` で変更可能。Cloudflare TunnelのoriginもこのHTTPサーバーを指定します。**Cloudflare Workersは不要**です。通常サーバーでは入口のproxyから転送します。
 
-Cloudflare Tunnelを使う場合は、この本番HTTPサーバーをTunnelのoriginに指定します（標準では `http://127.0.0.1:43171`）。
-Workersへのdeployは不要です。通常サーバーでも同じNodeアプリを起動し、入口のproxy等から転送します。
-アプリ内認証はPoC外のため、外部からの利用は入口側のアクセス制御と組み合わせます。今回Tunnelの公開設定は行っていません。
+アプリ内認証はPoCの対象外です。外部からの利用は入口側のアクセス制御と組み合わせます。Tunnelの公開設定・実サーバーへのdeployは未実施です。
 
-## データ
+## データと保存
 
-- 開発PostgreSQL: `127.0.0.1:54329/kakudo`
-- DB永続データ: `.local/postgres/`（git管理外のbind mount）
-- Markdown: `workspace-data/default/docs/`（git管理外）
-- 調査資料: `workspace-data/default/research/`
-- 接続設定: `.env`（git管理外）、雛形 `.env.example`
+| 設定・保存先 | 既定値 |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL `127.0.0.1:54329/kakudo` |
+| PostgreSQL永続データ | `.local/postgres/` |
+| `CONTENT_STORAGE_ROOT` | `./workspace-data` |
+| Markdown正本 | `workspace-data/default/docs/` |
+| 接続設定 | `.env`（git管理外） |
 
-`npm run db:setup` はmigrationとseedを順番に実行。再実行してもWorkspaceを重複作成せず、既存の名前を上書きしません。
-現在のschemaはworkspaces / roadmaps / learning_nodes / roadmap_edges / documents / document_nodes / quotesと保存回復用journal。学習ノート本文は生成しません。
+Node Detailsから空のDocumentを作り、自分で本文を書いて保存します。Front Matterを含むMarkdownを保持し、Node削除後もDocumentはDocuments一覧に残ります。PreviewはRaw HTML・画像自動取得を無効にしています。
 
-```sh
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-```
+ContentStorage経由のatomic renameとDBの補償journalで保存し、中断した保存は次のアクセス時に回復します。前回Hashを照合して外部編集の上書きを防ぎます。**1つのNode.jsプロセスがDB・保存先を所有する構成**です。複数レプリカによる同時書込みは対象外です。
 
-`docker compose down` で停止しても `.local/postgres/` は残ります。サーバーに置いたMarkdownはそのサーバーのファイルであり、PCへの同期は別機能です。
+作成・保存・引用追加時にRevisionを記録。同じ本文なら直前のRevisionを再利用し、A→B→Aは3つのRevisionです。タイトルのみの変更では増えません。DBとMarkdownの両方を一緒にバックアップしてください。サーバーのファイルをPCへ同期する機能は含みません。
+
+`docker compose down` でも `.local/postgres/` は残ります。Schema変更時は `npm run db:generate`、適用は `npm run db:migrate`、Seedは `npm run db:seed`。
+
+## AI Reviewerの設定
+
+| 接続先 | `.env` |
+| --- | --- |
+| Codex SDK（初期設定） | `REVIEW_PROVIDER=codex`。任意で `CODEX_MODEL` / `CODEX_PATH` |
+| OpenAI API | `REVIEW_PROVIDER=openai`、`OPENAI_MODEL`、`OPENAI_API_KEY` |
+| オフラインMock | `REVIEW_PROVIDER=mock` |
+
+共通timeoutは `REVIEW_TIMEOUT_MS=120000`。キーは `.env` に置き、ブラウザへ公開される `VITE_` 変数には入れません。
+
+Codex Reviewerは一時作業ディレクトリ、read-only sandboxで動き、shell / MCP / plugin / hook / web searchを無効にします。本文の保存先を渡しません。認証・標準ログ保存はローカルCodex設定に従います。OpenAIはResponses APIのstrict JSON schema、toolsなし、store=falseです。両Adapterとも置換文などのフィールドを出力Schemaから除外し、未知フィールドを拒否します。自由記述の説明が方針に従うことまでSchemaのみで保証するものではありません。
+
+保存後にReviewを起動すると、Revision・Objectives・引用・資料関連を固定します。進行中の編集は対象を変えません。再起動で中断したReviewはFAILEDとなり、再実行できます。本文・Revision・関連Objectivesが変わるとOutdatedとなり、古い本文位置はハイライトしません。Resolve / Dismiss / Reopenは指摘状態だけを変更します。
+
+Coverageは人間のObjectivesだけをCovered / Partially Covered / Not Coveredで評価します。未設定なら評価しません。Logicは論理の飛躍や説明不足を指摘し、問いを提示します。Mockは保守的なデモ判定で、画面に明示します。
+
+### 根拠の探索と取得
+
+Document → Node → Workspace → Web Searchの順序です。登録資料は各範囲12件まで（範囲内は一次資料優先）、検索は3件まで。探索制限・取得不能を結果に表示します。1回のReviewは60,000文字・主張20件以内です。
+
+`SEARCH_PROVIDER` は既定でReviewerに追従し、codex / openai / mock / noneを指定できます。検索はURL探索用の別呼び出しです。Codex検索時だけweb searchと実行hostを有効にし、shell等は無効のままです。OpenAI検索はcitation annotationのURLだけを採用します。どちらもSSRF対策付きFetcherで再取得します。
+
+FetcherはHTTP(S)標準ポート、公開IPのHTML / plain text / Markdownに対応。DNS全応答検証・接続IP固定、redirect再検証（5回）、10秒timeout、2 MB上限、HTML sanitizeを行います。PDF・圧縮応答は未対応。取得不能はUNAVAILABLEであり、誤りとは判定しません。登録だけでは通信しません。引用照合は、引用Dialogで登録され、対象Revisionに引用表記が残っているものが対象です。
+
+MapのDocs / Sourcesは関連件数（資料は重複除外）。Review件数はDocumentごとの最新完了Reviewの未解決件数で、過去すべての累積ではありません。
 
 ## 検証
 
@@ -84,81 +105,22 @@ npx playwright install chromium
 npm run check
 ```
 
-`check` はlint / typecheck / unit / integration / production build / browserを順番に実行します。
-ブラウザテストはbuild済みHonoアプリをポート43172で起動します。
-個別コマンドは `npm run lint`、`npm run typecheck`、`npm run test:unit`、`npm run test:integration`、`npm run build`、`npm run test:browser`。
+lint → typecheck → unit → 実PostgreSQL integration → build → Chromiumの順で実行します。Integrationは開発DBとは別の `TEST_DATABASE_URL`（DB名末尾 `_test` 必須）を使います。ComposeのテストDBは54330、tmpfs上に分離します。
 
-結合テストは `TEST_DATABASE_URL` の明示指定が必須。DB名が `_test` で終わり、開発DBと異なることを検証します。
-ComposeのテストDBは `127.0.0.1:54330/kakudo_test` のtmpfs上に分離し、専用DB内のdefault Workspaceを作成・削除します。
-GitHub Actionsでも独立した2つのPostgreSQL serviceで同じ検証を実行します。
+Browserは本番ビルドを43172で起動し、開発DBに一意なテストデータを作成・削除します。実レビューが進行していない状態で実行してください。Browserを含む通常テストは明示的なMockを使い、外部LLM不要です。GitHub Actionsでも2つのPostgreSQL serviceで検証します。
 
-## 構成
+実Providerの確認は設定後に明示して実行します。Codex SDKは実接続済み、OpenAI APIは認証未設定のため契約テストのみです。
 
-```text
-client/              React SPA / HTML / CSS
-server/              Hono REST API / Node.js起動 / SPA配信
-shared/              API schema / 型（ブラウザへ公開可能なもののみ）
-components/          各機能のUI
-modules/             Domain Service / Workspace Seeder
-db/                  Drizzle schema / client / migrations
-scripts/             migrate / seed CLI
-tests/               unit / integration / e2e
-docs/                仕様 / 計画 / 技術選定 / 検証記録 / Issue本文
-workspace-data/      Markdown正本の保存領域
-dist/                build生成物（git管理外）
+```sh
+npx tsx scripts/review-smoke.ts
+npx tsx scripts/review-pipeline-smoke.ts
+npx tsx scripts/learning-review-smoke.ts
 ```
 
-ComponentへDomain Logicを持ち込まずmodulesに分離します。ContentStorageは導入済み、ReviewProviderも導入済みです。
-依存の正確なversionとnpm lockfileを保存。Drizzle Kitの推移依存esbuildは修正済み0.25系へoverrideしています。
+最初と最後は仕様中の例を送信します。Pipeline smokeは検証用Documentを作成し、終了時に削除します。MockモードのRFC根拠はfixtureで、実取得と区別されます。
 
-開発配信の確認には `E2E_DEV=1 npm run test:browser` を使用できます。ViteのAPI proxyは `/api` と `/api/` 配下だけに適用します。
+## 構成・範囲
 
-## Markdown保存
+`client/` はReact SPA、`server/` はHono API・配信、`shared/` は公開可能な型、`components/` はUI、`modules/` はDomain / Storage / Provider、`db/` はSchema / migration、`tests/` はunit / integration / e2eです。
 
-Node DetailsのDocumentsから空のノートを作成し、自分で本文を入力します。Nodeは削除してもノートを削除せず、WorkspaceのDocuments一覧から引き続き開けます。本文のFront Matterはそのまま保持します。
-保存はContentStorage経由のatomic renameとDBの補償journalで扱い、次のアクセス時に中断した保存を回復します。PoCは1つのNode.jsプロセスが保存先を所有する前提です。複数レプリカから同じ保存先への同時書込みは対応しません。
-外部エディタで変更された本文を古い画面から上書きしないよう、保存時に前回Hashを照合します。Raw HTMLと自動画像取得はPreviewで無効です。
-
-## Paste Policy
-
-通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開き、Documentの資料として登録します。
-
-AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。Review API / UIも実装済みです。
-
-## 資料取得
-
-Node / Document / Workspaceに資料を登録でき、登録済み資料を再利用できます。「取得を確認」で取得可否を確認できます。取得はHTTP(S)標準ポート、公開IPのHTML / plain text / Markdownに限定します。PDFや圧縮応答は未対応でUNAVAILABLEとなります。DNS全応答検証とIP固定、redirect再検証（5回まで）、10秒timeout、2 MB上限、HTML sanitizeを共通処理へ集約しています。資料登録時は通信しません。
-
-## Revision
-
-Document作成・通常保存・引用追加時に、保存した本文のSHA-256とSnapshotをDBに記録します。直前と同内容ならRevisionを再利用し、A→B→Aは3つのRevisionになります。タイトルだけの変更では増やしません。既存Documentの初回Revisionは次の保存時に作成します。過去Snapshotは更新しません。現在のRevisionをEditorに表示し、履歴はGET /api/documents/:id/revisionsで確認できます。
-
-## AI Reviewerの接続
-
-既定は `REVIEW_PROVIDER=codex`。ローカルで `codex login` 済みの認証をCodex SDKが使用します。任意の `CODEX_MODEL` / `CODEX_PATH`、共通timeout `REVIEW_TIMEOUT_MS` を設定できます。SDKは一時作業ディレクトリ、read-only sandbox、shell / MCP / plugin / hook / web search無効で起動します。本文の保存先は渡しません。Codexの認証・標準ログ保存はローカル設定に従います。
-
-OpenAI APIは `REVIEW_PROVIDER=openai` と `OPENAI_MODEL` / `OPENAI_API_KEY` で切替可能です。Responses APIのstrict JSON schema、toolsなし、store=falseを使用します。APIキーをVITE_環境変数へ入れないでください。外部LLM不要のテストやデモには `REVIEW_PROVIDER=mock` を明示します。Mock結果は実AIレビューと区別します。
-
-`npx tsx scripts/review-smoke.ts` は設定された実Providerへ、仕様にあるOAuthの誤りとRFCの短い根拠を送信して検証します。通常の `npm run check` は外部LLMへ接続しません。Claim抽出からコード・引用・Front Matterを除外し、原文offsetと出力schemaを検証します。Review対象は60,000文字以内です。
-
-参考: [公式Codex SDK](https://learn.chatgpt.com/docs/codex-sdk)、[Codex設定](https://learn.chatgpt.com/docs/config-file/config-reference)、[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)。
-
-## Review / Check Facts / Check Sources
-
-Editorで保存してからReviewを起動します。Revision・Objectives・引用・資料関連を開始時に固定し、QUEUED→RUNNING→COMPLETED / FAILEDを記録します。Review中に編集しても対象は変わりません。アプリ再起動で中断したReviewはFAILEDとして再実行できます。PoCは1つのNodeプロセスがDB・保存先を所有する前提です。
-
-根拠探索はDocument→Node→Workspace→Web Search。各範囲の先頭12資料（範囲内は一次資料優先）、検索3件までで、探索範囲や取得不能を結果へ表示します。長い資料は原文から語句に関連する範囲を抽出し、生成した抜粋は使いません。1回のReviewは60,000文字・主張20件以内。学習内容の長い場合はDocumentを分けてください。
-
-`SEARCH_PROVIDER` は既定で `REVIEW_PROVIDER` に追従します（codex / openai / mock / none）。検索はReviewerとは別のURL探索用呼び出しで、本文や回答を返しません。Codex検索時だけweb searchとその実行hostを有効にし、shell / MCP / plugin等は無効のままです。検索結果のURLは共通のSSRF対策付きFetcherで再取得します。OpenAI検索はweb searchのcitation annotationだけを採用します。検索不能・無効はUNAVAILABLEとして明示します。
-
-Mockモードでは明示したRFC fixtureと空の検索結果を使い、画面にMockと表示します。実資料取得・実AI判定と混同しないでください。`npx tsx scripts/review-pipeline-smoke.ts` で実接続を確認できます。検証用Documentは終了時に削除します。Logic / Coverageも利用できます。
-
-## Reviewの判断と履歴
-
-Findingの「本文で確認」で対象箇所を表示できます。Revisionまたは編集中の本文が変わるとOutdated Reviewとなり、古い位置のハイライトを解除します。保存後にReview Againで再確認します。Resolve / Dismiss / Reopenは指摘の状態だけを更新し、本文を変更しません。Document内のReview履歴とWorkspaceのReviews一覧から過去結果を開けます。
-
-MapのDocs / Sourcesは関連データの件数です。SourcesはNodeと関連Documentの資料を重複除外。Review件数は各Documentの直近の完了レビューだけの未解決件数を集計し、Revisionが古い場合はOutdated件数も表示します。
-
-## Coverage / Logic
-
-Check Coverageは関連Nodeに人間が設定したObjectivesを評価し、Covered / Partially Covered / Not Coveredと問いを表示します。未設定なら評価を行わず、目標を生成しません。複数Nodeの目標を開始時に固定し、目標を編集・削除すると過去結果はOutdatedになります。Check Logicは論理の飛躍や説明不足を指摘します。どちらも本文を変更しません。実Providerの確認は `npx tsx scripts/learning-review-smoke.ts`。
+Authentication、Team、Git連携、Vector DB、AI生成などは仕様どおり対象外。Editorを含む遅延読込chunkに500 kB超のbuild警告が残ります。PoC機能の検証は完了しましたが、学習効果の5仮説は利用者による評価が必要です。

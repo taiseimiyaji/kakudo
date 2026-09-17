@@ -61,6 +61,6 @@ Goは今回採用しない。Honoの採用理由はWorkersへの配置や性能�
 
 ## AI接続先（2026-09-17 ユーザー確定）
 
-ReviewProviderを介し、ローカルCodex SDKとOpenAI APIの両方に対応する。初期設定はCodex SDK。実装はIssue #6で行う。接続先にかかわらずReviewer専用のschemaと本文を変更しない原則を適用する。SDKはサーバー側でのみ起動し、学習ファイルを変更する権限を与えない。テストは外部LLM不要のMockを利用する。
+ReviewProviderを介し、ローカルCodex SDKとOpenAI APIの両方に対応する。初期設定はCodex SDK。Provider基盤はIssue #6、Review接続は #7〜#9で実装済み。接続先にかかわらずReviewer専用のschemaと本文を変更しない原則を適用する。SDKはサーバー側でのみ起動し、学習ファイルを変更する権限を与えない。テストは外部LLM不要のMockを利用する。
 
 参考: [公式Codex SDKドキュメント](https://learn.chatgpt.com/docs/codex-sdk)。
