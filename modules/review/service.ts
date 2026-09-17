@@ -17,7 +17,7 @@ import { mockReviewFetcher } from "./fixtures";
 import { DomainError, requireFound } from "../../lib/errors";
 import { quoteMarkdown } from "../../shared/quote";
 import { reviewIsStale } from "../../shared/revision";
-import { reviewStart } from "../../shared/review";
+import { findingStatusInput, reviewStart } from "../../shared/review";
 import type { z } from "zod";
 let reviewQueue: Promise<unknown> = Promise.resolve();
 export function reviewService({ db = getDatabase(), storage = getContentStorage(), provider: suppliedProvider, fetcher: suppliedFetcher, search: suppliedSearch }: { db?: Database; storage?: ContentStorage; provider?: ReviewProvider; fetcher?: ResourceFetcher; search?: SearchProvider } = {}) {
@@ -45,6 +45,15 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
   }
   return {
     execute,
+    async setFindingStatus(id: string, workspaceId: string, input: z.infer<typeof findingStatusInput>) {
+      const data = findingStatusInput.parse(input);
+      const finding = requireFound((await db.select().from(reviewFindings).where(eq(reviewFindings.id, id)))[0], "Finding");
+      await run(finding.reviewRunId, workspaceId);
+      return (await db.update(reviewFindings).set(data).where(eq(reviewFindings.id, id)).returning())[0];
+    },
+    async listWorkspace(workspaceId: string) {
+      return db.select({ id: reviewRuns.id, documentId: reviewRuns.documentId, documentTitle: documents.title, revisionId: reviewRuns.revisionId, status: reviewRuns.status, type: reviewRuns.type, provider: reviewRuns.provider, createdAt: reviewRuns.createdAt }).from(reviewRuns).innerJoin(documents, eq(reviewRuns.documentId, documents.id)).where(eq(documents.workspaceId, workspaceId)).orderBy(desc(reviewRuns.createdAt));
+    },
     async recoverInterrupted() { await db.update(reviewRuns).set({ status: "FAILED", stage: "INTERRUPTED", error: "アプリの停止により中断しました。再実行してください。", completedAt: new Date() }).where(inArray(reviewRuns.status, ["QUEUED", "RUNNING"])); },
     async start(documentId: string, workspaceId: string, input: z.infer<typeof reviewStart>, autoStart = true) {
       const data = reviewStart.parse(input);

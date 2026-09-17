@@ -1,3 +1,4 @@
+import { nodeStats } from "./stats";
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
@@ -20,7 +21,8 @@ export function roadmapService(db: Database = getDatabase()) {
     async detail(id: string, workspaceId: string) {
       const row = await roadmap(id, workspaceId);
       const [nodes, edges] = await Promise.all([db.select().from(learningNodes).where(eq(learningNodes.roadmapId, id)), db.select().from(roadmapEdges).where(eq(roadmapEdges.roadmapId, id))]);
-      return { roadmap: row, nodes, edges };
+      const stats = await nodeStats(db, nodes.map((node) => node.id));
+      return { roadmap: row, nodes: nodes.map((node) => ({ ...node, stats: stats.get(node.id)! })), edges };
     },
     async create(workspaceId: string, input: z.infer<typeof roadmapInput>) {
       const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId));

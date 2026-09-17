@@ -21,7 +21,7 @@ export const nodePatch = z.object({
 }).strict().partial().refine((v) => Object.keys(v).length > 0);
 export const edgeInput = z.object({ roadmapId: z.string().min(1), sourceId: z.string().min(1), targetId: z.string().min(1), type: z.enum(edgeTypes) }).strict().refine((v) => v.sourceId !== v.targetId, { message: "Node cannot connect to itself" });
 export const roadmapSchema = roadmapInput.extend({ id: z.string(), workspaceId: z.string(), createdAt: z.string() });
-export const learningNodeSchema = nodeFields.extend({ id: z.string(), roadmapId: z.string() });
+export const learningNodeSchema = nodeFields.extend({ id: z.string(), roadmapId: z.string(), stats: z.object({ documents: z.number(), sources: z.number(), openFindings: z.number(), outdatedReviews: z.number() }) });
 export const edgeSchema = z.object({ id: z.string(), roadmapId: z.string(), sourceId: z.string(), targetId: z.string(), type: z.enum(edgeTypes) });
 export const roadmapDetailSchema = z.object({ roadmap: roadmapSchema, nodes: z.array(learningNodeSchema), edges: z.array(edgeSchema) });
 export type Roadmap = z.infer<typeof roadmapSchema>;

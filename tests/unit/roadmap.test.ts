@@ -1,3 +1,4 @@
+import { nextNodePosition } from "../../modules/roadmap/layout";
 import { describe, expect, it } from "vitest";
 import { edgeInput, nodeInput, nodePatch, roadmapInput } from "../../shared/roadmap";
 describe("roadmap input validation", () => {
@@ -14,4 +15,9 @@ describe("roadmap input validation", () => {
     for (const type of ["PREREQUISITE", "PARENT", "RELATED"]) expect(edgeInput.safeParse({ roadmapId: "r", sourceId: "a", targetId: "b", type }).success).toBe(true);
     expect(edgeInput.safeParse({ roadmapId: "r", sourceId: "a", targetId: "a", type: "RELATED" }).success).toBe(false);
   });
+});
+
+it("places new nodes below the lowest existing node after moves or deletions", () => {
+  expect(nextNodePosition([])).toEqual({ positionX: 40, positionY: 0 });
+  expect(nextNodePosition([{ positionY: 0 }, { positionY: 600 }])).toEqual({ positionX: 40, positionY: 820 });
 });

@@ -1,3 +1,4 @@
+import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useState } from "react";
@@ -47,7 +48,7 @@ export default function RoadmapPage() {
         <form onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title }); form.reset(); await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } }); }); }}>
           <label>新しいRoadmap<input name="title" required maxLength={200} /></label><button disabled={busy}>Roadmapを作成</button>
         </form>
-        <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>Resources</Link><p className="muted">Reviewsは準備中です。</p>
+        <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>Resources</Link><Link to="/workspaces/$workspaceId/reviews" params={{ workspaceId }}>Reviews</Link><Link to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>Documents</Link>
       </aside>
       <section className="map-center">
         {detail && detail.roadmap.id === roadmapId ? <>
@@ -57,7 +58,7 @@ export default function RoadmapPage() {
             <button disabled={busy}>Roadmapを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このRoadmapとNode・Edgeを削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); setDetail(null); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId } }); }); }}>Roadmapを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, positionX: detail.nodes.length * 60, positionY: detail.nodes.length * 80 }); setSelected(node.id); form.reset(); }); }}>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); setSelected(node.id); form.reset(); }); }}>
             <label>新しいNode<input name="title" required maxLength={200} /></label><button disabled={busy}>Nodeを追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}:${loadedVersion}`} detail={detail} selected={selected} onSelect={setSelected} busy={busy}
@@ -68,7 +69,7 @@ export default function RoadmapPage() {
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={`${node.id}:${loadedVersion}`} node={node} busy={busy}
         onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onChange={() => { void request(`/roadmaps/${encodeURIComponent(roadmapId!)}${scope}`).then((data) => setDetail(roadmapDetailSchema.parse(data))).catch((e) => setError(e.message)); }} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
