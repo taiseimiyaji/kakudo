@@ -9,6 +9,7 @@ export function createDatabase(url: string) {
 }
 
 export type Database = ReturnType<typeof createDatabase>["db"];
+export type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 const globalDatabase = globalThis as unknown as {
   kakudoDatabase?: ReturnType<typeof createDatabase>;

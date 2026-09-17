@@ -34,3 +34,18 @@ export const roadmapEdges = pgTable("roadmap_edges", {
   unique("edges_connection_unique").on(t.roadmapId, t.sourceId, t.targetId, t.type),
   check("edges_no_self", sql`${t.sourceId} <> ${t.targetId}`),
 ]);
+
+export const documents = pgTable("documents", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  title: text("title").notNull(), path: text("path").notNull().unique(), lastWriteId: text("last_write_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("documents_workspace_idx").on(t.workspaceId)]);
+export const documentNodes = pgTable("document_nodes", {
+  documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  nodeId: text("node_id").notNull().references(() => learningNodes.id, { onDelete: "cascade" }),
+}, (t) => [unique("document_nodes_unique").on(t.documentId, t.nodeId)]);
+// Durable compensation journal, not the canonical document content.
+export const documentWriteIntents = pgTable("document_write_intents", {
+  id: text("id").primaryKey(), documentId: text("document_id").notNull().unique(), path: text("path").notNull(),
+  kind: text("kind").$type<"CREATE" | "UPDATE" | "DELETE">().notNull(), before: text("before"), after: text("after"),
+});

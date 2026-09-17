@@ -1,0 +1,71 @@
+import { randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { createDatabase } from "../../db/client";
+import { documents, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
+import { readTestDatabaseUrl } from "../../lib/env";
+import { LocalFileSystemStorage } from "../../modules/storage/local";
+import { documentService, contentHash } from "../../modules/document/service";
+import { createApp } from "../../server/app";
+import { findWorkspace } from "../../modules/workspace/service";
+const { db, client } = createDatabase(readTestDatabaseUrl());
+const workspaceId = `document-test-${randomUUID()}`; const roadmapId = randomUUID(); const nodeId = randomUUID();
+let root: string; let storage: LocalFileSystemStorage;
+beforeAll(async () => {
+  root = await mkdtemp(join(tmpdir(), "kakudo-doc-test-")); storage = new LocalFileSystemStorage(root);
+  await migrate(db, { migrationsFolder: "./db/migrations" });
+  await db.insert(workspaces).values({ id: workspaceId, name: "Document test" });
+  await db.insert(roadmaps).values({ id: roadmapId, workspaceId, title: "Learning" });
+  await db.insert(learningNodes).values({ id: nodeId, roadmapId, title: "OAuth" });
+});
+afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); await rm(root, { recursive: true, force: true }); });
+describe("document persistence", () => {
+  it("round-trips exact content via API and real .md; enforces scope and optimistic concurrency", async () => {
+    const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
+    const api = (path: string, method = "GET", body?: unknown) => app.request(`/api${path}?workspaceId=${workspaceId}`, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const content = "---\r\nid: learner-note\r\ntitle: My title\r\ntags: [oauth]\r\n---\r\n# My note\r\n";
+    const response = await api("/documents", "POST", { title: "Note", nodeIds: [nodeId], content }); expect(response.status).toBe(201);
+    const { document: doc } = await response.json();
+    expect(await readFile(join(root, doc.path), "utf8")).toBe(content);
+    const initial = await (await api(`/documents/${doc.id}`)).json(); expect(initial.content).toBe(content);
+    expect((await app.request(`/api/documents/${doc.id}?workspaceId=other`)).status).toBe(404);
+    expect((await api("/documents", "POST", { title: "Wrong", nodeIds: ["missing"] })).status).toBe(404);
+    const edits = await Promise.all([api(`/documents/${doc.id}`, "PUT", { title: "Updated", content: "first", baseHash: initial.contentHash }), api(`/documents/${doc.id}`, "PUT", { title: "Second", content: "second", baseHash: initial.contentHash })]);
+    expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect((await (await api(`/documents/${doc.id}`)).json()).content).toBe(await storage.read(doc.path));
+    await db.delete(learningNodes).where(eq(learningNodes.id, nodeId));
+    expect((await api(`/documents/${doc.id}`)).status).toBe(200);
+    expect(await db.select().from(documentNodes).where(eq(documentNodes.documentId, doc.id))).toHaveLength(0);
+    expect((await api(`/documents/${doc.id}`, "DELETE")).status).toBe(204);
+    expect(await storage.exists(doc.path)).toBe(false);
+  });
+  it("recovers an interrupted write before reading and preserves the prior file", async () => {
+    const service = documentService(db, storage); const doc = await service.create(workspaceId, { title: "Recovery", content: "old", nodeIds: [] });
+    await db.insert(documentWriteIntents).values({ id: randomUUID(), documentId: doc.id, path: doc.path, kind: "UPDATE", before: "old", after: "interrupted" });
+    await storage.write(doc.path, "interrupted");
+    expect((await service.get(doc.id, workspaceId)).content).toBe("old");
+    expect(await db.select().from(documentWriteIntents)).toHaveLength(0);
+    await service.remove(doc.id, workspaceId);
+  });
+  it("compensates a database failure after a successful file write", async () => {
+    const doomedNode = randomUUID(); await db.insert(learningNodes).values({ id: doomedNode, roadmapId, title: "Concurrent deletion" });
+    let writtenPath = "";
+    const failing = { read: storage.read.bind(storage), delete: storage.delete.bind(storage), exists: storage.exists.bind(storage), async write(path: string, content: string) { writtenPath = path; await storage.write(path, content); await db.delete(learningNodes).where(eq(learningNodes.id, doomedNode)); } };
+    await expect(documentService(db, failing).create(workspaceId, { title: "Fails", content: "text", nodeIds: [doomedNode] })).rejects.toThrow();
+    expect(await storage.exists(writtenPath)).toBe(false);
+    expect(await db.select().from(documents).where(eq(documents.path, writtenPath))).toHaveLength(0);
+    expect(await db.select().from(documentWriteIntents)).toHaveLength(0);
+  });
+  it("retains DB metadata and original content when storage rejects an update", async () => {
+    const service = documentService(db, storage); const doc = await service.create(workspaceId, { title: "Kept", content: "before", nodeIds: [] });
+    let fail = true;
+    const failing = { read: storage.read.bind(storage), delete: storage.delete.bind(storage), exists: storage.exists.bind(storage), async write(path: string, content: string) { if (fail) { fail = false; throw new Error("disk failure"); } await storage.write(path, content); } };
+    await expect(documentService(db, failing).save(doc.id, workspaceId, { title: "Lost", content: "after", baseHash: contentHash("before") })).rejects.toThrow("disk failure");
+    const result = await service.get(doc.id, workspaceId); expect(result.document.title).toBe("Kept"); expect(result.content).toBe("before");
+    await service.remove(doc.id, workspaceId);
+  });
+});
