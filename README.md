@@ -12,7 +12,7 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 4（Paste Policy）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+現在はPhase 5（Sources）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
 Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
@@ -121,6 +121,10 @@ Node DetailsのDocumentsから空のノートを作成し、自分で本文を�
 
 ## Paste Policy
 
-通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開きます（登録保存はIssue #4）。
+通常文の貼り付けは引用Dialogを開き、Source URLを必須にします。確定すると引用と編集中の本文を一緒に保存します。コードブロック内は直接貼り付け可能です。URLだけの貼り付けはResource Dialogを開き、Documentの資料として登録します。
 
 AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定はCodex SDKに確定しています。実装はIssue #6です。
+
+## 資料取得
+
+Node / Document / Workspaceに資料を登録でき、登録済み資料を再利用できます。「取得を確認」で取得可否を確認できます。取得はHTTP(S)標準ポート、公開IPのHTML / plain text / Markdownに限定します。PDFや圧縮応答は未対応でUNAVAILABLEとなります。DNS全応答検証とIP固定、redirect再検証（5回まで）、10秒timeout、2 MB上限、HTML sanitizeを共通処理へ集約しています。資料登録時は通信しません。

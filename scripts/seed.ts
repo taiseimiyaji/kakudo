@@ -1,3 +1,4 @@
+import { seedResources } from "../modules/resource/seed";
 import "dotenv/config";
 import { seedRoadmap } from "../modules/roadmap/seed";
 import { createDatabase } from "../db/client";
@@ -9,6 +10,7 @@ async function main() {
   try {
     await seedWorkspace(db);
     await seedRoadmap(db);
+    await seedResources(db);
     console.log("Default workspace ready.");
   } finally {
     await client.end();

@@ -55,3 +55,18 @@ export const quotes = pgTable("quotes", {
   text: text("text").notNull(), sourceUrl: text("source_url").notNull(), sourceTitle: text("source_title"),
   accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("quotes_document_idx").on(t.documentId)]);
+
+export const resourceType = pgEnum("resource_type", ["WEB", "OFFICIAL_DOC", "RFC", "PAPER", "OTHER"]);
+export const resources = pgTable("resources", {
+  id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  url: text("url").notNull(), title: text("title").notNull().default(""), type: resourceType("type").notNull().default("WEB"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("resources_workspace_url_unique").on(t.workspaceId, t.url), index("resources_workspace_idx").on(t.workspaceId)]);
+export const nodeResources = pgTable("node_resources", {
+  nodeId: text("node_id").notNull().references(() => learningNodes.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull().references(() => resources.id, { onDelete: "cascade" }),
+}, (t) => [unique("node_resources_unique").on(t.nodeId, t.resourceId)]);
+export const documentResources = pgTable("document_resources", {
+  documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  resourceId: text("resource_id").notNull().references(() => resources.id, { onDelete: "cascade" }),
+}, (t) => [unique("document_resources_unique").on(t.documentId, t.resourceId)]);

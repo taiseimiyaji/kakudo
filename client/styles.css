@@ -75,3 +75,4 @@ details { margin-top: 15px; }
 dialog { width: min(600px, 90vw); border: 1px solid var(--line); border-radius: 12px; padding: 24px; color: var(--ink); }
 dialog::backdrop { background: #183b2f66; }
 dialog .secondary { margin-top: 15px; background: #e4ebe2; color: var(--ink); }
+.resource-panel { border-top: 1px solid #ddd; margin-top: 1.5rem; padding: 1rem; } .resource-panel li { margin-bottom: .7rem; overflow-wrap: anywhere; } .resource-panel small { display: block; color: #555; } .resource-panel form { margin: 1rem 0; } .resource-panel button { margin: .25rem .25rem .25rem 0; }
