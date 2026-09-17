@@ -15,8 +15,7 @@
 | Content | ローカルfilesystem上のMarkdown。ContentStorageは後続Issueで実装 |
 
 Honoの採用はユーザーが明示的に確定。ViteはNext.jsを外したReact SPAのbuild / 開発環境として採用する。
-TanStack Start、TanStack Router、React Routerのいずれも追加していない。Router libraryは未選定として、画面構成を拡張する前にユーザーと協議する。
-現段階の2画面は通常のリンクとpathnameによる表示切替。クライアントルーティングの独自実装は拡張しない。
+2026-09-17にユーザー指定でTanStack Routerを採用。TanStack StartとReact Routerは導入しない。
 
 ## 実行時の構造
 

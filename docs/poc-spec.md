@@ -1056,7 +1056,7 @@ Frontend build
 Vite
 
 Frontend routing
-未選定（TanStack Router / React Routerは別途協議）
+TanStack Router
 
 UI
 React

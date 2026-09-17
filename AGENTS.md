@@ -33,7 +33,7 @@ Herdr is installed and the user authorizes choosing it autonomously when persist
 
 - Backend: Hono + Node.js。REST APIはserver/、Domain Logicはmodules/。
 - Frontend: React SPA。Viteで開発・buildし、本番はHonoが同じoriginから配信する。
-- Router libraryは未選定。TanStack Router / React Routerを勝手に確定しない。
+- Routerはユーザー指定のTanStack Router。
 - Next.js / SSR / Workersへの依存を導入しない。
 - PC + Cloudflare Tunnelと通常サーバーで同じNodeアプリを起動する。Tunnelは入口であり実行基盤ではない。
 - PostgreSQLとMarkdown保存先を永続化する。サーバーに配置したMarkdownのPC同期は別機能。
