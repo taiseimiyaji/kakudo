@@ -1,0 +1,53 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kakudo
+          POSTGRES_USER: kakudo
+          POSTGRES_PASSWORD: kakudo
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kakudo -d kakudo"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+      postgres-test:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kakudo_test
+          POSTGRES_USER: kakudo
+          POSTGRES_PASSWORD: kakudo
+        ports: ["54330:5432"]
+        options: >-
+          --health-cmd "pg_isready -U kakudo -d kakudo_test"
+          --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54329/kakudo
+      TEST_DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54330/kakudo_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run db:setup
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results/
