@@ -12,7 +12,7 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 6b（Fact / Source Check）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+現在はPhase 7（Review UI）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
 Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
@@ -152,3 +152,9 @@ Editorで保存してからReviewを起動します。Revision・Objectives・�
 `SEARCH_PROVIDER` は既定で `REVIEW_PROVIDER` に追従します（codex / openai / mock / none）。検索はReviewerとは別のURL探索用呼び出しで、本文や回答を返しません。Codex検索時だけweb searchとその実行hostを有効にし、shell / MCP / plugin等は無効のままです。検索結果のURLは共通のSSRF対策付きFetcherで再取得します。OpenAI検索はweb searchのcitation annotationだけを採用します。検索不能・無効はUNAVAILABLEとして明示します。
 
 Mockモードでは明示したRFC fixtureと空の検索結果を使い、画面にMockと表示します。実資料取得・実AI判定と混同しないでください。`npx tsx scripts/review-pipeline-smoke.ts` で実接続を確認できます。検証用Documentは終了時に削除します。Logic / CoverageはIssue #9で接続します。
+
+## Reviewの判断と履歴
+
+Findingの「本文で確認」で対象箇所を表示できます。Revisionまたは編集中の本文が変わるとOutdated Reviewとなり、古い位置のハイライトを解除します。保存後にReview Againで再確認します。Resolve / Dismiss / Reopenは指摘の状態だけを更新し、本文を変更しません。Document内のReview履歴とWorkspaceのReviews一覧から過去結果を開けます。
+
+MapのDocs / Sourcesは関連データの件数です。SourcesはNodeと関連Documentの資料を重複除外。Review件数は各Documentの直近の完了レビューだけの未解決件数を集計し、Revisionが古い場合はOutdated件数も表示します。

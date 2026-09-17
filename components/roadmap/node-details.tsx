@@ -20,6 +20,6 @@ export function NodeDetails({ node, busy, onSave, onDelete }: { node: LearningNo
     <div className="coordinates"><label>X<input name="x" type="number" step="any" min={-100000} max={100000} defaultValue={node.positionX} required /></label><label>Y<input name="y" type="number" step="any" min={-100000} max={100000} defaultValue={node.positionY} required /></label></div>
     <button disabled={busy}>Nodeを保存</button>
     <button className="danger" type="button" disabled={busy} onClick={() => { if (confirm("このNodeと接続を削除しますか？")) void onDelete(); }}>Nodeを削除</button>
-    <p className="muted">Reviewは準備中です。</p>
+    <p className="muted">Docs {node.stats.documents} / Sources {node.stats.sources} / Review ⚠ {node.stats.openFindings}</p><p className="muted">各Documentの直近の完了レビューを集計。Outdated: {node.stats.outdatedReviews}</p>
   </form>;
 }

@@ -1,3 +1,6 @@
+import { roadmapService } from "../../modules/roadmap/service";
+import { createApp } from "../../server/app";
+import { findWorkspace } from "../../modules/workspace/service";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -44,4 +47,25 @@ it("records failure and permits a new run, with source-unavailable distinct from
   expect((await service.get(next.id, workspaceId)).run.sourceChecks[0].status).toBe("UNAVAILABLE"); expect(await service.list(doc.id, workspaceId)).toHaveLength(2);
   await storage.write(doc.path, "external edit"); await expect(service.start(doc.id, workspaceId, { revisionId: quoted.document.currentRevisionId!, type: "SOURCE" })).rejects.toThrow("外部");
   await docs.remove(doc.id, workspaceId);
+});
+
+it("persists Resolve/Dismiss through scoped API and aggregates latest document reviews without duplicates", async () => {
+  const maps = roadmapService(db); const map = await maps.create(workspaceId, { title: "Stats", description: "" });
+  const node = await maps.createNode(workspaceId, { roadmapId: map.id, title: "OAuth", description: "", positionX: 0, positionY: 0, status: "LEARNING", learningObjectives: [], guidingQuestions: [] });
+  const docs = documentService(db, storage); const content = "OAuthは認証プロトコルである。";
+  const doc = await docs.create(workspaceId, { title: "Status", content, nodeIds: [node.id] });
+  const rs = resourceService(db); const resource = await rs.create(workspaceId, { url: "https://www.rfc-editor.org/rfc/rfc6749", title: "RFC", type: "RFC" }, { kind: "node", id: node.id }); await rs.link(workspaceId, resource.id, { kind: "document", id: doc.id });
+  const service = reviewService({ db, storage, provider: mockProvider(), fetcher: mockReviewFetcher, search: { async search() { return []; } } });
+  for (let i = 0; i < 2; i++) { const job = await service.start(doc.id, workspaceId, { type: "FACT_CHECK", revisionId: doc.currentRevisionId! }, false); await service.execute(job.id); }
+  const [latest] = await service.list(doc.id, workspaceId); const { findings } = await service.get(latest.id, workspaceId);
+  expect((await maps.detail(map.id, workspaceId)).nodes[0].stats).toEqual({ documents: 1, sources: 1, openFindings: 1, outdatedReviews: 0 });
+  const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
+  const patch = (status: string, scope = workspaceId) => app.request(`/api/findings/${findings[0].id}?workspaceId=${scope}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+  expect((await patch("RESOLVED", "other")).status).toBe(404); expect((await patch("APPLIED")).status).toBe(400);
+  for (const status of ["RESOLVED", "OPEN", "DISMISSED"]) { expect((await patch(status)).status).toBe(200); expect((await service.get(latest.id, workspaceId)).findings[0].status).toBe(status); }
+  expect((await maps.detail(map.id, workspaceId)).nodes[0].stats.openFindings).toBe(0); expect(await storage.read(doc.path)).toBe(content);
+  await docs.save(doc.id, workspaceId, { title: "Status", content: "New explanation", baseHash: contentHash(content) });
+  expect((await maps.detail(map.id, workspaceId)).nodes[0].stats.outdatedReviews).toBe(1);
+  expect(await service.listWorkspace("other")).toHaveLength(0);
+  await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);
 });
