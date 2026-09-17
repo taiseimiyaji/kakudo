@@ -69,3 +69,28 @@ it("persists Resolve/Dismiss through scoped API and aggregates latest document r
   expect(await service.listWorkspace("other")).toHaveLength(0);
   await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);
 });
+
+it("reviews logic, coverage and FULL on fixed human objectives across multiple nodes", async () => {
+  const maps = roadmapService(db); const map = await maps.create(workspaceId, { title: "Learning review", description: "" });
+  const objectiveTexts = ["OAuthとAuthenticationの違いを説明できる", "Authorization Code Flowを説明できる", "Access Tokenの役割を説明できる", "PKCEの目的を説明できる"];
+  const node = await maps.createNode(workspaceId, { roadmapId: map.id, title: "OAuth", description: "", positionX: 0, positionY: 0, status: "LEARNING", learningObjectives: objectiveTexts, guidingQuestions: [] });
+  const other = await maps.createNode(workspaceId, { roadmapId: map.id, title: "HTTP", description: "", positionX: 0, positionY: 220, status: "LEARNING", learningObjectives: ["HTTPの役割を説明できる"], guidingQuestions: [] });
+  const docs = documentService(db, storage); const content = "OAuthは認証プロトコルである。\n\nCookieを使うのでSession認証は安全である。";
+  const doc = await docs.create(workspaceId, { title: "Learning review", content, nodeIds: [node.id, other.id] });
+  const service = reviewService({ db, storage, provider: mockProvider(), fetcher: mockReviewFetcher, search: { async search() { return []; } } });
+  let fullId = "";
+  for (const type of ["LOGIC", "COVERAGE", "FULL"] as const) {
+    const job = await service.start(doc.id, workspaceId, { type, revisionId: doc.currentRevisionId! }, false); await service.execute(job.id);
+    const result = await service.get(job.id, workspaceId); expect(result.run.status).toBe("COMPLETED"); expect(result.revision.id).toBe(doc.currentRevisionId);
+    expect(result.run.objectives).toHaveLength(5);
+    if (type !== "COVERAGE") expect(result.findings.some((f) => f.category === "LOGIC")).toBe(true);
+    if (type !== "LOGIC") { expect(result.run.coverage).toHaveLength(5); expect(result.run.coverage.find((c) => c.objectiveId === `${node.id}:3`)?.status).toBe("NOT_COVERED"); }
+    if (type === "FULL") fullId = job.id;
+  }
+  expect(await storage.read(doc.path)).toBe(content);
+  await maps.updateNode(node.id, workspaceId, { learningObjectives: ["Updated human goal"] });
+  const past = await service.get(fullId, workspaceId); expect(past.objectivesChanged).toBe(true); expect(past.stale).toBe(true); expect(past.run.objectives.map((o) => o.text)).toContain(objectiveTexts[3]);
+  expect((await maps.detail(map.id, workspaceId)).nodes.find((n) => n.id === node.id)?.stats.outdatedReviews).toBe(1);
+  const next = await service.start(doc.id, workspaceId, { type: "COVERAGE", revisionId: doc.currentRevisionId! }, false); await service.execute(next.id); expect((await service.get(next.id, workspaceId)).run.objectives).toHaveLength(2);
+  await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);
+});
