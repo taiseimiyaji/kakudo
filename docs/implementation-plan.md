@@ -47,8 +47,6 @@ Knowledge Map → Markdown → Paste Policy → Sources → Revision → Fact Ch
 
 ## Scopeと引き継ぎ
 
-Phase 8のCoverage / Logicまで実装済み。
-次のIssueは [#10 PoC受け入れ検証](https://github.com/taiseimiyaji/kakudo/issues/10) です。
-各ドメインのtableは実装Issueでmigrationとともに追加します。
-Source Verificationは#7、MapのDocs / Sources / Review件数は#8に含めています。
-学習ノート本文はseedで生成しません。仕様§44の人間が指定したMap / Objectives / Resourceだけを該当Phaseでseedへ追加します。
+Issue #1〜#9の機能を順番に実装・CI確認・マージ済み。最終Issue #10で全受け入れ条件、クリーン起動、既知制約と学習評価手順を照合済み。
+[最終検証記録](verification/issue-10.md) と [学習体験の評価手順](learning-evaluation.md) を参照してください。
+学習ノート本文はseedで生成せず、仕様§44の人間が指定したMap / Objectives / Resourceを登録します。

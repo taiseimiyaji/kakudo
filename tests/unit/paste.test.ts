@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { pasteAction } from "../../modules/editor/paste-policy";
+import { reviewSpans } from "../../modules/review/claims";
 import { quoteInput, quoteMarkdown } from "../../shared/quote";
 function state(doc: string, anchor: number, head = anchor) { return EditorState.create({ doc, selection: { anchor, head }, extensions: [markdown()] }); }
 describe("paste policy", () => {
@@ -35,4 +36,11 @@ describe("paste policy", () => {
     expect(quoteInput.safeParse({ ...input, sourceUrl: "https://example.com" }).success).toBe(true);
     expect(quoteMarkdown("one\n\ntwo", "https://example.com/", "Source")).toContain("> one\n> \n> two\n>\n> Source: [Source](<https://example.com/>)");
   });
+});
+
+it("keeps mixed CR, LF and CRLF pasted paragraphs inside quotes and outside claim extraction", () => {
+  const result = quoteMarkdown("first\r\r# copied heading\r\n\r\nlast\nline", "https://example.com/");
+  expect(result).not.toContain("\r");
+  expect(result).toContain("> # copied heading");
+  expect(reviewSpans(result)).toEqual([]);
 });
