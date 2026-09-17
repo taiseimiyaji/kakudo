@@ -36,6 +36,13 @@
       "when": 1789635265036,
       "tag": "0004_wandering_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789635654634,
+      "tag": "0005_absent_pestilence",
+      "breakpoints": true
     }
   ]
 }

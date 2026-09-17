@@ -1,3 +1,4 @@
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { check, doublePrecision, foreignKey, index, jsonb, pgEnum, unique, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
@@ -37,11 +38,12 @@ export const roadmapEdges = pgTable("roadmap_edges", {
 
 export const documents = pgTable("documents", {
   id: text("id").primaryKey(), workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+  currentRevisionId: text("current_revision_id"),
   title: text("title").notNull(), path: text("path").notNull().unique(), lastWriteId: text("last_write_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("documents_workspace_idx").on(t.workspaceId)]);
+}, (t) => [index("documents_workspace_idx").on(t.workspaceId), foreignKey({ columns: [t.id, t.currentRevisionId], foreignColumns: [documentRevisions.documentId, documentRevisions.id] })]);
 export const documentNodes = pgTable("document_nodes", {
-  documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  documentId: text("document_id").notNull().references((): AnyPgColumn => documents.id, { onDelete: "cascade" }),
   nodeId: text("node_id").notNull().references(() => learningNodes.id, { onDelete: "cascade" }),
 }, (t) => [unique("document_nodes_unique").on(t.documentId, t.nodeId)]);
 // Durable compensation journal, not the canonical document content.
@@ -51,7 +53,7 @@ export const documentWriteIntents = pgTable("document_write_intents", {
 });
 
 export const quotes = pgTable("quotes", {
-  id: text("id").primaryKey(), documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  id: text("id").primaryKey(), documentId: text("document_id").notNull().references((): AnyPgColumn => documents.id, { onDelete: "cascade" }),
   text: text("text").notNull(), sourceUrl: text("source_url").notNull(), sourceTitle: text("source_title"),
   accessedAt: timestamp("accessed_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("quotes_document_idx").on(t.documentId)]);
@@ -67,6 +69,12 @@ export const nodeResources = pgTable("node_resources", {
   resourceId: text("resource_id").notNull().references(() => resources.id, { onDelete: "cascade" }),
 }, (t) => [unique("node_resources_unique").on(t.nodeId, t.resourceId)]);
 export const documentResources = pgTable("document_resources", {
-  documentId: text("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  documentId: text("document_id").notNull().references((): AnyPgColumn => documents.id, { onDelete: "cascade" }),
   resourceId: text("resource_id").notNull().references(() => resources.id, { onDelete: "cascade" }),
 }, (t) => [unique("document_resources_unique").on(t.documentId, t.resourceId)]);
+
+export const documentRevisions = pgTable("document_revisions", {
+  id: text("id").primaryKey(), documentId: text("document_id").notNull().references((): AnyPgColumn => documents.id, { onDelete: "cascade" }),
+  contentHash: text("content_hash").notNull(), contentSnapshot: text("content_snapshot").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("revisions_document_idx").on(t.documentId), unique("revisions_document_id_unique").on(t.documentId, t.id)]);

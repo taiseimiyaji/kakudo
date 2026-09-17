@@ -1,3 +1,4 @@
+import { revisionService } from "../modules/revision/service";
 import { quoteInput } from "../shared/quote";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -14,6 +15,8 @@ export function documentRoutes(database?: () => Database, storage?: () => Conten
   api.get("/documents/:id", async (c) => c.json(await service().get(c.req.param("id"), c.req.query("workspaceId") ?? "default")));
   api.put("/documents/:id", async (c) => c.json(await service().save(c.req.param("id"), c.req.query("workspaceId") ?? "default", documentSave.parse(await c.req.json()))));
   api.post("/documents/:id/quotes", async (c) => c.json(await service().quote(c.req.param("id"), c.req.query("workspaceId") ?? "default", quoteInput.parse(await c.req.json())), 201));
+  api.get("/documents/:id/revisions", async (c) => c.json({ revisions: await revisionService(database?.()).list(c.req.param("id"), c.req.query("workspaceId") ?? "default") }));
+  api.get("/documents/:id/revisions/:revisionId", async (c) => c.json({ revision: await revisionService(database?.()).get(c.req.param("id"), c.req.param("revisionId"), c.req.query("workspaceId") ?? "default") }));
   api.delete("/documents/:id", async (c) => { await service().remove(c.req.param("id"), c.req.query("workspaceId") ?? "default"); return c.body(null, 204); });
   return api;
 }

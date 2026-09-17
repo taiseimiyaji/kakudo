@@ -23,6 +23,7 @@ export default function DocumentPage() {
 function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const { id, workspaceId } = initial.document;
   const navigate = useNavigate();
+  const [revisionId, setRevisionId] = useState(initial.document.currentRevisionId);
   const [resourceVersion, setResourceVersion] = useState(0);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const [editorSeed, setEditorSeed] = useState(initial.content);
@@ -35,19 +36,19 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     setBusy(true); setError(""); setStatus("");
     const snapshot = { content, title };
     try {
-      const result = await request<{ contentHash: string }>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", { ...snapshot, baseHash: saved.hash });
-      setSaved({ ...snapshot, hash: result.contentHash }); setStatus("保存しました");
+      const result = await request<{ contentHash: string; document: { currentRevisionId: string | null } }>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", { ...snapshot, baseHash: saved.hash });
+      setSaved({ ...snapshot, hash: result.contentHash }); setRevisionId(result.document.currentRevisionId); setStatus("保存しました");
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <main className="document-workspace">
     <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← Knowledge Map</Link><h1>Document</h1><span>{dirty ? "未保存の変更" : "保存済み"}</span><button disabled={busy || !title.trim()} onClick={() => { void save(); }}>保存</button></header>
     {error && <p role="alert" className="error">{error}（再読み込みする前に未保存の本文を確認してください）</p>}{status && <p role="status">{status}</p>}
     <label className="document-title">Document名<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></label>
-    <p className="document-path">{initial.document.path}</p>
+    <p className="document-path">{initial.document.path}</p><p aria-label="現在のRevision">Revision: {revisionId ?? "未作成（保存すると作成されます）"}</p>
     <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={editorSeed} onChange={setContent} onPaste={setPaste} /></section><section><h2>Preview</h2><MarkdownPreview content={content} /></section></div>
     {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await request(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input); setResourceVersion((v) => v + 1); setPaste(null); }} onQuote={async (sourceUrl, sourceTitle) => {
-      const result = await request<{ content: string; contentHash: string }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash });
-      setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash }); setPaste(null); setStatus("引用を追加して保存しました");
+      const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash });
+      setRevisionId(result.document.currentRevisionId); setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash }); setPaste(null); setStatus("引用を追加して保存しました");
     }} />}
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} />
     <footer><span>Reviewsは準備中です。本文は自分の言葉で書きます。</span><button className="danger" disabled={busy} onClick={() => { if (!confirm("このDocumentとMarkdownファイルを削除しますか？")) return; setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE").then(() => navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true })).catch((e) => { setError(e.message); setBusy(false); }); }}>Documentを削除</button></footer>

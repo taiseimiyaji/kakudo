@@ -12,8 +12,8 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 - [実装順序とGitHub Issues](docs/implementation-plan.md)
 - [実装エージェントのルール](AGENTS.md) / [検証記録](docs/verification.md)
 
-現在はPhase 5（Sources）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
-Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。Resources / AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
+現在はPhase 5.5（Revision）まで実装済み。Hono REST API、React SPA、Vite、PostgreSQL、Drizzle migration、冪等Workspace Seeder、起動画面、DB接続確認、テストとCIを実装しています。
+Roadmap / Node / EdgeのCRUDと位置保存、ユーザー定義Objectives、デモSeedを利用できます。CodeMirrorのMarkdown編集・Preview・実ファイル保存に対応。Paste Policyと出典付きQuote保存に対応。ResourcesとRevisionに対応。AI Reviewは後続Issueの対象です。RouterはTanStack Routerです。
 
 ## 開発
 
@@ -128,3 +128,7 @@ AIレビューはローカルCodex SDKとOpenAI APIの両対応、初期設定�
 ## 資料取得
 
 Node / Document / Workspaceに資料を登録でき、登録済み資料を再利用できます。「取得を確認」で取得可否を確認できます。取得はHTTP(S)標準ポート、公開IPのHTML / plain text / Markdownに限定します。PDFや圧縮応答は未対応でUNAVAILABLEとなります。DNS全応答検証とIP固定、redirect再検証（5回まで）、10秒timeout、2 MB上限、HTML sanitizeを共通処理へ集約しています。資料登録時は通信しません。
+
+## Revision
+
+Document作成・通常保存・引用追加時に、保存した本文のSHA-256とSnapshotをDBに記録します。直前と同内容ならRevisionを再利用し、A→B→Aは3つのRevisionになります。タイトルだけの変更では増やしません。既存Documentの初回Revisionは次の保存時に作成します。過去Snapshotは更新しません。現在のRevisionをEditorに表示し、履歴はGET /api/documents/:id/revisionsで確認できます。
