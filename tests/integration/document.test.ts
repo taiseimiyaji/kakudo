@@ -1,3 +1,4 @@
+import { revisionService } from "../../modules/revision/service";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -24,6 +25,22 @@ beforeAll(async () => {
 });
 afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); await rm(root, { recursive: true, force: true }); });
 describe("document persistence", () => {
+  it("appends immutable revisions, skips identical saves, preserves A-B-A, and scopes lookup", async () => {
+    const service = documentService(db, storage); const revisions = revisionService(db);
+    const doc = await service.create(workspaceId, { title: "History", content: "A", nodeIds: [] });
+    const first = await revisions.current(doc.id, workspaceId); expect(first?.contentSnapshot).toBe("A");
+    await service.save(doc.id, workspaceId, { title: "Renamed", content: "A", baseHash: contentHash("A") });
+    expect(await revisions.list(doc.id, workspaceId)).toHaveLength(1);
+    await service.save(doc.id, workspaceId, { title: "History", content: "B", baseHash: contentHash("A") });
+    await service.save(doc.id, workspaceId, { title: "History", content: "A", baseHash: contentHash("B") });
+    const current = await revisions.current(doc.id, workspaceId); expect(current?.id).not.toBe(first?.id);
+    expect(await revisions.list(doc.id, workspaceId)).toHaveLength(3);
+    expect((await revisions.get(doc.id, first!.id, workspaceId)).contentSnapshot).toBe("A");
+    expect(current?.contentHash).toBe(contentHash(await storage.read(doc.path)));
+    await expect(revisions.get(doc.id, first!.id, "other")).rejects.toThrow("not found");
+    await service.remove(doc.id, workspaceId);
+  });
+
   it("requires source URLs and commits quote metadata together with the learner draft", async () => {
     const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
     const service = documentService(db, storage);
@@ -36,6 +53,7 @@ describe("document persistence", () => {
     const result = await response.json();
     expect(result.content).toContain("learner draft\n\n> copied\n> second");
     expect(await storage.read(doc.path)).toBe(result.content);
+    expect((await revisionService(db).current(doc.id, workspaceId))?.contentSnapshot).toBe(result.content);
     const [quote] = await db.select().from(quotes).where(eq(quotes.documentId, doc.id));
     expect(quote.text).toBe(body.text); expect(quote.sourceUrl).toBe("https://example.com/source"); expect(quote.accessedAt).toBeInstanceOf(Date);
     expect((await post({ ...body, sourceUrl: "https://example.com/source" })).status).toBe(409);
@@ -56,6 +74,8 @@ describe("document persistence", () => {
     expect((await api("/documents", "POST", { title: "Wrong", nodeIds: ["missing"] })).status).toBe(404);
     const edits = await Promise.all([api(`/documents/${doc.id}`, "PUT", { title: "Updated", content: "first", baseHash: initial.contentHash }), api(`/documents/${doc.id}`, "PUT", { title: "Second", content: "second", baseHash: initial.contentHash })]);
     expect(edits.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(await revisionService(db).list(doc.id, workspaceId)).toHaveLength(2);
+    expect((await revisionService(db).current(doc.id, workspaceId))?.contentSnapshot).toBe(await storage.read(doc.path));
     expect((await (await api(`/documents/${doc.id}`)).json()).content).toBe(await storage.read(doc.path));
     await db.delete(learningNodes).where(eq(learningNodes.id, nodeId));
     expect((await api(`/documents/${doc.id}`)).status).toBe(200);
@@ -85,6 +105,8 @@ describe("document persistence", () => {
     let fail = true;
     const failing = { read: storage.read.bind(storage), delete: storage.delete.bind(storage), exists: storage.exists.bind(storage), async write(path: string, content: string) { if (fail) { fail = false; throw new Error("disk failure"); } await storage.write(path, content); } };
     await expect(documentService(db, failing).save(doc.id, workspaceId, { title: "Lost", content: "after", baseHash: contentHash("before") })).rejects.toThrow("disk failure");
+    expect(await revisionService(db).list(doc.id, workspaceId)).toHaveLength(1);
+    expect((await revisionService(db).current(doc.id, workspaceId))?.contentSnapshot).toBe("before");
     const result = await service.get(doc.id, workspaceId); expect(result.document.title).toBe("Kept"); expect(result.content).toBe("before");
     await service.remove(doc.id, workspaceId);
   });

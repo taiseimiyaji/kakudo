@@ -1,5 +1,8 @@
+import { appendRevision } from "../revision/service";
+import { contentHash } from "./hash";
+export { contentHash } from "./hash";
 import { quoteInput, quoteMarkdown } from "../../shared/quote";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import { getDatabase, type DatabaseTransaction, type Database } from "../../db/client";
@@ -9,7 +12,6 @@ import type { ContentStorage } from "../storage/content-storage";
 import { getContentStorage } from "../storage/local";
 import { DomainError, requireFound } from "../../lib/errors";
 
-export const contentHash = (content: string) => createHash("sha256").update(content, "utf8").digest("hex");
 // One local filesystem writer per application process. Multi-replica writes are outside this PoC.
 let queue: Promise<unknown> = Promise.resolve();
 export function serializeContent<T>(work: () => Promise<T>): Promise<T> { const result = queue.then(work); queue = result.catch(() => {}); return result; }
@@ -64,6 +66,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
       await mutate({ id: operationId, documentId: id, path, kind: "CREATE", before: null, after: data.content }, async (tx) => {
         await tx.insert(documents).values({ id, workspaceId, path, title: data.title, lastWriteId: operationId });
         if (nodeIds.length) await tx.insert(documentNodes).values(nodeIds.map((nodeId) => ({ documentId: id, nodeId })));
+        await appendRevision(tx, id, data.content);
       });
       return row(id, workspaceId);
     }); },
@@ -73,6 +76,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
       const operationId = randomUUID();
       await mutate({ id: operationId, documentId: id, path: doc.path, kind: "UPDATE", before, after: data.content }, async (tx) => {
         await tx.update(documents).set({ title: data.title, updatedAt: new Date(), lastWriteId: operationId }).where(eq(documents.id, id));
+        await appendRevision(tx, id, data.content);
       });
       return { document: await row(id, workspaceId), contentHash: contentHash(data.content) };
     }); },
@@ -86,8 +90,9 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
       await mutate({ id: operationId, documentId: id, path: doc.path, kind: "UPDATE", before, after }, async (tx) => {
         await tx.update(documents).set({ title: data.title, updatedAt: new Date(), lastWriteId: operationId }).where(eq(documents.id, id));
         await tx.insert(quotes).values({ id: quoteId, documentId: id, text: data.text, sourceUrl: data.sourceUrl, sourceTitle: data.sourceTitle });
+        await appendRevision(tx, id, after);
       });
-      return { quoteId, content: after, contentHash: contentHash(after) };
+      return { quoteId, document: await row(id, workspaceId), content: after, contentHash: contentHash(after) };
     }); },
     remove(id: string, workspaceId: string) { return run(async () => {
       const doc = await row(id, workspaceId); const before = await storage.read(doc.path);
