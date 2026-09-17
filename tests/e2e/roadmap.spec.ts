@@ -50,5 +50,5 @@ test("create a map, connect nodes, persist edits and drag positions, then delete
     await expect(page.getByRole("link", { name: `${title} edited`, exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Roadmapを削除" }).click();
     await expect(page.getByRole("link", { name: `${title} edited`, exact: true })).toHaveCount(0);
-  } finally { await request.delete(`/api/roadmaps/${encodeURIComponent(mapId)}`); }
+  } finally { await request.delete(`/api/roadmaps/${encodeURIComponent(mapId)}`).catch(() => {}); }
 });

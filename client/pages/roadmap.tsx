@@ -1,3 +1,4 @@
+import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useState } from "react";
@@ -57,7 +58,7 @@ export default function RoadmapPage() {
             <button disabled={busy}>Roadmapを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このRoadmapとNode・Edgeを削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); setDetail(null); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId } }); }); }}>Roadmapを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, positionX: detail.nodes.length * 60, positionY: detail.nodes.length * 80 }); setSelected(node.id); form.reset(); }); }}>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); setSelected(node.id); form.reset(); }); }}>
             <label>新しいNode<input name="title" required maxLength={200} /></label><button disabled={busy}>Nodeを追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}:${loadedVersion}`} detail={detail} selected={selected} onSelect={setSelected} busy={busy}
