@@ -70,6 +70,8 @@ ContentStorage経由のatomic renameとDBの補償journalで保存し、中断�
 
 作成・保存・引用追加時にRevisionを記録。同じ本文なら直前のRevisionを再利用し、A→B→Aは3つのRevisionです。タイトルのみの変更では増えません。DBとMarkdownの両方を一緒にバックアップしてください。サーバーのファイルをPCへ同期する機能は含みません。
 
+バックアップ・復元コマンドと世代管理・切戻し手順は [運用手順](docs/operations.md) を参照してください。PostgreSQL 17のclient toolsが必要です（PATH外では `PG_BIN_DIR` を設定）。integrationも実pg_dump/pg_restoreで専用DBへの復元を検証します。
+
 `docker compose down` でも `.local/postgres/` は残ります。Schema変更時は `npm run db:generate`、適用は `npm run db:migrate`、Seedは `npm run db:seed`。
 
 ## AI Reviewerの設定
