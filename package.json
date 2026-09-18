@@ -6,6 +6,7 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "logs:rotate": "tsx scripts/rotate-logs.ts",
     "service:config": "tsx scripts/service-config.ts",
     "backup": "tsx scripts/backup.ts",
     "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",

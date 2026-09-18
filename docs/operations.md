@@ -35,6 +35,25 @@ npm run service:config -- systemd /absolute/config/kakudo.env /absolute/config/k
 
 参考: [Apple LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)、[systemd service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)。
 
+## 監視と障害対応
+
+`GET /api/health` はDB接続とMarkdown保存先への実書込み・空き容量を確認する。どちらかが失敗すると503。`STORAGE_MIN_FREE_BYTES` の既定値は100 MiB。成功時はstorage.status=writableとfreeBytesを返す。保存先を作れない・権限がない・容量不足の状態をDB正常だけで見逃さない。プローブ用の一時ファイルは削除する。
+
+APIレスポンスの `X-Request-ID` と、stderrのJSONログのrequestIdで同じ処理を追える。Review障害はreviewIdで追う。URL/query/header、本文、APIキー、接続文字列、例外の生メッセージは記録せず、固定のreasonコードを記録する。代表例はstorage_permission、storage_full、connection_refused、query_timeout、provider、deadline。`review_failure_persist_failed` はDB回復後の終端状態記録を待っている状態。
+
+- 保存失敗: requestIdを控え、healthとログを照合。保存先の所有ユーザー・権限・容量を確認する。未保存の本文を保護したまま復旧後に再保存する。
+- DB停止: DBのhealthと接続設定を確認。所有lockを失ったNodeは終了し、サービスが再起動する。復旧後にFAILED/INTERRUPTEDのReviewを確認する。
+- Provider失敗: reviewIdとreasonを確認し、サービス実行ユーザーの認証・モデル・ネットワークを確認する。ノート本文をログへ追加しない。
+- 毎利用日: health、空き容量、FAILED Review、前回バックアップ成功時刻を確認。Review一覧のstatusと詳細のerror/stageを使う。
+
+Macのログは `.local/logs/` に保存し、週次および障害対応後に容量を確認する。1ファイル10 MiB以上なら、サービスをbootoutしてから次を実行し、再bootstrapする。
+
+```sh
+npm run logs:rotate -- /absolute/checkout/.local/logs --offline
+```
+
+生成serviceのout/errログだけを対象とし、各7世代を残す。停止せずrenameすると古いファイルへ出力が続くので、必ず停止期間に実施する。Linuxはjournalを利用し、管理者がjournaldのSystemMaxUse/MaxRetentionSec等で容量・保存期間を決める。ログを外部へ共有する前にも秘密情報・ノート本文の混入がないことを確認する。
+
 ## バックアップ
 
 DBだけ、またはMarkdownだけを取得してもWorkspaceは復元できない。両者を同じ停止期間に取得する。

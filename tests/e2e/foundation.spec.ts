@@ -13,7 +13,7 @@ test("learner can open the seeded workspace", async ({ page }) => {
 test("health endpoint checks real database connectivity", async ({ request }) => {
   const response = await request.get("/api/health");
   expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual({ status: "ok", database: "connected" });
+  expect(await response.json()).toMatchObject({ status: "ok", database: "connected", storage: { status: "writable", freeBytes: expect.any(Number) } });
 });
 
 test("landing is usable at a narrow viewport", async ({ page }) => {
