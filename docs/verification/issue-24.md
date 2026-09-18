@@ -11,3 +11,5 @@
 - Chromium: E2E専用DBで14件成功。
 
 実際の運用DBの停止・取得や、運用者の別媒体へのコピーは未実施。CLIの `--offline` は停止済みの前提を明示するもので、プロセスを停止する機能ではない。
+
+CI初回はUbuntu標準repositoryにpostgresql-client-17がなくinstall段階で失敗した。PostgreSQL公式の署名付きAPT repositoryを設定するよう修正した。
