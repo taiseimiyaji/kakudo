@@ -1,5 +1,8 @@
 import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
+import { requireE2eRunner } from "./lib/e2e-env";
+
+requireE2eRunner();
 
 const development = process.env.E2E_DEV === "1";
 const url = development ? "http://127.0.0.1:43173" : "http://127.0.0.1:43172";

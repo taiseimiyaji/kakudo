@@ -31,3 +31,19 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+  db-e2e:
+    image: postgres:17-alpine
+    profiles: [test]
+    environment:
+      POSTGRES_DB: kakudo_e2e_test
+      POSTGRES_USER: kakudo
+      POSTGRES_PASSWORD: kakudo
+    ports:
+      - "127.0.0.1:54331:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kakudo -d kakudo_e2e_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

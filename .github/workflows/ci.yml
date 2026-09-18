@@ -31,6 +31,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54329/kakudo
       TEST_DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54330/kakudo_test
+      E2E_DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54330/kakudo_e2e_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +45,7 @@ jobs:
       - run: npm run test:unit
       - run: npm run test:integration
       - run: npm run build
+      - run: PGPASSWORD=kakudo createdb -h 127.0.0.1 -p 54330 -U kakudo kakudo_e2e_test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - uses: actions/upload-artifact@v4

@@ -109,7 +109,9 @@ npm run check
 
 lint → typecheck → unit → 実PostgreSQL integration → build → Chromiumの順で実行します。Integrationは開発DBとは別の `TEST_DATABASE_URL`（DB名末尾 `_test` 必須）を使います。ComposeのテストDBは54330、tmpfs上に分離します。
 
-Browserは本番ビルドを43172で起動し、開発DBに一意なテストデータを作成・削除します。実レビューが進行していない状態で実行してください。Browserを含む通常テストは明示的なMockを使い、外部LLM不要です。GitHub Actionsでも2つのPostgreSQL serviceで検証します。
+Browserは `E2E_DATABASE_URL`（DB名末尾 `_e2e_test`）の専用DBを必須とし、開発・integrationと同名のDBを拒否します。ComposeのE2E用DBは54331です。`npm run test:browser` が専用DBのmigration・初期化・seed、一時Markdown保存先の作成、終了時のデータと一時保存先の削除を行います。E2E専用DBの内容は毎回消去されるため、学習データを入れないでください。DB advisory lockで同時実行を拒否します。
+
+本番ビルドは43172、`E2E_DEV=1 npm run test:browser` はVite/APIを43173/43174で起動します。既存サーバーは再利用せず、ポート使用中なら失敗します。直接 `npx playwright test` は拒否します。通常テストはMockで外部LLM不要です。CIも開発・integration・E2Eを別DBに分離します。強制終了で残った一時directoryはプロセス停止を確認して削除できます。
 
 実Providerの確認は設定後に明示して実行します。Codex SDKは実接続済み、OpenAI APIは認証未設定のため契約テストのみです。
 
