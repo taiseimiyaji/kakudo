@@ -32,6 +32,7 @@ jobs:
       DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54329/kakudo
       TEST_DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54330/kakudo_test
       E2E_DATABASE_URL: postgresql://kakudo:kakudo@127.0.0.1:54330/kakudo_e2e_test
+      PG_BIN_DIR: /usr/lib/postgresql/17/bin
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,6 +44,14 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
+      - name: Install PostgreSQL 17 client tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          printf 'deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt %s-pgdg main\n' "$VERSION_CODENAME" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
       - run: npm run test:integration
       - run: npm run build
       - run: PGPASSWORD=kakudo createdb -h 127.0.0.1 -p 54330 -U kakudo kakudo_e2e_test

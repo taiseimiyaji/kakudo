@@ -6,6 +6,7 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "backup": "tsx scripts/backup.ts",
     "dev": "concurrently --kill-others --names api,web \"npm:dev:api\" \"npm:dev:web\"",
     "build": "vite build && esbuild server/index.ts --bundle --platform=node --target=node24 --format=esm --packages=external --outfile=dist/server/index.mjs",
     "start": "node dist/server/index.mjs",
