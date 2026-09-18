@@ -4,7 +4,7 @@ import { readDatabaseUrl } from "../lib/env";
 import * as schema from "./schema";
 
 export function createDatabase(url: string) {
-  const client = postgres(url, { max: 5, connect_timeout: 5, idle_timeout: 20 });
+  const client = postgres(url, { max: 5, connect_timeout: 5, idle_timeout: 20, connection: { statement_timeout: 15000 } });
   return { db: drizzle(client, { schema }), client };
 }
 

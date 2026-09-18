@@ -17,9 +17,60 @@ import { resourceService } from "../../modules/resource/service";
 import { reviewService } from "../../modules/review/service";
 import { mockProvider } from "../../modules/review/mock-provider";
 import { mockReviewFetcher } from "../../modules/review/fixtures";
+import type { Database } from "../../db/client";
 const { db, client } = createDatabase(readTestDatabaseUrl()); const workspaceId = `reviews-${randomUUID()}`; let root: string; let storage: LocalFileSystemStorage;
 beforeAll(async () => { root = await mkdtemp(join(tmpdir(), "kakudo-reviews-")); storage = new LocalFileSystemStorage(root); await migrate(db, { migrationsFolder: "./db/migrations" }); await db.insert(workspaces).values({ id: workspaceId, name: "Reviews" }); });
 afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); await rm(root, { recursive: true, force: true }); });
+it("atomically rejects duplicate admission and bounds all pending reviews", async () => {
+  const docs = documentService(db, storage);
+  const doc = await docs.create(workspaceId, { title: "Admission", content: "My note.", nodeIds: [] });
+  const service = reviewService({ db, storage, provider: mockProvider(), limits: { maxPending: 1, timeoutMs: 1000 } });
+  const input = { revisionId: doc.currentRevisionId!, type: "LOGIC" as const };
+  const attempts = await Promise.allSettled([service.start(doc.id, workspaceId, input, false), service.start(doc.id, workspaceId, input, false)]);
+  expect(attempts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+  expect(attempts.find((result) => result.status === "rejected")).toMatchObject({ reason: { status: 409 } });
+  await expect(service.start(doc.id, workspaceId, { ...input, type: "SOURCE" }, false)).rejects.toMatchObject({ status: 429 });
+  const [job] = await service.list(doc.id, workspaceId); await service.execute(job.id);
+  const next = await service.start(doc.id, workspaceId, input, false); await service.execute(next.id);
+  expect((await service.get(next.id, workspaceId)).run.status).toBe("COMPLETED");
+  await docs.remove(doc.id, workspaceId);
+});
+
+it("times out a stalled provider, advances the queue and ignores its late result", async () => {
+  const docs = documentService(db, storage);
+  const first = await docs.create(workspaceId, { title: "Slow", content: "Slow note.", nodeIds: [] });
+  const second = await docs.create(workspaceId, { title: "Next", content: "Next note.", nodeIds: [] });
+  let finish!: (value: []) => void;
+  const stalled = new Promise<[]>((resolve) => { finish = resolve; });
+  const provider = { ...mockProvider(), reviewLogic: vi.fn().mockImplementationOnce(() => stalled).mockResolvedValue([]) };
+  const service = reviewService({ db, storage, provider, limits: { maxPending: 2, timeoutMs: 100 } });
+  const a = await service.start(first.id, workspaceId, { revisionId: first.currentRevisionId!, type: "LOGIC" });
+  const b = await service.start(second.id, workspaceId, { revisionId: second.currentRevisionId!, type: "LOGIC" });
+  await vi.waitFor(async () => expect((await service.get(b.id, workspaceId)).run.status).toBe("COMPLETED"));
+  expect((await service.get(a.id, workspaceId)).run).toMatchObject({ status: "FAILED", error: expect.stringContaining("制限時間") });
+  finish([]);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect((await service.get(a.id, workspaceId)).run.status).toBe("FAILED");
+  expect(await storage.read(first.path)).toBe("Slow note.");
+  await docs.remove(first.id, workspaceId); await docs.remove(second.id, workspaceId);
+});
+
+it("retries terminal-state persistence after a database outage", async () => {
+  const docs = documentService(db, storage);
+  const doc = await docs.create(workspaceId, { title: "Recovery", content: "Recovery note.", nodeIds: [] });
+  let unavailable = false;
+  const connection = new Proxy(db, { get(target, property) {
+    if (property === "update" && unavailable) return () => { throw new Error("database unavailable with secret"); };
+    const value = Reflect.get(target, property); return typeof value === "function" ? value.bind(target) : value;
+  } }) as Database;
+  const service = reviewService({ db: connection, storage, provider: mockProvider() });
+  const run = await service.start(doc.id, workspaceId, { revisionId: doc.currentRevisionId!, type: "LOGIC" }, false);
+  unavailable = true; await service.execute(run.id);
+  unavailable = false;
+  await vi.waitFor(async () => expect((await service.get(run.id, workspaceId)).run.status).toBe("FAILED"), { timeout: 7000 });
+  expect((await service.get(run.id, workspaceId)).run.error).not.toContain("secret");
+  await docs.remove(doc.id, workspaceId);
+});
 it("pins revision/evidence snapshots through edits, persists findings and does not write content", async () => {
   const docs = documentService(db, storage); const content = "OAuthは認証プロトコルである。";
   const doc = await docs.create(workspaceId, { title: "Review note", content, nodeIds: [] });

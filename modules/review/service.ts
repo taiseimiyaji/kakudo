@@ -20,35 +20,70 @@ import { quoteMarkdown } from "../../shared/quote";
 import { reviewIsStale } from "../../shared/revision";
 import { findingStatusInput, reviewStart } from "../../shared/review";
 import type { z } from "zod";
+import { abortable, boundedProvider, executionConfig } from "./execution";
 let reviewQueue: Promise<unknown> = Promise.resolve();
-export function reviewService({ db = getDatabase(), storage = getContentStorage(), provider: suppliedProvider, fetcher: suppliedFetcher, search: suppliedSearch }: { db?: Database; storage?: ContentStorage; provider?: ReviewProvider; fetcher?: ResourceFetcher; search?: SearchProvider } = {}) {
-  const provider = () => suppliedProvider ?? createReviewProvider();
+const pendingFailures = new Map<string, { db: Database; message: string }>();
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let retrying = false;
+async function persistFailure(id: string, failure: { db: Database; message: string }) {
+  try {
+    await failure.db.update(reviewRuns).set({ status: "FAILED", stage: "FAILED", error: failure.message, completedAt: new Date() }).where(and(eq(reviewRuns.id, id), inArray(reviewRuns.status, ["QUEUED", "RUNNING"])));
+    pendingFailures.delete(id);
+  } catch { /* Retain the job until the database recovers. */ }
+}
+async function persistFailures() {
+  if (retrying) return;
+  retrying = true;
+  try { await Promise.all([...pendingFailures].map(([id, failure]) => persistFailure(id, failure))); }
+  finally { retrying = false; }
+  if (pendingFailures.size && !retryTimer) {
+    retryTimer = setTimeout(() => { retryTimer = undefined; void persistFailures(); }, 5000); retryTimer.unref();
+  }
+}
+export function reviewService({ db = getDatabase(), storage = getContentStorage(), provider: suppliedProvider, fetcher: suppliedFetcher, search: suppliedSearch, limits }: { db?: Database; storage?: ContentStorage; provider?: ReviewProvider; fetcher?: ResourceFetcher; search?: SearchProvider; limits?: { maxPending: number; timeoutMs: number } } = {}) {
+  const config = executionConfig.parse(process.env);
+  const maxPending = limits?.maxPending ?? config.REVIEW_MAX_PENDING;
+  const timeoutMs = limits?.timeoutMs ?? config.REVIEW_RUN_TIMEOUT_MS;
+  const provider = (signal?: AbortSignal) => suppliedProvider ?? createReviewProvider(process.env, signal);
   async function document(id: string, workspaceId: string) { return requireFound((await db.select().from(documents).where(and(eq(documents.id, id), eq(documents.workspaceId, workspaceId))))[0], "Document"); }
   async function run(id: string, workspaceId: string) { const row = requireFound((await db.select().from(reviewRuns).where(eq(reviewRuns.id, id)))[0], "Review"); await document(row.documentId, workspaceId); return row; }
   async function execute(id: string) {
-    const [job] = await db.update(reviewRuns).set({ status: "RUNNING", stage: "STARTING" }).where(and(eq(reviewRuns.id, id), eq(reviewRuns.status, "QUEUED"))).returning();
-    if (!job) return;
+    const controller = new AbortController(); const { signal } = controller;
+    const timer = setTimeout(() => controller.abort(new Error("Review deadline exceeded")), timeoutMs);
     try {
+      const [job] = await db.update(reviewRuns).set({ status: "RUNNING", stage: "STARTING" }).where(and(eq(reviewRuns.id, id), eq(reviewRuns.status, "QUEUED"))).returning();
+      if (!job) return;
+      signal.throwIfAborted();
       const revision = requireFound((await db.select().from(documentRevisions).where(eq(documentRevisions.id, job.revisionId)))[0], "Revision");
-      const reviewer = provider();
-      const stage = async (stage: string) => { await db.update(reviewRuns).set({ stage }).where(eq(reviewRuns.id, id)); };
-      const result = ["FACT_CHECK", "SOURCE", "FULL"].includes(job.type) ? await factSourcePipeline({ markdown: revision.contentSnapshot, type: job.type as "FACT_CHECK" | "SOURCE" | "FULL", groups: job.resourceSnapshot, quotes: job.quoteSnapshot }, { provider: reviewer, fetcher: suppliedFetcher ?? (reviewer.name === "mock" ? mockReviewFetcher : createResourceFetcher()), search: suppliedSearch ?? createSearchProvider(), stage }) : { findings: [], notices: [], sourceChecks: [] };
+      const reviewer = boundedProvider(provider(signal), signal);
+      const stage = async (stage: string) => { signal.throwIfAborted(); await db.update(reviewRuns).set({ stage }).where(and(eq(reviewRuns.id, id), eq(reviewRuns.status, "RUNNING"))); signal.throwIfAborted(); };
+      const fetcher = suppliedFetcher ?? (reviewer.name === "mock" ? mockReviewFetcher : createResourceFetcher({ signal }));
+      const search = suppliedSearch ?? createSearchProvider(process.env, signal);
+      const result = ["FACT_CHECK", "SOURCE", "FULL"].includes(job.type) ? await abortable(signal, () => factSourcePipeline({ markdown: revision.contentSnapshot, type: job.type as "FACT_CHECK" | "SOURCE" | "FULL", groups: job.resourceSnapshot, quotes: job.quoteSnapshot }, { provider: reviewer, fetcher: { fetch: (url) => abortable(signal, () => fetcher.fetch(url)) }, search: { search: (query) => abortable(signal, () => search.search(query)) }, stage })) : { findings: [], notices: [], sourceChecks: [] };
       let coverage: CoverageResult[] = [];
       if (["LOGIC", "COVERAGE", "FULL"].includes(job.type)) {
-        const learning = await learningReview(revision.contentSnapshot, job.objectives, job.type as "LOGIC" | "COVERAGE" | "FULL", reviewer, stage);
+        const learning = await abortable(signal, () => learningReview(revision.contentSnapshot, job.objectives, job.type as "LOGIC" | "COVERAGE" | "FULL", reviewer, stage));
         result.findings.push(...learning.findings); result.notices.push(...learning.notices); coverage = learning.coverage;
       }
       await db.transaction(async (tx) => {
+        signal.throwIfAborted();
         for (const finding of result.findings) {
+          signal.throwIfAborted();
           const findingId = randomUUID(); const { evidence, ...fields } = finding;
           await tx.insert(reviewFindings).values({ id: findingId, reviewRunId: id, ...fields });
           for (const item of evidence) await tx.insert(findingEvidence).values({ id: randomUUID(), findingId, url: item.url, title: item.title, excerpt: item.text.slice(0, 1500) || null, sourceType: item.sourceType, accessedAt: new Date(item.accessedAt) });
         }
-        await tx.update(reviewRuns).set({ status: "COMPLETED", stage: "COMPLETED", sourceChecks: result.sourceChecks, coverage, notices: result.notices, completedAt: new Date() }).where(eq(reviewRuns.id, id));
+        signal.throwIfAborted();
+        await tx.update(reviewRuns).set({ status: "COMPLETED", stage: "COMPLETED", sourceChecks: result.sourceChecks, coverage, notices: result.notices, completedAt: new Date() }).where(and(eq(reviewRuns.id, id), eq(reviewRuns.status, "RUNNING")));
+        signal.throwIfAborted();
       });
     } catch (error) {
-      await db.update(reviewRuns).set({ status: "FAILED", stage: "FAILED", error: error instanceof ReviewProviderError ? error.message : "レビューが失敗しました。接続設定・Documentの長さ（主張20件以内）を確認して再実行してください。", completedAt: new Date() }).where(eq(reviewRuns.id, id));
-    }
+      console.error(JSON.stringify({ event: "review_failed", reviewId: id, reason: signal.aborted ? "deadline" : "execution" }));
+      const failure = { db, message: signal.aborted ? "レビュー全体の制限時間を超えました。資料やDocumentを絞って再実行してください。" : error instanceof ReviewProviderError ? error.message : "レビューが失敗しました。接続設定・Documentの長さ（主張20件以内）を確認して再実行してください。" };
+      pendingFailures.set(id, failure);
+      await persistFailure(id, failure);
+      void persistFailures();
+    } finally { clearTimeout(timer); controller.abort(); }
   }
   return {
     execute,
@@ -67,7 +102,11 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
       const reviewer = provider();
       await documentService(db, storage).recover();
       const job = await serializeContent(async () => {
+        void persistFailures();
         const doc = await document(documentId, workspaceId);
+        const pending = await db.select({ documentId: reviewRuns.documentId, revisionId: reviewRuns.revisionId, type: reviewRuns.type }).from(reviewRuns).where(inArray(reviewRuns.status, ["QUEUED", "RUNNING"]));
+        if (pending.some((run) => run.documentId === documentId && run.revisionId === data.revisionId && run.type === data.type)) throw new DomainError("同じRevision・種類のReviewが進行中です。完了を待ってください。", 409);
+        if (pending.length >= maxPending) throw new DomainError("Reviewの受付上限です。進行中のReviewが完了してから再実行してください。", 429);
         if (doc.currentRevisionId !== data.revisionId) throw new DomainError("現在の内容を保存してからReviewしてください。", 409);
         const revision = requireFound((await db.select().from(documentRevisions).where(and(eq(documentRevisions.id, data.revisionId), eq(documentRevisions.documentId, documentId))))[0], "Revision");
         if (contentHash(await storage.read(doc.path)) !== revision.contentHash) throw new DomainError("Markdownが外部で変更されています。保存してからReviewしてください。", 409);
@@ -80,7 +119,7 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text, nodeTitle: node.title }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
         return job;
       });
-      if (autoStart) { reviewQueue = reviewQueue.then(() => execute(job.id)).catch(() => {}); }
+      if (autoStart) { reviewQueue = reviewQueue.then(() => execute(job.id)).catch(() => { console.error(JSON.stringify({ event: "review_queue_failed", reviewId: job.id })); }); }
       return job;
     },
     async list(documentId: string, workspaceId: string) { await document(documentId, workspaceId); return db.select({ id: reviewRuns.id, revisionId: reviewRuns.revisionId, status: reviewRuns.status, type: reviewRuns.type, createdAt: reviewRuns.createdAt, provider: reviewRuns.provider }).from(reviewRuns).where(eq(reviewRuns.documentId, documentId)).orderBy(desc(reviewRuns.createdAt)); },

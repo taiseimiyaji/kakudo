@@ -5,6 +5,23 @@ vi.mock("@openai/codex-sdk", () => ({ Codex: class { constructor(options: unknow
 vi.mock("openai", () => ({ default: class { constructor(options: unknown) { mocks.openai(options); } responses = { create: mocks.response }; } }));
 import { codexTransport, openaiTransport } from "../../modules/review/transports";
 const schema = z.object({ findings: z.array(z.string()) }).strict();
+it("forwards run cancellation to both SDK transports", async () => {
+  const controller = new AbortController();
+  mocks.run.mockImplementationOnce((_prompt, { signal }: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+    controller.abort();
+  }));
+  await expect(codexTransport({ signal: controller.signal })("Review", {}, schema)).rejects.toThrow();
+  expect(mocks.run.mock.lastCall![1].signal.aborted).toBe(true);
+  const openaiController = new AbortController();
+  mocks.response.mockImplementationOnce((_input, { signal }: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+    openaiController.abort();
+  }));
+  await expect(openaiTransport({ apiKey: "test", model: "test", signal: openaiController.signal })("Review", {}, schema)).rejects.toThrow();
+  expect(mocks.response.mock.lastCall![1].signal.aborted).toBe(true);
+  mocks.run.mockClear(); mocks.response.mockClear();
+});
 it("invokes Codex with a read-only temporary directory, no inherited MCP and a JSON schema", async () => {
   mocks.run.mockResolvedValue({ items: [], finalResponse: '{"findings":[]}' });
   expect(await codexTransport()('Review', { text: "untrusted" }, schema)).toEqual({ findings: [] });
