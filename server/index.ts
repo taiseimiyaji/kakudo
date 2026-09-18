@@ -5,12 +5,13 @@ import { createApp } from "./app";
 import { closeDatabase } from "../db/client";
 import { acquireOwnership } from "../modules/operations/ownership";
 import { readDatabaseUrl } from "../lib/env";
+import { logEvent } from "../lib/observability";
 
 const port = Number(process.env.PORT ?? 43171);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be between 1 and 65535");
 const hostname = process.env.HOST ?? "127.0.0.1";
 const releaseOwnership = await acquireOwnership(readDatabaseUrl(), () => {
-  console.error("Database ownership lost; stopping to prevent concurrent writers.");
+  logEvent("ownership_lost");
   process.exit(1);
 });
 await reviewService().recoverInterrupted();

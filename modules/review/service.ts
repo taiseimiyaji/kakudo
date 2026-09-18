@@ -21,6 +21,7 @@ import { reviewIsStale } from "../../shared/revision";
 import { findingStatusInput, reviewStart } from "../../shared/review";
 import type { z } from "zod";
 import { abortable, boundedProvider, executionConfig } from "./execution";
+import { errorKind, logEvent } from "../../lib/observability";
 let reviewQueue: Promise<unknown> = Promise.resolve();
 const pendingFailures = new Map<string, { db: Database; message: string }>();
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -29,7 +30,7 @@ async function persistFailure(id: string, failure: { db: Database; message: stri
   try {
     await failure.db.update(reviewRuns).set({ status: "FAILED", stage: "FAILED", error: failure.message, completedAt: new Date() }).where(and(eq(reviewRuns.id, id), inArray(reviewRuns.status, ["QUEUED", "RUNNING"])));
     pendingFailures.delete(id);
-  } catch { /* Retain the job until the database recovers. */ }
+  } catch (error) { logEvent("review_failure_persist_failed", { reviewId: id, reason: errorKind(error) }); }
 }
 async function persistFailures() {
   if (retrying) return;
@@ -78,7 +79,7 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         signal.throwIfAborted();
       });
     } catch (error) {
-      console.error(JSON.stringify({ event: "review_failed", reviewId: id, reason: signal.aborted ? "deadline" : "execution" }));
+      logEvent("review_failed", { reviewId: id, reason: signal.aborted ? "deadline" : error instanceof ReviewProviderError ? "provider" : errorKind(error) });
       const failure = { db, message: signal.aborted ? "レビュー全体の制限時間を超えました。資料やDocumentを絞って再実行してください。" : error instanceof ReviewProviderError ? error.message : "レビューが失敗しました。接続設定・Documentの長さ（主張20件以内）を確認して再実行してください。" };
       pendingFailures.set(id, failure);
       await persistFailure(id, failure);
@@ -119,7 +120,7 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text, nodeTitle: node.title }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
         return job;
       });
-      if (autoStart) { reviewQueue = reviewQueue.then(() => execute(job.id)).catch(() => { console.error(JSON.stringify({ event: "review_queue_failed", reviewId: job.id })); }); }
+      if (autoStart) { reviewQueue = reviewQueue.then(() => execute(job.id)).catch(() => { logEvent("review_queue_failed", { reviewId: job.id }); }); }
       return job;
     },
     async list(documentId: string, workspaceId: string) { await document(documentId, workspaceId); return db.select({ id: reviewRuns.id, revisionId: reviewRuns.revisionId, status: reviewRuns.status, type: reviewRuns.type, createdAt: reviewRuns.createdAt, provider: reviewRuns.provider }).from(reviewRuns).where(eq(reviewRuns.documentId, documentId)).orderBy(desc(reviewRuns.createdAt)); },
