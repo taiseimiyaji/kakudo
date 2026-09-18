@@ -46,11 +46,13 @@ export function htmlText(html: string) {
   const title = convert(safe.match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? "", { wordwrap: false }).trim().slice(0, 500);
   return { title, text: convert(safe, { wordwrap: false }).trim() };
 }
-export function createResourceFetcher({ resolve = (host: string) => lookup(host, { all: true, verbatim: true }), transport = pinnedTransport, timeoutMs = 10000, maxBytes = 2_000_000, maxRedirects = 5 }: { resolve?: (host: string) => Promise<Address[]>; transport?: Transport; timeoutMs?: number; maxBytes?: number; maxRedirects?: number } = {}): ResourceFetcher {
+export function createResourceFetcher({ resolve = (host: string) => lookup(host, { all: true, verbatim: true }), transport = pinnedTransport, timeoutMs = 10000, maxBytes = 2_000_000, maxRedirects = 5, signal: parentSignal }: { resolve?: (host: string) => Promise<Address[]>; transport?: Transport; timeoutMs?: number; maxBytes?: number; maxRedirects?: number; signal?: AbortSignal } = {}): ResourceFetcher {
   return { async fetch(raw) {
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs); const { signal } = controller;
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = parentSignal ? AbortSignal.any([controller.signal, parentSignal]) : controller.signal;
     let response: IncomingMessage | undefined;
     try {
+      signal.throwIfAborted();
       let url = checkedUrl(raw);
       for (let redirects = 0; ; redirects++) {
         const host = url.hostname.replace(/^\[|\]$/g, "");

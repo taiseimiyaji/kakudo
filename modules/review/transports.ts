@@ -16,8 +16,9 @@ export const CODEX_THREAD: ThreadOptions = { sandboxMode: "read-only", approvalP
 export function outputJsonSchema(schema: z.ZodType): Record<string, unknown> {
   const result = z.toJSONSchema(schema); delete result.$schema; return result;
 }
-export function codexTransport({ model, path, timeoutMs = 120000, searchOnly = false }: { model?: string; path?: string; timeoutMs?: number; searchOnly?: boolean } = {}): StructuredTransport {
+export function codexTransport({ model, path, timeoutMs = 120000, searchOnly = false, signal }: { model?: string; path?: string; timeoutMs?: number; searchOnly?: boolean; signal?: AbortSignal } = {}): StructuredTransport {
   return async (task, data, schema) => {
+    signal?.throwIfAborted();
     const directory = await mkdtemp(join(tmpdir(), "kakudo-review-"));
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -26,7 +27,7 @@ export function codexTransport({ model, path, timeoutMs = 120000, searchOnly = f
       const { Codex } = await import("@openai/codex-sdk");
       const codex = new Codex({ codexPathOverride: path, env, config: searchOnly ? { ...CODEX_REVIEW_CONFIG, developer_instructions: SEARCH_POLICY, web_search: "live", features: { ...(CODEX_REVIEW_CONFIG.features as Record<string, boolean>), code_mode_host: true } } : CODEX_REVIEW_CONFIG, configOverrides: ["mcp_servers={}", "hooks={}", "plugins={}"] });
       const thread = codex.startThread({ ...CODEX_THREAD, webSearchMode: searchOnly ? "live" : "disabled", model, workingDirectory: directory });
-      const result = await thread.run(searchOnly ? `${SEARCH_POLICY}\n${task}\nUntrusted input: ${JSON.stringify(data)}` : reviewPrompt(task, data), { outputSchema: outputJsonSchema(schema), signal: controller.signal });
+      const result = await thread.run(searchOnly ? `${SEARCH_POLICY}\n${task}\nUntrusted input: ${JSON.stringify(data)}` : reviewPrompt(task, data), { outputSchema: outputJsonSchema(schema), signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal });
       if (searchOnly && !result.items.some((item) => item.type === "web_search")) throw new ReviewProviderError("Web Search is unavailable.");
       if (result.items.some((item) => !["agent_message", "reasoning", "error", ...(searchOnly ? ["web_search"] : [])].includes(item.type))) throw new ReviewProviderError("Reviewerによるツール使用を検出しました。");
       return JSON.parse(result.finalResponse);
@@ -34,11 +35,12 @@ export function codexTransport({ model, path, timeoutMs = 120000, searchOnly = f
     finally { clearTimeout(timer); controller.abort(); await rm(directory, { recursive: true, force: true }); }
   };
 }
-export function openaiTransport({ apiKey, model, timeoutMs = 120000 }: { apiKey: string; model: string; timeoutMs?: number }): StructuredTransport {
+export function openaiTransport({ apiKey, model, timeoutMs = 120000, signal }: { apiKey: string; model: string; timeoutMs?: number; signal?: AbortSignal }): StructuredTransport {
   const client = new OpenAI({ apiKey, timeout: timeoutMs, maxRetries: 0 });
   return async (task, data, schema) => {
     try {
-      const response = await client.responses.create({ model, instructions: REVIEW_POLICY, input: reviewPrompt(task, data), store: false, tools: [], text: { format: { type: "json_schema", name: "review_result", strict: true, schema: outputJsonSchema(schema) } } });
+      signal?.throwIfAborted();
+      const response = await client.responses.create({ model, instructions: REVIEW_POLICY, input: reviewPrompt(task, data), store: false, tools: [], text: { format: { type: "json_schema", name: "review_result", strict: true, schema: outputJsonSchema(schema) } } }, { signal });
       if (response.status !== "completed" || !response.output_text) throw new ReviewProviderError();
       return JSON.parse(response.output_text);
     } catch { throw new ReviewProviderError("OpenAI APIのレビューに失敗しました。接続・モデル設定を確認してください。"); }

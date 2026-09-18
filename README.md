@@ -84,6 +84,8 @@ ContentStorage経由のatomic renameとDBの補償journalで保存し、中断�
 
 共通timeoutは `REVIEW_TIMEOUT_MS=120000`。キーは `.env` に置き、ブラウザへ公開される `VITE_` 変数には入れません。
 
+`REVIEW_TIMEOUT_MS` は1回のProvider呼び出しの上限です。Review全体の実行期限は `REVIEW_RUN_TIMEOUT_MS=600000`、待機中＋実行中の受付上限は `REVIEW_MAX_PENDING=10`。同じDocument/Revision/typeの進行中Reviewは409、受付上限は429となり画面に理由を表示します。期限切れはFAILEDとなり、Provider・検索・取得へ中断を伝え、遅れて返った結果を保存しません。DB queryは15秒でtimeoutし、FAILED記録時にDBが停止していた場合は復旧後に再試行します。待ち時間は実行期限に含まず、1件ずつ処理します。
+
 Codex Reviewerは一時作業ディレクトリ、read-only sandboxで動き、shell / MCP / plugin / hook / web searchを無効にします。本文の保存先を渡しません。認証・標準ログ保存はローカルCodex設定に従います。OpenAIはResponses APIのstrict JSON schema、toolsなし、store=falseです。両Adapterとも置換文などのフィールドを出力Schemaから除外し、未知フィールドを拒否します。自由記述の説明が方針に従うことまでSchemaのみで保証するものではありません。
 
 保存後にReviewを起動すると、Revision・Objectives・引用・資料関連を固定します。進行中の編集は対象を変えません。再起動で中断したReviewはFAILEDとなり、再実行できます。本文・Revision・関連Objectivesが変わるとOutdatedとなり、古い本文位置はハイライトしません。Resolve / Dismiss / Reopenは指摘状態だけを変更します。
