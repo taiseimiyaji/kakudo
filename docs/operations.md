@@ -54,7 +54,21 @@ npm run logs:rotate -- /absolute/checkout/.local/logs --offline
 
 生成serviceのout/errログだけを対象とし、各7世代を残す。停止せずrenameすると古いファイルへ出力が続くので、必ず停止期間に実施する。Linuxはjournalを利用し、管理者がjournaldのSystemMaxUse/MaxRetentionSec等で容量・保存期間を決める。ログを外部へ共有する前にも秘密情報・ノート本文の混入がないことを確認する。
 
-## バックアップ
+## 配置先の実Provider確認
+
+採用Providerとmodel、実行ユーザー、認証方式、検索設定を記録し、そのサービス環境で確認する。別ユーザーのCLIログイン成功をサービスの成功とみなさない。Codex SDKはサーバー側で使い、認証cacheの内容は表示・コピー・commitしない。[公式SDK](https://learn.chatgpt.com/docs/codex-sdk) / [認証cache](https://learn.chatgpt.com/docs/auth)。
+
+専用検証DB・保存先・非公開のポートにサービスを起動する。人間が指定した仕様のOAuth誤記例を検証用.mdへ保存し、次を実行する。
+
+```sh
+SMOKE_BASE_URL=http://127.0.0.1:43175 SMOKE_MARKDOWN_PATH=/absolute/verification.md npm run smoke:deployment
+```
+
+Provider既定期待値はcodex（`SMOKE_EXPECT_PROVIDER`で明示変更可能）。人間の検証本文を読み込み、検証Document・RFC資料関連・Reviewを作り、空白のみの編集後も元Revisionを評価すること、根拠付きCONTRADICTED、本文不変とOutdatedを確認する。作成したDocumentは最後に削除する。外部AIへ送信するので、検証用本文のみ使用する。通常CIでは実AIを呼ばない。
+
+検索は配置先と同じサービス実行ユーザー・設定で `createSearchProvider` の実呼び出しを確認する。認証・model設定を一時的に不正にした専用サービスでFAILEDを確認し、設定を戻して同じノートのReviewが再実行できることも確認する。使わないProviderは運用開始条件に含めない。別サーバーへ移した場合はすべて再確認する。
+
+## バックアップ手順
 
 DBだけ、またはMarkdownだけを取得してもWorkspaceは復元できない。両者を同じ停止期間に取得する。
 
