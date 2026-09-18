@@ -6,6 +6,7 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "smoke:deployment": "tsx scripts/deployment-smoke.ts",
     "logs:rotate": "tsx scripts/rotate-logs.ts",
     "service:config": "tsx scripts/service-config.ts",
     "backup": "tsx scripts/backup.ts",
