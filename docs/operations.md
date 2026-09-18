@@ -2,6 +2,39 @@
 
 単一NodeプロセスでPostgreSQLとMarkdownを所有する。通常サーバーでもPCでもNode 24を使用する。
 
+## 常駐と再起動
+
+運用用checkoutを開発時のwatch対象から分離し、Node 24で `npm ci`、`npm run build`、`npm run db:setup` を行う。運用用.envは600とし、DATABASE_URL、絶対パスのCONTENT_STORAGE_ROOT、HOST、PORT、ALLOWED_ORIGINS、Provider設定を明示する。1つの保存先を別DBのアプリと共有しない。
+
+サーバーはDBの専用sessionで所有lockを取得してから中断Reviewを回復する。2つ目のNodeプロセスは別ポートでも起動を拒否する。所有sessionを失ったプロセスは停止し、サービス管理側の再起動に委ねる。バックアップやmigration前には、開発サーバーも含めて所有プロセスを止める。
+
+### Mac（ログインユーザーのLaunchAgent）
+
+```sh
+npm run service:config -- launchd /absolute/config/kakudo.env /absolute/config/local.kakudo.plist
+plutil -lint /absolute/config/local.kakudo.plist
+```
+
+生成物を `~/Library/LaunchAgents/local.kakudo.plist` に配置し、`launchctl bootstrap gui/UID /absolute/path/to/local.kakudo.plist` で登録する。UIDは `id -u` で確認する。停止は `launchctl bootout gui/UID/local.kakudo`。再登録前に同じDBを使う開発サーバーを停止する。生成したNode実行パス・WorkingDirectoryは絶対パスなので、Nodeやcheckout移動後は設定を作り直す。生成だけではインストールしない。
+
+起動順はDocker Desktop/DB → Node → 公開する場合の入口。Docker Desktopはログイン時の起動を設定し、Composeのdbを起動しておく（restart: unless-stopped）。NodeはDB未起動なら失敗して10秒間隔で再試行する。LaunchAgentはログイン後に動き、ログアウト中やMacスリープ中の可用性は保証しない。利用時間はスリープさせず、常時利用が必要なら通常サーバーへ配置する。
+
+stdout/stderrはcheckout内 `.local/logs/local.kakudo.out.log` / `.err.log`。APIキーやノート本文をログへ出さない。停止してからバックアップ・migrationを行い、更新後に再bootstrapし、health・保存・Reviewを確認する。
+
+### Linux（systemd user service）
+
+```sh
+npm run service:config -- systemd /absolute/config/kakudo.env /absolute/config/kakudo.service
+```
+
+生成物を `~/.config/systemd/user/kakudo.service` に配置し、`systemctl --user daemon-reload`、`systemctl --user enable --now kakudo` で登録する。停止は `systemctl --user stop kakudo`。ログは `journalctl --user -u kakudo`。ログイン前から必要なら管理者が対象ユーザーのlingerとDBサービスの自動起動を設定する。DB接続失敗時は10秒後に再試行し、起動順の遅れを吸収する。Linux実機検証は別途実施する。
+
+### 運用先の再起動確認
+
+配置先でホスト再起動後に、DB health、保存済みMarkdown、current Revision、Review履歴を確認する。停止中にRUNNING/QUEUEDだったReviewがFAILED/INTERRUPTEDになり、再実行できることを確認する。サービスのprocess再起動試験とホスト再起動試験は区別して記録する。
+
+参考: [Apple LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)、[systemd service](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)。
+
 ## バックアップ
 
 DBだけ、またはMarkdownだけを取得してもWorkspaceは復元できない。両者を同じ停止期間に取得する。
