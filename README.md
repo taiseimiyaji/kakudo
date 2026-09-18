@@ -52,6 +52,8 @@ Honoが http://127.0.0.1:43171 でSPAとREST APIを同じoriginから配信し�
 
 アプリ内認証はPoCの対象外です。外部からの利用は入口側のアクセス制御と組み合わせます。Tunnelの公開設定・実サーバーへのdeployは未実施です。
 
+更新APIは `ALLOWED_ORIGINS` に列挙したOriginのみ許可します（既定は `http://127.0.0.1:43170,http://127.0.0.1:43171`）。公開時はブラウザが使うHTTPS originを設定し、パス・末尾スラッシュは含めません。Host / Forwardedヘッダーから許可先を推測しません。Originなし・null・許可外・cross-siteは403、本文付きの非JSONリクエストは415です。スクリプトからの更新も許可Originヘッダーと、本文があれば `Content-Type: application/json` が必要です。これはCSRF対策であり、入口のアクセス制御は別途必要です。
+
 ## データと保存
 
 | 設定・保存先 | 既定値 |

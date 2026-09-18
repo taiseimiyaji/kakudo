@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import { sql } from "drizzle-orm";
 import { getDatabase } from "../db/client";
 import { findWorkspace } from "../modules/workspace/service";
+import { requestSecurity } from "./request-security";
 
 export interface ApiServices {
   reviewProvider?: ReviewProvider;
@@ -33,6 +34,7 @@ const defaultServices: ApiServices = {
 
 export function createApi(services: ApiServices = defaultServices) {
   const api = new Hono();
+  api.use("*", requestSecurity());
   api.get("/health", async (c) => {
     try {
       await services.checkDatabase();

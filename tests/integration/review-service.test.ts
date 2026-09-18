@@ -60,7 +60,7 @@ it("persists Resolve/Dismiss through scoped API and aggregates latest document r
   const [latest] = await service.list(doc.id, workspaceId); const { findings } = await service.get(latest.id, workspaceId);
   expect((await maps.detail(map.id, workspaceId)).nodes[0].stats).toEqual({ documents: 1, sources: 1, openFindings: 1, outdatedReviews: 0 });
   const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
-  const patch = (status: string, scope = workspaceId) => app.request(`/api/findings/${findings[0].id}?workspaceId=${scope}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+  const patch = (status: string, scope = workspaceId) => app.request(`/api/findings/${findings[0].id}?workspaceId=${scope}`, { method: "PATCH", headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: JSON.stringify({ status }) });
   expect((await patch("RESOLVED", "other")).status).toBe(404); expect((await patch("APPLIED")).status).toBe(400);
   for (const status of ["RESOLVED", "OPEN", "DISMISSED"]) { expect((await patch(status)).status).toBe(200); expect((await service.get(latest.id, workspaceId)).findings[0].status).toBe(status); }
   expect((await maps.detail(map.id, workspaceId)).nodes[0].stats.openFindings).toBe(0); expect(await storage.read(doc.path)).toBe(content);

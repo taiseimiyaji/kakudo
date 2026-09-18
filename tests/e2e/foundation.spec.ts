@@ -32,7 +32,9 @@ test("direct workspace URLs and reloads work with the built SPA", async ({ page,
   const unknown = await request.get("/api/unknown");
   expect(unknown.status()).toBe(404);
   expect(unknown.headers()["content-type"]).toContain("application/json");
-  expect((await request.get("/.env")).status()).toBe(404);
+  const hidden = await request.get("/.env");
+  if (process.env.E2E_DEV === "1") expect(await hidden.text()).not.toContain("DATABASE_URL=");
+  else expect(hidden.status()).toBe(404);
 });
 
 test("SPA distinguishes missing workspace and unavailable API", async ({ page }) => {

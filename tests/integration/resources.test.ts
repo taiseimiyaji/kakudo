@@ -38,7 +38,7 @@ it("seeds references idempotently without restoring removed associations", async
 });
 it("registers without network access but safe fetch API returns UNAVAILABLE for private URLs", async () => {
   const app = createApp({ database: () => db, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
-  const registered = await app.request(`/api/documents/${documentId}/resources?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: "http://127.0.0.1/" }) });
+  const registered = await app.request(`/api/documents/${documentId}/resources?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: JSON.stringify({ url: "http://127.0.0.1/" }) });
   expect(registered.status).toBe(201); const { resource } = await registered.json();
-  const fetched = await app.request(`/api/resources/${resource.id}/fetch?workspaceId=${workspaceId}`, { method: "POST" }); expect(fetched.status).toBe(422); expect((await fetched.json()).status).toBe("UNAVAILABLE");
+  const fetched = await app.request(`/api/resources/${resource.id}/fetch?workspaceId=${workspaceId}`, { method: "POST", headers: { Origin: "http://127.0.0.1:43171" } }); expect(fetched.status).toBe(422); expect((await fetched.json()).status).toBe("UNAVAILABLE");
 });
