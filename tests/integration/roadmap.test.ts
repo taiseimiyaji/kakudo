@@ -13,11 +13,19 @@ const { db, client } = createDatabase(readTestDatabaseUrl());
 const workspaceId = `map-test-${randomUUID()}`;
 const app = createApp({ database: () => db, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => { await db.execute(sql`select 1`); } });
 async function api(path: string, method = "GET", body?: unknown, workspace = workspaceId) {
-  return app.request(`/api${path}?workspaceId=${workspace}`, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  return app.request(`/api${path}?workspaceId=${workspace}`, { method, headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: body === undefined ? undefined : JSON.stringify(body) });
 }
 beforeAll(async () => { await migrate(db, { migrationsFolder: "./db/migrations" }); await db.insert(workspaces).values({ id: workspaceId, name: "Map test" }); });
 afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); });
 describe("roadmap REST and database constraints", () => {
+  it("leaves the database unchanged when cross-origin and non-JSON creation are rejected", async () => {
+    const before = await (await api("/roadmaps")).json();
+    for (const [origin, type, status] of [["https://untrusted.example", "text/plain", 403], ["http://127.0.0.1:43171", "text/plain", 415]] as const) {
+      const response = await app.request(`/api/roadmaps?workspaceId=${workspaceId}`, { method: "POST", headers: { Origin: origin, "Content-Type": type }, body: JSON.stringify({ title: "must not exist" }) });
+      expect(response.status).toBe(status);
+    }
+    expect(await (await api("/roadmaps")).json()).toEqual(before);
+  });
   it("creates, edits and deletes maps, nodes and edges with workspace isolation", async () => {
     const create = await api("/roadmaps", "POST", { title: "Learning" }); expect(create.status).toBe(201);
     const { roadmap } = await create.json();

@@ -46,7 +46,7 @@ describe("document persistence", () => {
     const service = documentService(db, storage);
     const doc = await service.create(workspaceId, { title: "Quoted", content: "original", nodeIds: [] });
     const body = { text: "copied\nsecond", sourceUrl: "", sourceTitle: "Primary", title: "Quoted", content: "learner draft", baseHash: contentHash("original"), from: 13, to: 13 };
-    const post = (value: unknown) => app.request(`/api/documents/${doc.id}/quotes?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+    const post = (value: unknown) => app.request(`/api/documents/${doc.id}/quotes?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: JSON.stringify(value) });
     expect((await post(body)).status).toBe(400);
     expect(await storage.read(doc.path)).toBe("original");
     const response = await post({ ...body, sourceUrl: "https://example.com/source" }); expect(response.status).toBe(201);
@@ -64,7 +64,7 @@ describe("document persistence", () => {
 
   it("round-trips exact content via API and real .md; enforces scope and optimistic concurrency", async () => {
     const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
-    const api = (path: string, method = "GET", body?: unknown) => app.request(`/api${path}?workspaceId=${workspaceId}`, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const api = (path: string, method = "GET", body?: unknown) => app.request(`/api${path}?workspaceId=${workspaceId}`, { method, headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: body === undefined ? undefined : JSON.stringify(body) });
     const content = "---\r\nid: learner-note\r\ntitle: My title\r\ntags: [oauth]\r\n---\r\n# My note\r\n";
     const response = await api("/documents", "POST", { title: "Note", nodeIds: [nodeId], content }); expect(response.status).toBe(201);
     const { document: doc } = await response.json();

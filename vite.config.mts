@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
     build: { outDir: "../dist/client", emptyOutDir: true },
     server: {
       host: "127.0.0.1",
-      port: 43170,
+      port: Number(process.env.DEV_WEB_PORT ?? 43170),
       strictPort: true,
       proxy: { "^/api(?:/|$)": `http://127.0.0.1:${process.env.PORT ?? env.PORT ?? "43171"}` },
     },
