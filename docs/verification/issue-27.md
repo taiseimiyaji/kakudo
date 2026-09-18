@@ -10,3 +10,5 @@ healthに保存先の実書込み/fsync・空き容量確認を追加。容量�
 - 一時ログでoffline指定なしの拒否、11 MiBログのrotation、7世代保持をCLIで確認。
 
 外部監視サービスへの通知設定・長時間のログ蓄積は未実施。Macのrotationはサービス停止中に運用者が実行する。
+
+CI初回はbuild前のserveStatic警告をunit testがJSONとして解析して失敗。ログのテスト対象をAPI単体へ変更し、静的buildの有無に依存しないよう修正した。
