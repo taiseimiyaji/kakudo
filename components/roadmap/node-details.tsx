@@ -1,25 +1,23 @@
 import { useState } from "react";
+import type { useFormDraft } from "../../client/hooks/use-form-draft";
 import type { z } from "zod";
 import { nodePatch, nodeStatuses, type LearningNode } from "../../shared/roadmap";
-export function NodeDetails({ node, busy, onSave, onDelete }: { node: LearningNode; busy: boolean; onSave: (data: z.infer<typeof nodePatch>) => Promise<void>; onDelete: () => Promise<void> }) {
+export function nodeFormValues(node?: LearningNode) {
+  return { title: node?.title ?? "", description: node?.description ?? "", status: node?.status ?? "NOT_STARTED", objectives: node?.learningObjectives.join("\n") ?? "", questions: node?.guidingQuestions.join("\n") ?? "", x: String(node?.positionX ?? 0), y: String(node?.positionY ?? 0) };
+}
+export function NodeDetails({ node, busy, draft, onSave, onDelete }: { node: LearningNode; busy: boolean; draft: ReturnType<typeof useFormDraft<ReturnType<typeof nodeFormValues>>>; onSave: (data: z.infer<typeof nodePatch>) => Promise<boolean>; onDelete: () => Promise<boolean> }) {
   const [error, setError] = useState("");
-  const values = { title: node.title, description: node.description, status: node.status, objectives: node.learningObjectives.join("\n"), questions: node.guidingQuestions.join("\n"), x: String(node.positionX), y: String(node.positionY) };
-  const [baseline, setBaseline] = useState(values);
-  const [draft, setDraft] = useState(values);
-  const changed = (Object.keys(values) as (keyof typeof values)[]).some((key) => values[key] !== baseline[key]);
-  if (changed) {
-    setBaseline(values);
-    setDraft({ ...draft, ...Object.fromEntries(Object.entries(values).filter(([key]) => draft[key as keyof typeof draft] === baseline[key as keyof typeof baseline])) });
-  }
-  const field = (name: keyof typeof draft) => ({ value: draft[name], onChange: (event: { target: { value: string } }) => setDraft({ ...draft, [name]: event.target.value }) });
+  const [status, setStatus] = useState("");
+  const field = (name: keyof typeof draft.values) => ({ value: draft.values[name], disabled: busy, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { draft.change(name, event.target.value); setStatus(""); } });
   return <form onSubmit={(event) => {
     event.preventDefault(); const data = new FormData(event.currentTarget);
     const lines = (name: string) => String(data.get(name)).split("\n").map((s) => s.trim()).filter(Boolean);
     const parsed = nodePatch.safeParse({ title: data.get("title"), description: data.get("description"), status: data.get("status"), learningObjectives: lines("objectives"), guidingQuestions: lines("questions"), positionX: Number(data.get("x")), positionY: Number(data.get("y")) });
     if (!parsed.success) { setError("入力内容を確認してください。目標・問いは各100項目以内、1項目2000文字以内です。"); return; }
-    setError(""); void onSave(parsed.data);
+    setError(""); setStatus("保存中…"); void onSave(parsed.data).then((saved) => { setStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。"); });
   }}>
     <h2>Node Details</h2>
+    <p role="status">{status || (draft.dirty ? "未保存の変更" : "保存済み")}</p>
     {error && <p role="alert">{error}</p>}
     <label>Node名<input name="title" {...field("title")} required maxLength={200} /></label>
     <label>説明<textarea name="description" {...field("description")} maxLength={10000} /></label>
