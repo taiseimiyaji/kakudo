@@ -1,3 +1,4 @@
+import { Feedback } from "../common/feedback";
 import { useEffect, useState } from "react";
 import { request } from "../../client/api";
 import type { ReviewDetail } from "../../shared/review";
@@ -26,7 +27,7 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="Reviews"><h2>Reviews</h2>
     {([ ["FULL", "Review"], ["FACT_CHECK", "Check Facts"], ["SOURCE", "Check Sources"], ["LOGIC", "Check Logic"], ["COVERAGE", "Check Coverage"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running} onClick={() => { void start(type); }}>{label}</button>)}
-    {(dirty || !revisionId) && <p>本文を保存してからReviewしてください。</p>}{error && <p role="alert">{error}</p>}
+    {(dirty || !revisionId) && <p>本文を保存してからReviewしてください。</p>}{error && <Feedback error>{error}</Feedback>}
     {history.length > 0 && <label>Review履歴<select value={runId ?? ""} onChange={(e) => { onSelect(null); setDetail(null); setRunId(e.target.value); }}>{history.map((run) => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} · {run.type} · {run.revisionId.slice(0, 8)}</option>)}</select></label>}
     {detail && <><p aria-label="Review Status">{detail.run.status} / {detail.run.stage}</p><p>Provider: {detail.run.provider === "mock" ? "Mock（実AI・実資料取得ではありません）" : detail.run.provider}</p><small>対象Revision: {detail.run.revisionId}</small>
       {detail.run.error && <p role="alert">{detail.run.error}</p>}

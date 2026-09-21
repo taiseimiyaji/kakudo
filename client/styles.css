@@ -80,3 +80,7 @@ dialog .secondary { margin-top: 15px; background: #e4ebe2; color: var(--ink); }
 .review-highlight { background: #ffe398; border-bottom: 2px solid #a66c00; } .stale-review { border: 1px solid #cfa355; padding: 1rem; margin: 1rem 0; background: #fff9ec; } .review-panel article header { display: flex; justify-content: space-between; align-items: center; } .review-panel article[data-status="RESOLVED"], .review-panel article[data-status="DISMISSED"] { border-left-color: #6a7a72; background: #f8faf9; } .review-panel > label { margin-top: 1rem; max-width: 40rem; }
 .explorer > a { display: block; margin-top: .6rem; } .learning-card small { font-size: 12px; }
 .coverage-result { display: grid; gap: .5rem; padding: 1rem; margin: .75rem 0; border: 1px solid #b6cbbd; border-radius: 6px; } .coverage-result p { margin: .25rem 0; }
+.operation-status { color: var(--green); font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.resource-panel form { max-width: 42rem; }
+.resource-panel .error { font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+[aria-invalid="true"] { border-color: #923225; }

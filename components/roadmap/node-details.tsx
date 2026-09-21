@@ -1,3 +1,4 @@
+import { Feedback } from "../common/feedback";
 import { useState } from "react";
 import type { z } from "zod";
 import { nodePatch, nodeStatuses, type LearningNode } from "../../shared/roadmap";
@@ -11,7 +12,7 @@ export function NodeDetails({ node, busy, onSave, onDelete }: { node: LearningNo
     setError(""); void onSave(parsed.data);
   }}>
     <h2>Node Details</h2>
-    {error && <p role="alert">{error}</p>}
+    {error && <Feedback error>{error}</Feedback>}
     <label>Node名<input name="title" defaultValue={node.title} required maxLength={200} /></label>
     <label>説明<textarea name="description" defaultValue={node.description} maxLength={10000} /></label>
     <label>学習状態<select name="status" defaultValue={node.status}>{nodeStatuses.map((status) => <option key={status}>{status}</option>)}</select></label>
