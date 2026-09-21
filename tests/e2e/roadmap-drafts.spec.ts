@@ -48,11 +48,11 @@ test("map drafts survive refreshes, failed saves and cancelled departures", asyn
       else await route.continue();
     });
     await page.getByRole("button", { name: "Nodeを保存" }).click();
-    await expect(page.locator(".node-details [role=status]")).toContainText("保存に失敗しました");
+    await expect(page.locator(".node-details > form [role=status]")).toContainText("保存に失敗しました");
     await expect(objectives(page)).toHaveValue("人間が定義した目標");
     await page.unroute("**/api/nodes/*");
     await page.getByRole("button", { name: "Nodeを保存" }).click();
-    await expect(page.locator(".node-details [role=status]")).toHaveText("保存しました");
+    await expect(page.locator(".node-details > form [role=status]")).toHaveText("保存しました");
     await expect(page.getByLabel("Roadmapの説明")).toHaveValue("編集中の説明");
     await card(page, "Second").click();
     await expect(page.getByLabel("Node名", { exact: true })).toHaveValue("Second");
@@ -87,7 +87,7 @@ test("discard, unchanged saves and deliberate deletion do not leave blockers", a
     await card(page, "Second").click();
     expect(dialogs).toBe(1);
     await page.getByRole("button", { name: "Nodeを保存" }).click();
-    await expect(page.locator(".node-details [role=status]")).toHaveText("保存しました");
+    await expect(page.locator(".node-details > form [role=status]")).toHaveText("保存しました");
     await page.getByRole("button", { name: "Roadmapを保存" }).click();
     await expect(page.locator(".map-toolbar [role=status]")).toHaveText("保存しました");
     await page.getByRole("link", { name: "Workspace", exact: true }).click();

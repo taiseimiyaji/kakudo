@@ -43,10 +43,11 @@ it("times out a stalled provider, advances the queue and ignores its late result
   let finish!: (value: []) => void;
   const stalled = new Promise<[]>((resolve) => { finish = resolve; });
   const provider = { ...mockProvider(), reviewLogic: vi.fn().mockImplementationOnce(() => stalled).mockResolvedValue([]) };
-  const service = reviewService({ db, storage, provider, limits: { maxPending: 2, timeoutMs: 100 } });
+  // Include real DB latency: the healthy queued run must not share a 100ms CI deadline.
+  const service = reviewService({ db, storage, provider, limits: { maxPending: 2, timeoutMs: 1000 } });
   const a = await service.start(first.id, workspaceId, { revisionId: first.currentRevisionId!, type: "LOGIC" });
   const b = await service.start(second.id, workspaceId, { revisionId: second.currentRevisionId!, type: "LOGIC" });
-  await vi.waitFor(async () => expect((await service.get(b.id, workspaceId)).run.status).toBe("COMPLETED"));
+  await vi.waitFor(async () => expect((await service.get(b.id, workspaceId)).run.status).toBe("COMPLETED"), { timeout: 5000 });
   expect((await service.get(a.id, workspaceId)).run).toMatchObject({ status: "FAILED", error: expect.stringContaining("制限時間") });
   finish([]);
   await new Promise((resolve) => setTimeout(resolve, 20));

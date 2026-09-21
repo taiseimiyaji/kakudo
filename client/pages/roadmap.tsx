@@ -1,3 +1,4 @@
+import { Feedback } from "../../components/common/feedback";
 import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
@@ -74,7 +75,7 @@ function RoadmapSession() {
   }
   return <main className="map-workspace">
     <header className="app-header"><Link to="/">Kakudo</Link><h1>Knowledge Map</h1><Link to="/workspaces/$workspaceId" params={{ workspaceId }}>Workspace</Link></header>
-    {error && <p role="alert" className="error">{error}</p>}
+    {error && <Feedback error>{error}</Feedback>}
     <div className="map-layout" aria-busy={busy}>
       <aside className="explorer"><h2>Roadmaps</h2>
         <nav>{maps.map((map) => <Link key={map.id} to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: map.id }} activeProps={{ className: "active-map" }}>{map.title}</Link>)}</nav>
