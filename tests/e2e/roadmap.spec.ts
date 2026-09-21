@@ -27,7 +27,9 @@ test("create a map, connect nodes, persist edits and drag positions, then delete
     await page.getByLabel("Guiding Questions（1行1項目）").fill("誰が誰に権限を渡す？");
     await page.getByRole("button", { name: "Nodeを保存" }).click();
     await expect(page.locator(".learning-card").filter({ hasText: "OAuth" })).toContainText("LEARNING");
+    await page.getByRole("button", { name: "全体を表示", exact: true }).click();
     const card = page.locator(".learning-card").filter({ hasText: "OAuth" });
+    await expect(card).toBeInViewport();
     const box = await card.boundingBox();
     const before = Number(await page.getByLabel("X", { exact: true }).inputValue());
     await page.mouse.move(box!.x + box!.width / 2, box!.y + 25);
