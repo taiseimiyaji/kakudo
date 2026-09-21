@@ -22,7 +22,6 @@ function RoadmapSession() {
   const [detail, setDetail] = useState<RoadmapDetail | null>(null);
   const [selected, setSelected] = useState<string>();
   const [mapStatus, setMapStatus] = useState("");
-  const [loadedVersion, setLoadedVersion] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const refreshVersion = useRef(0);
@@ -32,7 +31,7 @@ function RoadmapSession() {
       try {
         const list = z.object({ roadmaps: z.array(roadmapSchema) }).parse(await request(`/roadmaps${scope}`));
         const result = roadmapId ? roadmapDetailSchema.parse(await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`)) : null;
-        if (active) { setMaps(list.roadmaps); setDetail(result); setLoadedVersion((v) => v + 1); }
+        if (active) { setMaps(list.roadmaps); setDetail(result); }
       } catch (e) { if (active) setError((e as Error).message); }
     }
     void load();
@@ -41,7 +40,16 @@ function RoadmapSession() {
 
   async function act(work: () => Promise<void>) {
     setBusy(true); setError("");
-    try { await work(); return true; } catch (e) { setError((e as Error).message); return false; }
+    try { await work(); return true; } catch (e) {
+      setError((e as Error).message);
+      // Roll back optimistic positions, then reconcile writes whose response was lost.
+      setDetail((current) => current ? { ...current } : current);
+      if (roadmapId) {
+        try { await refresh(); }
+        catch { setError(`${(e as Error).message} サーバーの最新状態を確認できません。接続を確認して再読み込みしてください。`); }
+      }
+      return false;
+    }
     finally { setBusy(false); }
   }
   async function refresh() {
@@ -52,7 +60,7 @@ function RoadmapSession() {
     const result = roadmapDetailSchema.parse(payload);
     const list = z.object({ roadmaps: z.array(roadmapSchema) }).parse(listPayload);
     if (version !== refreshVersion.current) return;
-    setDetail(result); setLoadedVersion((v) => v + 1); setMaps(list.roadmaps);
+    setDetail(result); setMaps(list.roadmaps);
   }
   const node = detail && detail.roadmap.id === roadmapId ? detail.nodes.find((n) => n.id === selected) : undefined;
   const mapDraft = useFormDraft(roadmapId ?? "", { title: detail?.roadmap.title ?? "", description: detail?.roadmap.description ?? "" });
@@ -87,7 +95,7 @@ function RoadmapSession() {
           <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty) setSelected(node.id); form.reset(); }); }}>
             <label>新しいNode<input name="title" required maxLength={200} /></label><button disabled={busy}>Nodeを追加</button>
           </form>
-          <MapCanvas key={`map:${detail.roadmap.id}:${loadedVersion}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy}
+          <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy}
             onMove={async (id, x, y) => { await act(async () => { await request(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); await refresh(); }); }}
             onConnect={async (sourceId, targetId, type) => { await act(async () => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type }); await refresh(); }); }}
             onDeleteEdge={async (id) => { await act(async () => { await request(`/edges/${id}${scope}`, "DELETE"); await refresh(); }); }} />
