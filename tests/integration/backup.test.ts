@@ -34,7 +34,7 @@ it("restores DB, Markdown, revisions, quotes, resources and reviews as a pair wi
     const docs = documentService(db, storage);
     const doc = await docs.create(workspaceId, { title: "My note", content: "My understanding.", nodeIds: [] });
     const original = await docs.get(doc.id, workspaceId);
-    await docs.quote(doc.id, workspaceId, { title: "My note", content: original.content, baseHash: original.contentHash, from: original.content.length, to: original.content.length, text: "reference", sourceUrl: "https://example.com", sourceTitle: "Source" });
+    await docs.quote(doc.id, workspaceId, { title: "My note", content: original.content, baseHash: original.contentHash, baseWriteId: original.document.lastWriteId, from: original.content.length, to: original.content.length, text: "reference", sourceUrl: "https://example.com", sourceTitle: "Source" });
     const saved = await docs.get(doc.id, workspaceId);
     await resourceService(db).create(workspaceId, { url: "https://example.com", title: "Source", type: "WEB" }, { kind: "document", id: doc.id });
     const reviews = reviewService({ db, storage, provider: mockProvider() });

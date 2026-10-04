@@ -30,7 +30,7 @@ describe("paste policy", () => {
     expect(pasteAction(s, "text")).toBe("quote");
   });
   it("requires a safe source URL and keeps every copied line in a quote", () => {
-    const input = { text: "quote", sourceUrl: "", title: "Note", content: "", baseHash: "a".repeat(64), from: 0, to: 0 };
+    const input = { text: "quote", sourceUrl: "", title: "Note", content: "", baseHash: "a".repeat(64), baseWriteId: null, from: 0, to: 0 };
     expect(quoteInput.safeParse(input).success).toBe(false);
     expect(quoteInput.safeParse({ ...input, sourceUrl: "javascript:alert(1)" }).success).toBe(false);
     expect(quoteInput.safeParse({ ...input, sourceUrl: "https://example.com" }).success).toBe(true);
