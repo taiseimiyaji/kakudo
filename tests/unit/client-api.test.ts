@@ -16,3 +16,34 @@ it("accepts empty deletion responses", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
   await expect(request("/resources/1", "DELETE")).resolves.toBeUndefined();
 });
+
+it.each([
+  [400, "REVIEW_DOCUMENT_TOO_LONG", "60,000文字以内"],
+  [400, "REVIEW_OBJECTIVES_LIMIT", "合計100件以内"],
+  [409, "REVIEW_ALREADY_RUNNING", "Review履歴"],
+  [409, "REVIEW_EXTERNAL_CONTENT_CHANGED", "本文を退避"],
+])("shows client-owned guidance for scoped admission code %s %s", async (status, code, message) => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ code, error: "secret-token postgres://password stack" }), { status: Number(status) })));
+  await expect(request("/documents/1/reviews?workspaceId=default", "POST", {})).rejects.toThrow(String(message));
+  await expect(request("/documents/1/reviews", "POST", {})).rejects.not.toThrow(/secret|password|stack/);
+});
+
+it.each([
+  ["/resources", "POST", 400, { code: "REVIEW_DOCUMENT_TOO_LONG" }],
+  ["/documents/1/reviews", "GET", 400, { code: "REVIEW_DOCUMENT_TOO_LONG" }],
+  ["/documents/1/reviews/extra", "POST", 400, { code: "REVIEW_DOCUMENT_TOO_LONG" }],
+  ["/documents/1/reviews", "POST", 500, { code: "REVIEW_DOCUMENT_TOO_LONG" }],
+  ["/documents/1/reviews", "POST", 400, { code: "REVIEW_ALREADY_RUNNING" }],
+  ["/documents/1/reviews", "POST", 400, { code: "secret-stack" }],
+  ["/documents/1/reviews", "POST", 400, { code: "constructor" }],
+  ["/documents/1/reviews", "POST", 400, { code: "__proto__" }],
+  ["/documents/1/reviews", "POST", 400, { code: { secret: "password" } }],
+  ["/documents/1/reviews", "POST", 400, null],
+])("keeps the safe fallback for mismatched or unknown admission payload %#", async (path, method, status, payload) => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(payload), { status })));
+  await expect(request(path, method, {})).rejects.toThrow(status === 500 ? "サーバーで処理できませんでした" : "入力内容を確認");
+});
+it("keeps the safe admission fallback for a non-JSON error", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("secret-host stack password", { status: 400 })));
+  await expect(request("/documents/1/reviews", "POST", {})).rejects.toThrow("入力内容を確認");
+});

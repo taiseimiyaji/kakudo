@@ -1,5 +1,12 @@
 import { z } from "zod";
 export const reviewTypes = ["FACT_CHECK", "LOGIC", "COVERAGE", "SOURCE", "FULL"] as const;
+export const reviewAdmissionStatus = {
+  REVIEW_DOCUMENT_TOO_LONG: 400,
+  REVIEW_OBJECTIVES_LIMIT: 400,
+  REVIEW_ALREADY_RUNNING: 409,
+  REVIEW_EXTERNAL_CONTENT_CHANGED: 409,
+} as const;
+export type ReviewAdmissionCode = keyof typeof reviewAdmissionStatus;
 export const reviewStart = z.object({ revisionId: z.string().min(1), type: z.enum(reviewTypes).default("FULL") }).strict();
 export const findingStatusInput = z.object({ status: z.enum(["OPEN", "RESOLVED", "DISMISSED"]) }).strict();
 export type SourceCheck = { quoteId: string; status: "VERIFIED" | "PARTIAL_MATCH" | "NOT_FOUND" | "UNAVAILABLE"; url: string; title: string; accessedAt: string };

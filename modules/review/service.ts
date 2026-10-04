@@ -16,6 +16,7 @@ import { type ReviewProvider, type CoverageResult, ReviewProviderError } from ".
 import { factSourcePipeline } from "./pipeline";
 import { mockReviewFetcher } from "./fixtures";
 import { DomainError, requireFound } from "../../lib/errors";
+import { ReviewAdmissionError } from "./admission";
 import { quoteMarkdown } from "../../shared/quote";
 import { reviewIsStale } from "../../shared/revision";
 import { findingStatusInput, reviewStart } from "../../shared/review";
@@ -106,15 +107,15 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         void persistFailures();
         const doc = await document(documentId, workspaceId);
         const pending = await db.select({ documentId: reviewRuns.documentId, revisionId: reviewRuns.revisionId, type: reviewRuns.type }).from(reviewRuns).where(inArray(reviewRuns.status, ["QUEUED", "RUNNING"]));
-        if (pending.some((run) => run.documentId === documentId && run.revisionId === data.revisionId && run.type === data.type)) throw new DomainError("同じRevision・種類のReviewが進行中です。完了を待ってください。", 409);
+        if (pending.some((run) => run.documentId === documentId && run.revisionId === data.revisionId && run.type === data.type)) throw new ReviewAdmissionError("REVIEW_ALREADY_RUNNING", "同じRevision・種類のReviewが進行中です。完了を待ってください。");
         if (pending.length >= maxPending) throw new DomainError("Reviewの受付上限です。進行中のReviewが完了してから再実行してください。", 429);
         if (doc.currentRevisionId !== data.revisionId) throw new DomainError("現在の内容を保存してからReviewしてください。", 409);
         const revision = requireFound((await db.select().from(documentRevisions).where(and(eq(documentRevisions.id, data.revisionId), eq(documentRevisions.documentId, documentId))))[0], "Revision");
-        if (contentHash(await storage.read(doc.path)) !== revision.contentHash) throw new DomainError("Markdownが外部で変更されています。保存してからReviewしてください。", 409);
-        if (revision.contentSnapshot.length > 60000) throw new DomainError("Reviewは60,000文字以内に対応しています。");
+        if (contentHash(await storage.read(doc.path)) !== revision.contentHash) throw new ReviewAdmissionError("REVIEW_EXTERNAL_CONTENT_CHANGED", "Markdownが外部で変更されています。保存してからReviewしてください。");
+        if (revision.contentSnapshot.length > 60000) throw new ReviewAdmissionError("REVIEW_DOCUMENT_TOO_LONG", "Reviewは60,000文字以内に対応しています。");
         const links = await db.select().from(documentNodes).where(eq(documentNodes.documentId, documentId));
         const nodes = links.length ? await db.select().from(learningNodes).where(inArray(learningNodes.id, links.map((link) => link.nodeId))) : [];
-        if (nodes.reduce((total, node) => total + node.learningObjectives.length, 0) > 100) throw new DomainError("関連NodeのLearning Objectivesは合計100件以内にしてください。");
+        if (nodes.reduce((total, node) => total + node.learningObjectives.length, 0) > 100) throw new ReviewAdmissionError("REVIEW_OBJECTIVES_LIMIT", "関連NodeのLearning Objectivesは合計100件以内にしてください。");
         const rs = resourceService(db); const groups = [await rs.list(workspaceId, { kind: "document", id: documentId }), (await Promise.all(nodes.map((node) => rs.list(workspaceId, { kind: "node", id: node.id })))).flat(), await rs.list(workspaceId)];
         const quoteSnapshot = (await db.select().from(quotes).where(eq(quotes.documentId, documentId))).filter((q) => revision.contentSnapshot.replace(/\r\n/g, "\n").includes(quoteMarkdown(q.text, q.sourceUrl, q.sourceTitle ?? undefined).trim())).map(({ id, text, sourceUrl, sourceTitle }) => ({ id, text, sourceUrl, sourceTitle }));
         const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text, nodeTitle: node.title }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
