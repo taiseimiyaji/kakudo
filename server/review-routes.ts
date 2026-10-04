@@ -2,9 +2,17 @@ import { Hono } from "hono";
 import { reviewService } from "../modules/review/service";
 import { findingStatusInput, reviewStart } from "../shared/review";
 import type { ApiServices } from "./api";
+import { ReviewAdmissionError } from "../modules/review/admission";
 export function reviewRoutes(services: ApiServices) {
   const api = new Hono(); const service = () => reviewService({ db: services.database?.(), storage: services.storage?.(), provider: services.reviewProvider, fetcher: services.reviewFetcher, search: services.searchProvider });
-  api.post("/documents/:id/reviews", async (c) => c.json({ run: await service().start(c.req.param("id"), c.req.query("workspaceId") ?? "default", reviewStart.parse(await c.req.json())) }, 202));
+  api.post("/documents/:id/reviews", async (c) => {
+    try { return c.json({ run: await service().start(c.req.param("id"), c.req.query("workspaceId") ?? "default", reviewStart.parse(await c.req.json())) }, 202); }
+    catch (error) {
+      // This admission endpoint exposes identifiers, never exception diagnostics.
+      if (error instanceof ReviewAdmissionError) return c.json({ code: error.code }, error.status);
+      throw error;
+    }
+  });
   api.get("/documents/:id/reviews", async (c) => c.json({ reviews: await service().list(c.req.param("id"), c.req.query("workspaceId") ?? "default") }));
   api.get("/reviews/:id", async (c) => c.json(await service().get(c.req.param("id"), c.req.query("workspaceId") ?? "default")));
   api.patch("/findings/:id", async (c) => c.json({ finding: await service().setFindingStatus(c.req.param("id"), c.req.query("workspaceId") ?? "default", findingStatusInput.parse(await c.req.json())) }));

@@ -1,3 +1,12 @@
+import { reviewAdmissionStatus, type ReviewAdmissionCode } from "../shared/review";
+
+const reviewAdmissionMessages: Record<ReviewAdmissionCode, string> = {
+  REVIEW_DOCUMENT_TOO_LONG: "本文を60,000文字以内に分割・短縮し、保存してからReviewしてください。",
+  REVIEW_OBJECTIVES_LIMIT: "関連Nodeの学習目標は合計100件以内にしてください。Nodeで目標を整理するか、このノートの学習項目の関連を減らして再試行してください。",
+  REVIEW_ALREADY_RUNNING: "同じRevision・種類のReviewが進行中です。ページを再読み込みしてReview履歴の進行中Reviewを確認し、完了を待ってください。",
+  REVIEW_EXTERNAL_CONTENT_CHANGED: "Markdownが外部で変更されています。未保存の本文を退避してページを再読み込みし、内容を確認・保存してからReviewしてください。",
+};
+
 export async function request<T = unknown>(path: string, method = "GET", data?: unknown): Promise<T> {
   let response: Response;
   try {
@@ -8,6 +17,14 @@ export async function request<T = unknown>(path: string, method = "GET", data?: 
   // Server payloads can contain provider diagnostics, URLs or internal details.
   // Display only messages defined by the client, including for non-JSON errors.
   if (!response.ok) {
+    if (method === "POST" && /^\/documents\/[^/?#]+\/reviews(?:\?|$)/.test(path)) {
+      let payload: unknown;
+      try { payload = await response.json(); } catch { /* Keep the safe HTTP fallback. */ }
+      const code = payload && typeof payload === "object" && "code" in payload ? payload.code : undefined;
+      if (typeof code === "string" && Object.hasOwn(reviewAdmissionMessages, code) && reviewAdmissionStatus[code as ReviewAdmissionCode] === response.status) {
+        throw new Error(reviewAdmissionMessages[code as ReviewAdmissionCode]);
+      }
+    }
     const messages: Record<number, string> = {
       400: "入力内容を確認して再試行してください。",
       401: "認証を確認して再試行してください。",

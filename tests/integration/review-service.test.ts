@@ -21,6 +21,34 @@ import type { Database } from "../../db/client";
 const { db, client } = createDatabase(readTestDatabaseUrl()); const workspaceId = `reviews-${randomUUID()}`; let root: string; let storage: LocalFileSystemStorage;
 beforeAll(async () => { root = await mkdtemp(join(tmpdir(), "kakudo-reviews-")); storage = new LocalFileSystemStorage(root); await migrate(db, { migrationsFolder: "./db/migrations" }); await db.insert(workspaces).values({ id: workspaceId, name: "Reviews" }); });
 afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, workspaceId)); await client.end(); await rm(root, { recursive: true, force: true }); });
+it("returns only stable admission codes for four refusals and keeps limits and content intact", async () => {
+  const docs = documentService(db, storage); const maps = roadmapService(db);
+  const app = createApp({ database: () => db, storage: () => storage, reviewProvider: mockProvider(), findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
+  const post = (id: string, revisionId: string) => app.request(`/api/documents/${id}/reviews?workspaceId=${workspaceId}`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: JSON.stringify({ revisionId, type: "LOGIC" }) });
+  const rejected = async (doc: { id: string; currentRevisionId: string | null }, code: string, status: number, count = 0) => {
+    const response = await post(doc.id, doc.currentRevisionId!);
+    expect(response.status).toBe(status); expect(await response.json()).toEqual({ code });
+    expect(await reviewService({ db, storage, provider: mockProvider() }).list(doc.id, workspaceId)).toHaveLength(count);
+  };
+  const tooLong = await docs.create(workspaceId, { title: "Too long", content: "x".repeat(60001), nodeIds: [] });
+  await rejected(tooLong, "REVIEW_DOCUMENT_TOO_LONG", 400); expect(await storage.read(tooLong.path)).toHaveLength(60001);
+  const boundary = await docs.create(workspaceId, { title: "Boundary", content: "x".repeat(60000), nodeIds: [] });
+  const service = reviewService({ db, storage, provider: mockProvider() });
+  const accepted = await service.start(boundary.id, workspaceId, { revisionId: boundary.currentRevisionId!, type: "LOGIC" }, false);
+  await rejected(boundary, "REVIEW_ALREADY_RUNNING", 409, 1); await service.execute(accepted.id);
+  const external = await docs.create(workspaceId, { title: "External", content: "Saved note.", nodeIds: [] });
+  await storage.write(external.path, "External secret-value note.");
+  await rejected(external, "REVIEW_EXTERNAL_CONTENT_CHANGED", 409); expect(await storage.read(external.path)).toBe("External secret-value note.");
+  const map = await maps.create(workspaceId, { title: "Admission objectives", description: "" });
+  const node = async (count: number) => maps.createNode(workspaceId, { roadmapId: map.id, title: `Goals ${count}`, description: "", positionX: 0, positionY: 0, status: "LEARNING", learningObjectives: Array.from({ length: count }, (_, i) => `Human objective ${i}`), guidingQuestions: [] });
+  const a = await node(100); const b = await node(1);
+  const goals = await docs.create(workspaceId, { title: "Goals", content: "Human note.", nodeIds: [a.id, b.id] });
+  await rejected(goals, "REVIEW_OBJECTIVES_LIMIT", 400);
+  const links = await docs.setNodes(goals.id, workspaceId, { nodeIds: [a.id], baseWriteId: goals.lastWriteId });
+  const allowed = await service.start(goals.id, workspaceId, { revisionId: links.document.currentRevisionId!, type: "LOGIC" }, false); await service.execute(allowed.id);
+  for (const doc of [tooLong, boundary, external, goals]) await docs.remove(doc.id, workspaceId);
+  await maps.remove(map.id, workspaceId);
+});
 it("atomically rejects duplicate admission and bounds all pending reviews", async () => {
   const docs = documentService(db, storage);
   const doc = await docs.create(workspaceId, { title: "Admission", content: "My note.", nodeIds: [] });
