@@ -78,7 +78,7 @@ it("pins revision/evidence snapshots through edits, persists findings and does n
   await resourceService(db).create(workspaceId, { url: "https://www.rfc-editor.org/rfc/rfc6749", title: "RFC 6749", type: "RFC" }, { kind: "document", id: doc.id });
   const search = { search: vi.fn(async () => []) }; const service = reviewService({ db, storage, provider: mockProvider(), fetcher: mockReviewFetcher, search });
   const job = await service.start(doc.id, workspaceId, { revisionId: doc.currentRevisionId!, type: "FACT_CHECK" }, false); expect(job.status).toBe("QUEUED");
-  await docs.save(doc.id, workspaceId, { title: "Edited during review", content: "My revised understanding.", baseHash: contentHash(content) });
+  await docs.save(doc.id, workspaceId, { title: "Edited during review", content: "My revised understanding.", baseHash: contentHash(content), baseWriteId: doc.lastWriteId });
   await service.execute(job.id); const result = await service.get(job.id, workspaceId);
   expect(result.run.status).toBe("COMPLETED"); expect(result.stale).toBe(true); expect(result.revision.contentSnapshot).toBe(content);
   expect(result.findings[0].verdict).toBe("CONTRADICTED"); expect(result.findings[0].evidence[0].url).toBe("https://www.rfc-editor.org/rfc/rfc6749"); expect(search.search).not.toHaveBeenCalled();
@@ -94,7 +94,7 @@ it("records failure and permits a new run, with source-unavailable distinct from
   const service = reviewService({ db, storage, provider: { ...mockProvider(), async extractClaims() { throw new Error("private secret"); } }, search: { async search() { return []; } } });
   const failed = await service.start(doc.id, workspaceId, { revisionId: doc.currentRevisionId!, type: "FACT_CHECK" }, false); await service.execute(failed.id);
   const result = await service.get(failed.id, workspaceId); expect(result.run.status).toBe("FAILED"); expect(result.run.error).not.toContain("private secret"); expect(result.findings).toHaveLength(0);
-  const quoted = await docs.quote(doc.id, workspaceId, { title: "Failure", text: "Unavailable quote", sourceUrl: "http://127.0.0.1/", content: "Claim.", baseHash: contentHash("Claim."), from: 6, to: 6 });
+  const quoted = await docs.quote(doc.id, workspaceId, { title: "Failure", text: "Unavailable quote", sourceUrl: "http://127.0.0.1/", content: "Claim.", baseHash: contentHash("Claim."), baseWriteId: doc.lastWriteId, from: 6, to: 6 });
   const next = await service.start(doc.id, workspaceId, { revisionId: quoted.document.currentRevisionId!, type: "SOURCE" }, false); await service.execute(next.id);
   expect((await service.get(next.id, workspaceId)).run.sourceChecks[0].status).toBe("UNAVAILABLE"); expect(await service.list(doc.id, workspaceId)).toHaveLength(2);
   await storage.write(doc.path, "external edit"); await expect(service.start(doc.id, workspaceId, { revisionId: quoted.document.currentRevisionId!, type: "SOURCE" })).rejects.toThrow("外部");
@@ -116,7 +116,7 @@ it("persists Resolve/Dismiss through scoped API and aggregates latest document r
   expect((await patch("RESOLVED", "other")).status).toBe(404); expect((await patch("APPLIED")).status).toBe(400);
   for (const status of ["RESOLVED", "OPEN", "DISMISSED"]) { expect((await patch(status)).status).toBe(200); expect((await service.get(latest.id, workspaceId)).findings[0].status).toBe(status); }
   expect((await maps.detail(map.id, workspaceId)).nodes[0].stats.openFindings).toBe(0); expect(await storage.read(doc.path)).toBe(content);
-  await docs.save(doc.id, workspaceId, { title: "Status", content: "New explanation", baseHash: contentHash(content) });
+  await docs.save(doc.id, workspaceId, { title: "Status", content: "New explanation", baseHash: contentHash(content), baseWriteId: doc.lastWriteId });
   expect((await maps.detail(map.id, workspaceId)).nodes[0].stats.outdatedReviews).toBe(1);
   expect(await service.listWorkspace("other")).toHaveLength(0);
   await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);

@@ -32,7 +32,8 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const [editorSeed, setEditorSeed] = useState(initial.content);
   const [content, setContent] = useState(initial.content); const [title, setTitle] = useState(initial.document.title);
-  const [saved, setSaved] = useState({ content: initial.content, title: initial.document.title, hash: initial.contentHash });
+  const [saved, setSaved] = useState({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId });
+  const [latest, setLatest] = useState<DocumentDetail | null>(null);
   const [status, setStatus] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
   const dirty = content !== saved.content || title !== saved.title;
@@ -41,19 +42,23 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     setBusy(true); setError(""); setStatus("");
     const snapshot = { content, title };
     try {
-      const result = await request<{ contentHash: string; document: { currentRevisionId: string | null } }>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", { ...snapshot, baseHash: saved.hash });
-      setSaved({ ...snapshot, hash: result.contentHash }); setRevisionId(result.document.currentRevisionId); setStatus("保存しました");
+      const result = await request<{ contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", { ...snapshot, baseHash: saved.hash, baseWriteId: saved.writeId });
+      setSaved({ ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }); setRevisionId(result.document.currentRevisionId); setStatus("保存しました"); setLatest(null);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <main className="document-workspace">
     <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← Knowledge Map</Link><h1>Document</h1><span>{dirty ? "未保存の変更" : "保存済み"}</span><button disabled={busy || !title.trim()} onClick={() => { void save(); }}>保存</button></header>
     {error && <p role="alert" className="error">{error}（再読み込みする前に未保存の本文を確認してください）</p>}{status && <p role="status">{status}</p>}
+    {error && <button disabled={busy} onClick={() => { setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => setLatest(documentDetailSchema.parse(payload))).catch((e) => setError(e.message)).finally(() => setBusy(false)); }}>最新の保存内容を確認</button>}
+    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy} onClick={() => { setSaved({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId }); setRevisionId(latest.document.currentRevisionId); setLatest(null); setError(""); setStatus("最新の保存内容を確認しました。現在の入力で保存を再試行できます。"); }}>確認した内容を基準に再試行</button></section>}
     <label className="document-title">Document名<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></label>
     <p className="document-path">{initial.document.path}</p><p aria-label="現在のRevision">Revision: {revisionId ?? "未作成（保存すると作成されます）"}</p>
     <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={editorSeed} onChange={setContent} onPaste={setPaste} highlight={highlight} /></section><section><h2>Preview</h2><MarkdownPreview content={content} /></section></div>
     {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await request(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input); setResourceVersion((v) => v + 1); setPaste(null); }} onQuote={async (sourceUrl, sourceTitle) => {
-      const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash });
-      setRevisionId(result.document.currentRevisionId); setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash }); setPaste(null); setStatus("引用を追加して保存しました");
+      try {
+        const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash, baseWriteId: saved.writeId });
+        setRevisionId(result.document.currentRevisionId); setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash, writeId: result.document.lastWriteId }); setPaste(null); setStatus("引用を追加して保存しました"); setLatest(null);
+      } catch (e) { setError((e as Error).message); throw e; }
     }} />}
     <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty} content={content} onSelect={setSelection} initialRunId={initialRunId} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} />

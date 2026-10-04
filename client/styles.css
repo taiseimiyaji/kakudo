@@ -85,3 +85,5 @@ dialog .secondary { margin-top: 15px; background: #e4ebe2; color: var(--ink); }
 .resource-panel form { max-width: 42rem; }
 .resource-panel .error { font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
 [aria-invalid="true"] { border-color: #923225; }
+
+.latest-document pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #f0f3ee; }

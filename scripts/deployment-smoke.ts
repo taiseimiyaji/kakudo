@@ -14,7 +14,7 @@ async function api<T>(path: string, method = "GET", data?: unknown): Promise<T> 
   if (!response.ok) throw new Error(`Smoke API ${response.status}; request ID ${response.headers.get("x-request-id") ?? "unavailable"}`);
   return response.status === 204 ? undefined as T : await response.json() as T;
 }
-type Saved = { document: { id: string; currentRevisionId: string }; content: string; contentHash: string };
+type Saved = { document: { id: string; currentRevisionId: string; lastWriteId: string | null }; content: string; contentHash: string };
 let id: string | undefined;
 try {
   const { document } = await api<Saved>("/documents", "POST", { title: "[verification] Deployment smoke", content }); id = document.id;
@@ -23,7 +23,7 @@ try {
   assert.equal(run.provider, expectedProvider, "Unexpected Provider; do not mistake Mock for a real run");
   const before = await api<Saved>(`/documents/${id}`);
   // Whitespace-only edit tests Revision pinning without generating educational content.
-  await api(`/documents/${id}`, "PUT", { title: "[verification] Deployment smoke", content: content + "\n", baseHash: before.contentHash });
+  await api(`/documents/${id}`, "PUT", { title: "[verification] Deployment smoke", content: content + "\n", baseHash: before.contentHash, baseWriteId: before.document.lastWriteId });
   const deadline = Date.now() + 660000;
   let result: ReviewDetail;
   while (true) {

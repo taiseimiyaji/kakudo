@@ -4,7 +4,7 @@ export const sourceUrlSchema = z.string().trim().url().max(4096).refine((value) 
 }, "Source URL must be HTTP(S) without credentials").transform((value) => new URL(value).toString());
 export const quoteInput = z.object({
   text: z.string().min(1).max(100_000), sourceUrl: sourceUrlSchema, sourceTitle: z.string().trim().max(500).optional(),
-  content: z.string().max(2_000_000), title: z.string().trim().min(1).max(200), baseHash: z.string().regex(/^[a-f0-9]{64}$/),
+  content: z.string().max(2_000_000), title: z.string().trim().min(1).max(200), baseHash: z.string().regex(/^[a-f0-9]{64}$/), baseWriteId: z.string().min(1).nullable(),
   from: z.number().int().nonnegative(), to: z.number().int().nonnegative(),
 }).strict().refine((v) => v.from <= v.to && v.to <= v.content.length, { message: "Invalid quote selection" });
 export function quoteMarkdown(text: string, url: string, title?: string) {

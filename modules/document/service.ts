@@ -72,7 +72,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
     }); },
     save(id: string, workspaceId: string, input: z.infer<typeof documentSave>) { return run(async () => {
       const data = documentSave.parse(input); const doc = await row(id, workspaceId); const before = await storage.read(doc.path);
-      if (contentHash(before) !== data.baseHash) throw new DomainError("Document changed. Reload before saving.", 409);
+      if (contentHash(before) !== data.baseHash || doc.lastWriteId !== data.baseWriteId) throw new DomainError("Document changed. Reload before saving.", 409);
       const operationId = randomUUID();
       await mutate({ id: operationId, documentId: id, path: doc.path, kind: "UPDATE", before, after: data.content }, async (tx) => {
         await tx.update(documents).set({ title: data.title, updatedAt: new Date(), lastWriteId: operationId }).where(eq(documents.id, id));
@@ -82,7 +82,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
     }); },
     quote(id: string, workspaceId: string, input: z.infer<typeof quoteInput>) { return run(async () => {
       const data = quoteInput.parse(input); const doc = await row(id, workspaceId); const before = await storage.read(doc.path);
-      if (contentHash(before) !== data.baseHash) throw new DomainError("Document changed. Reload before adding a quote.", 409);
+      if (contentHash(before) !== data.baseHash || doc.lastWriteId !== data.baseWriteId) throw new DomainError("Document changed. Reload before adding a quote.", 409);
       const quoted = quoteMarkdown(data.text, data.sourceUrl, data.sourceTitle);
       const after = data.content.slice(0, data.from) + quoted + data.content.slice(data.to);
       if (after.length > 2_000_000) throw new DomainError("Document is too large");
