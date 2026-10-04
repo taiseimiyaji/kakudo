@@ -11,7 +11,7 @@ test("node documents hide the previous scope while loading, recover errors and i
     await page.goto(`/workspaces/default/roadmaps/${roadmap.id}?nodeId=${a.id}`);
     const panel = page.locator(".node-documents");
     await expect(panel.getByRole("link", { name: docA.title })).toBeVisible();
-    await panel.getByLabel("新しいDocument").fill("作成前のタイトル");
+    await panel.getByLabel("新しいノート（必須）").fill("作成前のタイトル");
     const gate = new Promise<void>((resolve) => { release = resolve; });
     let arrived = false;
     await page.route("**/api/documents?*", async (route) => {
@@ -20,11 +20,11 @@ test("node documents hide the previous scope while loading, recover errors and i
       await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Test failure" }) });
     });
     await page.locator(`.react-flow__node[data-id="${b.id}"]`).click();
-    await expect(page.getByLabel("Node名", { exact: true })).toHaveValue(b.title);
+    await expect(page.getByLabel("学習項目名（必須）", { exact: true })).toHaveValue(b.title);
     await expect.poll(() => arrived).toBe(true);
     await expect(panel.getByRole("link", { name: docA.title })).toHaveCount(0);
     await expect(panel.getByRole("status")).toContainText("読み込んでいます");
-    await expect(panel.getByLabel("新しいDocument")).toHaveValue("作成前のタイトル");
+    await expect(panel.getByLabel("新しいノート（必須）")).toHaveValue("作成前のタイトル");
     release!();
     await expect(panel.getByRole("alert")).toBeVisible();
     await expect(panel.getByRole("link")).toHaveCount(0);
@@ -34,7 +34,7 @@ test("node documents hide the previous scope while loading, recover errors and i
     await page.locator(`.react-flow__node[data-id="${b.id}"]`).click();
     await expect(panel.getByRole("alert")).toBeVisible();
     await page.unroute("**/api/documents?*");
-    await panel.getByRole("button", { name: "Document一覧を再読み込み" }).click();
+    await panel.getByRole("button", { name: "ノート一覧を再読み込み" }).click();
     await expect(panel.getByRole("link", { name: docB.title })).toBeVisible();
     await expect(panel.getByRole("alert")).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("node-documents-recovered.png"), fullPage: true });
@@ -45,7 +45,7 @@ test("node documents hide the previous scope while loading, recover errors and i
     await page.locator(`.react-flow__node[data-id="${a.id}"]`).click();
     await expect(panel.getByRole("link", { name: docA.title })).toBeVisible();
     await page.locator(`.react-flow__node[data-id="${empty.id}"]`).click();
-    await expect(panel).toContainText("このNodeに関連するDocumentはありません。");
+    await expect(panel).toContainText("この学習項目に関連するノートはありません。");
     await expect(panel.getByRole("link")).toHaveCount(0);
     await expect(panel.getByRole("status")).toHaveCount(0);
     await page.route("**/api/documents?*", async (route) => {

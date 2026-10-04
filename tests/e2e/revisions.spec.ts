@@ -3,7 +3,7 @@ test("save, save unchanged, edit and reload preserve the right revision", async 
   const { document } = await (await request.post("/api/documents", { data: { title: "Revision browser" } })).json();
   try {
     await page.goto(`/workspaces/default/documents/${document.id}`);
-    const revision = page.getByLabel("現在のRevision"); await expect(revision).toContainText(document.currentRevisionId);
+    await page.getByText("保存情報", { exact: true }).click(); const revision = page.getByLabel("現在の保存版"); await expect(revision).toContainText(document.currentRevisionId);
     await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByRole("status")).toHaveText("保存しました");
     const revisions = async () => (await (await request.get(`/api/documents/${document.id}/revisions`)).json()).revisions;
     expect(await revisions()).toHaveLength(1);

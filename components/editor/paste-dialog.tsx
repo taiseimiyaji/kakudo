@@ -15,14 +15,14 @@ export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceChe
     };
   }, []);
   return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }} aria-labelledby="paste-dialog-title">
-    <h2 id="paste-dialog-title">{paste.kind === "quote" ? "引用として追加" : "Resourceとして登録"}</h2>
+    <h2 id="paste-dialog-title">{paste.kind === "quote" ? "引用として追加" : "参考資料として登録"}</h2>
     {paste.kind === "quote" ? <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); setBusy(true); setError(""); void onQuote(String(data.get("url")), String(data.get("title"))).catch((e) => { setError(e.message); setBusy(false); }); }}>
-      <label>引用Text<textarea readOnly value={paste.text} rows={6} /></label>
-      <label>Source URL *<input name="url" type="url" required maxLength={4096} /></label>
-      <label>Source Title<input name="title" maxLength={500} /></label>
+      <label>引用する文章<textarea readOnly value={paste.text} rows={6} /></label>
+      <label>出典URL（必須）<input name="url" type="url" required maxLength={4096} /></label>
+      <label>出典名（任意）<input name="title" maxLength={500} /></label>
       <p className="muted">引用を追加すると、編集中の本文も一緒に保存します。</p>
       {error && <p role="alert">{error}</p>}
-      <button disabled={busy}>Add Quote</button>
+      <button disabled={busy}>引用を追加</button>
     </form> : <ResourceForm initialUrl={paste.text.trim()} onSave={async (input) => {
       setBusy(true);
       try { await onResource(input); } finally { setBusy(false); }

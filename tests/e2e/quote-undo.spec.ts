@@ -9,8 +9,8 @@ test("quotes preserve earlier typing, undo, redo and saved revision/source-check
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" my words");
     await editor.evaluate((element) => { const data = new DataTransfer(); data.setData("text/plain", "Reference"); element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data })); });
     const dialog = page.getByRole("dialog");
-    await dialog.getByLabel("Source URL").fill("https://example.com/source");
-    await dialog.getByRole("button", { name: "Add Quote" }).click();
+    await dialog.getByLabel("出典URL").fill("https://example.com/source");
+    await dialog.getByRole("button", { name: "引用を追加" }).click();
     await expect(page.getByRole("status")).toHaveText("引用を追加して保存しました");
     await expect(editor).toContainText("> Reference");
     const quoted = await (await request.get(`/api/documents/${document.id}`)).json();
@@ -27,8 +27,8 @@ test("quotes preserve earlier typing, undo, redo and saved revision/source-check
     await expect(page.getByRole("status")).toHaveText("保存しました");
     const current = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(current.content).toBe("Original"); expect(current.document.currentRevisionId).not.toBe(quoted.document.currentRevisionId);
-    await page.getByRole("button", { name: "Check Sources", exact: true }).click();
-    await expect(page.getByLabel("Review Status")).toContainText("COMPLETED");
+    await page.getByRole("button", { name: "出典を確認", exact: true }).click();
+    await expect(page.getByLabel("レビューの状態")).toContainText("完了");
     const { reviews } = await (await request.get(`/api/documents/${document.id}/reviews`)).json();
     const review = await (await request.get(`/api/reviews/${reviews[0].id}`)).json();
     expect(review.run.sourceChecks).toEqual([]); expect(review.revision.contentSnapshot).toBe("Original");

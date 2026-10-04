@@ -1,3 +1,4 @@
+import { label } from "../../client/labels";
 import { useEffect, useId, useRef, useState } from "react";
 import { resourceInput, resourceTypes, type Resource } from "../../shared/resource";
 import { UnknownMutationOutcome } from "../../client/api";
@@ -52,11 +53,11 @@ export function ResourceForm({ initialUrl = "", onSave, onCheck, onConfirmed }: 
       else setError("資料を登録できませんでした。接続と入力内容を確認して再試行してください。入力内容は保持されています。");
     }).finally(() => { pending.current = false; if (mounted.current) setBusy(false); });
   }}>
-    <label>Resource URL（必須）<input name="url" type="url" defaultValue={initialUrl} required maxLength={4096} disabled={disabled} aria-invalid={!!fields.url} aria-describedby={fields.url ? `${id}-url` : undefined} /></label>
+    <label>資料URL（必須）<input name="url" type="url" defaultValue={initialUrl} required maxLength={4096} disabled={disabled} aria-invalid={!!fields.url} aria-describedby={fields.url ? `${id}-url` : undefined} /></label>
     {fields.url && <Feedback error id={`${id}-url`}>{fields.url}</Feedback>}
-    <label>Resource Title（任意）<input name="title" maxLength={500} disabled={disabled} aria-invalid={!!fields.title} aria-describedby={fields.title ? `${id}-title` : undefined} /></label>
+    <label>資料名（任意）<input name="title" maxLength={500} disabled={disabled} aria-invalid={!!fields.title} aria-describedby={fields.title ? `${id}-title` : undefined} /></label>
     {fields.title && <Feedback error id={`${id}-title`}>{fields.title}</Feedback>}
-    <label>Resource Type<select name="type" disabled={disabled} aria-invalid={!!fields.type} aria-describedby={fields.type ? `${id}-type` : undefined}>{resourceTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
+    <label>資料の種類（必須）<select name="type" disabled={disabled} aria-invalid={!!fields.type} aria-describedby={fields.type ? `${id}-type` : undefined}>{resourceTypes.map((type) => <option key={type} value={type}>{label(type)}</option>)}</select></label>
     {fields.type && <Feedback error id={`${id}-type`}>{fields.type}</Feedback>}
     {error && <Feedback error>{error}</Feedback>}{status && <Feedback>{status}</Feedback>}
     {busy && <Feedback>{unknown ? "登録済みの資料を確認しています。" : "資料を登録しています。"}</Feedback>}

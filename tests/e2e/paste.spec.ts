@@ -15,12 +15,12 @@ test("native paste requires attribution, cancel preserves prose, URLs open resou
     await dialog.getByRole("button", { name: "キャンセル" }).click();
     await expect(editor).not.toContainText("Copied claim");
     await editor.click(); await editor.press("ControlOrMeta+Home"); await editor.press("ControlOrMeta+V");
-    await dialog.getByRole("button", { name: "Add Quote" }).click();
+    await dialog.getByRole("button", { name: "引用を追加" }).click();
     await expect(dialog).toBeVisible();
     await expect(editor).not.toContainText("Copied claim");
-    await dialog.getByLabel("Source URL").fill("https://example.com/source");
-    await dialog.getByLabel("Source Title").fill("Primary source");
-    await dialog.getByRole("button", { name: "Add Quote" }).click();
+    await dialog.getByLabel("出典URL").fill("https://example.com/source");
+    await dialog.getByLabel("出典名").fill("Primary source");
+    await dialog.getByRole("button", { name: "引用を追加" }).click();
     await expect(page.getByRole("status")).toHaveText("引用を追加して保存しました");
     const quoted = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(quoted.content).toContain("> Copied claim\n> Another line");
@@ -28,7 +28,7 @@ test("native paste requires attribution, cancel preserves prose, URLs open resou
     await editor.click(); await editor.press("ControlOrMeta+Home");
     // Context-menu paste and keyboard paste both reach the DOM paste handler.
     await editor.evaluate((element) => { const data = new DataTransfer(); data.setData("text/plain", "https://example.com/resource"); element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data })); });
-    await expect(dialog.getByRole("heading", { name: "Resourceとして登録" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "参考資料として登録" })).toBeVisible();
     await dialog.getByRole("button", { name: "キャンセル" }).click();
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.press("ArrowUp"); await editor.press("Home");
     await page.evaluate(() => navigator.clipboard.writeText("const exact = 42;")); await editor.press("ControlOrMeta+V");

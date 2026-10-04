@@ -14,14 +14,14 @@ for (const placement of ["dialog", "inline"] as const) {
       try {
         await page.goto(`/workspaces/default/documents/${document.id}`);
         const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Keep my draft.");
-        const panel = page.getByRole("region", { name: "Sources", exact: true });
+        const panel = page.getByRole("region", { name: "参考資料", exact: true });
         if (placement === "dialog") { await page.evaluate((text) => navigator.clipboard.writeText(text), url); await editor.press("ControlOrMeta+V"); }
         const form = placement === "dialog" ? page.getByRole("dialog") : panel;
-        if (placement === "inline") await form.getByLabel("Resource URL（必須）").fill(url);
-        await form.getByLabel("Resource Title（任意）").fill("Confirmed human title"); await form.getByRole("combobox", { name: "Resource Type", exact: true }).selectOption("RFC");
+        if (placement === "inline") await form.getByLabel("資料URL（必須）").fill(url);
+        await form.getByLabel("資料名（任意）").fill("Confirmed human title"); await form.getByRole("combobox", { name: "資料の種類（必須）", exact: true }).selectOption("RFC");
         await form.getByRole("button", { name: "資料を登録", exact: true }).click();
         await expect(form.getByRole("alert")).toContainText("結果は不明"); await expect(form.getByRole("alert")).not.toContainText("secret");
-        await expect(form.getByLabel("Resource URL（必須）")).toHaveValue(url); await expect(form.getByLabel("Resource Title（任意）")).toHaveValue("Confirmed human title"); await expect(form.getByRole("combobox", { name: "Resource Type", exact: true })).toHaveValue("RFC");
+        await expect(form.getByLabel("資料URL（必須）")).toHaveValue(url); await expect(form.getByLabel("資料名（任意）")).toHaveValue("Confirmed human title"); await expect(form.getByRole("combobox", { name: "資料の種類（必須）", exact: true })).toHaveValue("RFC");
         await expect(form.getByRole("button", { name: "資料を登録", exact: true })).toBeDisabled(); expect(posts).toBe(1);
         await form.getByRole("button", { name: "登録結果を確認", exact: true }).click();
         await expect(panel.getByRole("link", { name: "Confirmed human title", exact: true })).toBeVisible();
@@ -49,11 +49,11 @@ test("failed GET and absent match keep the result uncertain and inputs intact wi
     await page.goto(`/workspaces/default/documents/${document.id}`);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click();
     await page.evaluate(() => navigator.clipboard.writeText("https://example.com/absent-result")); await editor.press("ControlOrMeta+V");
-    const modal = page.getByRole("dialog"); await modal.getByLabel("Resource Title（任意）").fill("Retained title"); await modal.getByRole("button", { name: "資料を登録", exact: true }).click();
+    const modal = page.getByRole("dialog"); await modal.getByLabel("資料名（任意）").fill("Retained title"); await modal.getByRole("button", { name: "資料を登録", exact: true }).click();
     await expect(modal.getByRole("alert")).toContainText("結果は不明"); checking = true;
     await modal.getByRole("button", { name: "登録結果を確認", exact: true }).click(); await expect(modal.getByRole("alert")).toContainText("登録結果を確認できませんでした"); await expect(modal.getByRole("alert")).not.toContainText("secret");
     await modal.getByRole("button", { name: "登録結果を確認", exact: true }).click(); await expect(modal.getByRole("alert")).toContainText("結果はまだ不明");
-    await expect(modal.getByLabel("Resource URL（必須）")).toHaveValue("https://example.com/absent-result"); await expect(modal.getByLabel("Resource Title（任意）")).toHaveValue("Retained title");
+    await expect(modal.getByLabel("資料URL（必須）")).toHaveValue("https://example.com/absent-result"); await expect(modal.getByLabel("資料名（任意）")).toHaveValue("Retained title");
     await expect(modal.getByRole("button", { name: "資料を登録", exact: true })).toBeDisabled(); expect(posts).toBe(1); expect(checks).toBe(2);
     await page.keyboard.press("Enter"); expect(posts).toBe(1);
     await page.keyboard.press("Escape"); await expect(modal).toHaveCount(0); await expect(editor).toBeFocused();
@@ -78,9 +78,9 @@ test("a late GET after cancellation cannot close the next quote or clear its att
     await expect(modal.getByRole("button", { name: "確認中…", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape"); await expect(modal).toHaveCount(0); await expect(editor).toBeFocused();
     await page.evaluate(() => navigator.clipboard.writeText("Next human quote.")); await editor.press("ControlOrMeta+V");
-    await modal.getByLabel("Source URL *", { exact: true }).fill("https://example.com/next-quote"); await modal.getByLabel("Source Title", { exact: true }).fill("Next attribution");
+    await modal.getByLabel("出典URL（必須）", { exact: true }).fill("https://example.com/next-quote"); await modal.getByLabel("出典名（任意）", { exact: true }).fill("Next attribution");
     release(); await expect.poll(() => delivered).toBe(true); await page.waitForTimeout(200);
-    await expect(modal).toBeVisible(); await expect(modal.getByLabel("Source URL *", { exact: true })).toHaveValue("https://example.com/next-quote"); await expect(modal.getByLabel("Source Title", { exact: true })).toHaveValue("Next attribution"); expect(posts).toBe(1);
+    await expect(modal).toBeVisible(); await expect(modal.getByLabel("出典URL（必須）", { exact: true })).toHaveValue("https://example.com/next-quote"); await expect(modal.getByLabel("出典名（任意）", { exact: true })).toHaveValue("Next attribution"); expect(posts).toBe(1);
     await page.keyboard.press("Escape"); await expect(editor).toBeFocused();
   } finally { release(); await page.unrouteAll({ behavior: "wait" }); await request.delete(`/api/documents/${document.id}`); }
 });
@@ -92,9 +92,9 @@ test("workspace resource registration confirms a unique stored match using GET",
     posts++; const response = await route.fetch(); resourceId = (await response.json()).resource.id; await route.abort();
   });
   try {
-    await page.goto("/workspaces/default/resources"); const panel = page.getByRole("region", { name: "Sources", exact: true });
-    await panel.getByLabel("Resource URL（必須）").fill(url); await panel.getByLabel("Resource Title（任意）").fill("Workspace confirmation"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
+    await page.goto("/workspaces/default/resources"); const panel = page.getByRole("region", { name: "参考資料", exact: true });
+    await panel.getByLabel("資料URL（必須）").fill(url); await panel.getByLabel("資料名（任意）").fill("Workspace confirmation"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
     await expect(panel.getByRole("alert")).toContainText("結果は不明"); await panel.getByRole("button", { name: "登録結果を確認", exact: true }).click();
-    await expect(panel.getByRole("link", { name: "Workspace confirmation", exact: true })).toBeVisible(); await expect(panel.getByLabel("Resource URL（必須）")).toHaveValue(""); expect(posts).toBe(1);
+    await expect(panel.getByRole("link", { name: "Workspace confirmation", exact: true })).toBeVisible(); await expect(panel.getByLabel("資料URL（必須）")).toHaveValue(""); expect(posts).toBe(1);
   } finally { await page.unrouteAll({ behavior: "wait" }); if (resourceId) await request.delete(`/api/resources/${resourceId}`); }
 });

@@ -1,3 +1,4 @@
+import { WorkspaceNav } from "../../components/navigation/workspace-nav";
 import { Feedback } from "../../components/common/feedback";
 import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
@@ -76,37 +77,37 @@ function RoadmapSession() {
     setSelected(id);
   }
   return <main className="map-workspace">
-    <header className="app-header"><Link to="/">Kakudo</Link><h1>Knowledge Map</h1><Link to="/workspaces/$workspaceId" params={{ workspaceId }}>Workspace</Link></header>
+    <header className="app-header"><Link to="/">Kakudo</Link><h1>学習マップ</h1></header><WorkspaceNav workspaceId={workspaceId} />
     {error && <Feedback error>{error}</Feedback>}
     <div className="map-layout" aria-busy={busy}>
-      <aside className="explorer"><h2>Roadmaps</h2>
+      <aside className="explorer"><h2>マップ一覧</h2>
         <nav>{maps.map((map) => <Link key={map.id} to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: map.id }} activeProps={{ className: "active-map" }}>{map.title}</Link>)}</nav>
         <form onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title }); setMaps((current) => [...current, roadmap]); form.reset(); await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } }); }); }}>
-          <label>新しいRoadmap<input name="title" required maxLength={200} /></label><button disabled={busy}>Roadmapを作成</button>
+          <label>新しいマップ（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>マップを作成</button>
         </form>
-        <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>Resources</Link><Link to="/workspaces/$workspaceId/reviews" params={{ workspaceId }}>Reviews</Link><Link to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>Documents</Link>
+        <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>参考資料</Link><Link to="/workspaces/$workspaceId/reviews" params={{ workspaceId }}>レビュー履歴</Link><Link to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>ノート</Link>
       </aside>
       <section className="map-center">
         {detail && detail.roadmap.id === roadmapId ? <>
           <form className="map-toolbar" onSubmit={(event) => { event.preventDefault(); setMapStatus("保存中…"); void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "PATCH", mapDraft.values); await refresh(); mapDraft.reset(); }).then((saved) => setMapStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。")); }}>
-            <label>Roadmap名<input name="title" value={mapDraft.values.title} disabled={busy} onChange={(e) => { mapDraft.change("title", e.target.value); setMapStatus(""); }} required maxLength={200} /></label>
-            <label>Roadmapの説明<input name="description" value={mapDraft.values.description} disabled={busy} onChange={(e) => { mapDraft.change("description", e.target.value); setMapStatus(""); }} maxLength={10000} /></label>
+            <label>マップ名（必須）<input name="title" value={mapDraft.values.title} disabled={busy} onChange={(e) => { mapDraft.change("title", e.target.value); setMapStatus(""); }} required maxLength={200} /></label>
+            <label>マップの説明（任意）<input name="description" value={mapDraft.values.description} disabled={busy} onChange={(e) => { mapDraft.change("description", e.target.value); setMapStatus(""); }} maxLength={10000} /></label>
             <p role="status">{mapStatus || (mapDraft.dirty ? "未保存の変更" : "保存済み")}</p>
-            <button disabled={busy}>Roadmapを保存</button>
-            <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このRoadmapとNode・Edgeを削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>Roadmapを削除</button>
+            <button disabled={busy}>マップを保存</button>
+            <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
           <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty) setSelected(node.id); form.reset(); }); }}>
-            <label>新しいNode<input name="title" required maxLength={200} /></label><button disabled={busy}>Nodeを追加</button>
+            <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy}
             onMove={async (id, x, y) => { await act(async () => { await request(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); await refresh(); }); }}
             onConnect={async (sourceId, targetId, type) => { await act(async () => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type }); await refresh(); }); }}
             onDeleteEdge={async (id) => { await act(async () => { await request(`/edges/${id}${scope}`, "DELETE"); await refresh(); }); }} />
-        </> : <p className="empty-state">Roadmapを選択するか、新しく作成してください。</p>}
+        </> : <p className="empty-state">マップを選択するか、新しく作成してください。</p>}
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft}
         onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); await refresh(); nodeDraft.reset(); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>Nodeを選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
