@@ -30,7 +30,7 @@ describe("declared resource charset", () => {
   it.each(["text/plain", "text/markdown; charset=utf8", 'text/plain; charset="UTF-8"'])("preserves UTF8 fallback and declared %s including split multibyte sequences", async (type) => {
     const document = await fetch(Buffer.from(quote), type, undefined, true).result; expect(document.title).toBe(""); expect(document.text).toBe(quote);
   });
-  it.each(["UTF-7", "ISO-8859-16", ""])("rejects unsupported or empty declared encoding %s and destroys the response", async (charset) => {
+  it.each(["UTF-7", "not-a-real-charset", ""])("rejects unsupported or empty declared encoding %s and destroys the response", async (charset) => {
     const { result, stream } = fetch(Buffer.from("source"), `text/plain; charset="${charset}"`); await expect(result).rejects.toBeInstanceOf(ResourceUnavailable); expect(stream.destroyed).toBe(true);
   });
   it.each([["UTF-8", 0xc3], ["Shift_JIS", 0x82], ["EUC-JP", 0xa4]] as const)("rejects invalid trailing bytes in %s rather than returning corrupted evidence", async (charset, byte) => {

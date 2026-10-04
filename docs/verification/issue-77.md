@@ -9,3 +9,7 @@ Node標準MIMETypeでContent-Typeとcharsetパラメーターを解析し、宣�
 Mock transport回帰はShift_JIS/EUC-JPの資料名と日本語本文/VERIFIED、quoted/case-insensitive headerとsanitize、UTF8/no charset/Markdownと分割byte、unsupported/空charset、不正UTF8/Shift_JIS/EUC-JP、charset欠落時の不正UTF8、decode前のbyte上限を確認する。実ユーザーDB/MarkdownとAI provider・認証/公開設定を変更していない。
 
 最終main5536c13ベースのnpm run checkはlint/typecheck/unit132/integration58（追加14）/build/browser87全成功（22.0s）。task/resource-charset-check-final.log。byte chunk fixtureはメモリ内IncomingMessageで、実ネットワークの分割配送や実資料サイトの取得を測定したものではない。
+
+初回PR head32079f3のMac全チェックは成功したが、GitHub push/PR CIはintegration57成功/1失敗で停止した。Mac Node24.13.0で非対応だったISO-8859-16を非対応例として固定期待し、CI Node24.21.0では有効なdecoderが本文を返したためである。未定義label not-a-real-charsetへfixtureを修正し、対応charsetを拒否する製品制限は追加しない。失敗log task/pr-80-ci-failure.log、Node version task/pr-80-ci-full.logを保持する。
+
+fixture補正後のlint/typecheck/integration58は成功。task/resource-charset-after-ci-fix.log。製品sourceは初回全チェックから同一、最終headの全段階はGitHub CIで再確認する。
