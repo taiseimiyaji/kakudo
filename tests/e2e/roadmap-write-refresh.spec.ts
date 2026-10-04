@@ -58,7 +58,7 @@ test('a committed learning-objective save stays successful after one failed view
   } finally { await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/roadmaps/${roadmap.id}`); }
 });
 
-test('a saved map remains distinct from a failed view refresh and preserves a later human edit', async ({ page, request }) => {
+for (const laterTitle of ['その後に人間が書いた名前', '初期名']) test(`a saved map preserves later human edit ${laterTitle} after failed view refresh`, async ({ page, request }) => {
   const { roadmap } = await (await request.post('/api/roadmaps', { data: { title: '初期名' } })).json();
   let committed = false; let failedReads = 0; let allowRefresh = false;
   await page.route(`**/api/roadmaps/${roadmap.id}?*`, async (route) => {
@@ -74,10 +74,11 @@ test('a saved map remains distinct from a failed view refresh and preserves a la
     await expect(page.getByText('変更は保存されましたが、最新の表示を取得できませんでした。再取得してください。')).toBeVisible();
     await expect(page.getByText('保存しました', { exact: true })).toBeVisible();
     expect((await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).roadmap.title).toBe('サーバーに保存済み');
-    await title.fill('その後に人間が書いた名前');
+    await title.fill(laterTitle);
+    await expect(page.getByText('未保存の変更', { exact: true })).toBeVisible();
     allowRefresh = true; await page.getByRole('button', { name: '最新の表示を再取得' }).click();
     await expect(page.getByText('変更は保存されましたが、最新の表示を取得できませんでした。再取得してください。')).toHaveCount(0);
-    await expect(title).toHaveValue('その後に人間が書いた名前');
+    await expect(title).toHaveValue(laterTitle);
     await expect(page.getByText('未保存の変更', { exact: true })).toBeVisible();
     expect((await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).roadmap.title).toBe('サーバーに保存済み');
   } finally { await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/roadmaps/${roadmap.id}`); }
@@ -94,6 +95,30 @@ test('a rejected map PATCH is not reported as saved', async ({ page, request }) 
     await expect(page.getByText('変更は保存されましたが、最新の表示を取得できませんでした。再取得してください。')).toHaveCount(0);
     await expect(title).toHaveValue('保存されない名前');
     expect((await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).roadmap.title).toBe('元の名前');
+  } finally { await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/roadmaps/${roadmap.id}`); }
+});
+
+test('a learning objective edited back to its pre-save value stays protected during read recovery', async ({ page, request }) => {
+  const { roadmap } = await (await request.post('/api/roadmaps', { data: { title: '目標のABA保持' } })).json();
+  const { node } = await (await request.post('/api/nodes', { data: { roadmapId: roadmap.id, title: '項目', learningObjectives: ['初期目標'] } })).json();
+  let committed = false; let allowRefresh = false;
+  await page.route(`**/api/nodes/${node.id}?*`, async (route) => {
+    if (route.request().method() === 'PATCH') { const response = await route.fetch(); committed = response.ok(); return route.fulfill({ response }); }
+    return route.continue();
+  });
+  await page.route(`**/api/roadmaps/${roadmap.id}?*`, (route) => route.request().method() === 'GET' && committed && !allowRefresh ? route.abort() : route.continue());
+  try {
+    await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
+    await page.locator('.learning-card').filter({ hasText: '項目' }).click();
+    const goal = page.getByLabel('学習目標（任意・1行1項目）'); await goal.fill('保存済み目標');
+    await page.getByRole('button', { name: '学習項目を保存' }).click();
+    await expect(page.getByRole('button', { name: '最新の表示を再取得' })).toBeEnabled();
+    await goal.fill('初期目標'); await expect(page.getByText('未保存の変更', { exact: true })).toBeVisible();
+    allowRefresh = true; await page.getByRole('button', { name: '最新の表示を再取得' }).click();
+    await expect(page.getByRole('button', { name: '最新の表示を再取得' })).toHaveCount(0);
+    await expect(goal).toHaveValue('初期目標'); await expect(page.getByText('未保存の変更', { exact: true })).toBeVisible();
+    const stored = (await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).nodes.find((entry: { id: string }) => entry.id === node.id);
+    expect(stored.learningObjectives).toEqual(['保存済み目標']);
   } finally { await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/roadmaps/${roadmap.id}`); }
 });
 
