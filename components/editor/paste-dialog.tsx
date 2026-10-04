@@ -5,7 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
 export function PasteDialog({ paste, onClose, onQuote, onResource }: { paste: InterceptedPaste; onClose: () => void; onQuote: (url: string, title: string) => Promise<void>; onResource: (input: z.infer<typeof resourceInput>) => Promise<void> }) {
   const ref = useRef<HTMLDialogElement>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
-  useEffect(() => { ref.current?.showModal(); }, []);
+  useEffect(() => {
+    const dialog = ref.current;
+    const previousFocus = document.activeElement;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, []);
   return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }} aria-labelledby="paste-dialog-title">
     <h2 id="paste-dialog-title">{paste.kind === "quote" ? "引用として追加" : "Resourceとして登録"}</h2>
     {paste.kind === "quote" ? <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); setBusy(true); setError(""); void onQuote(String(data.get("url")), String(data.get("title"))).catch((e) => { setError(e.message); setBusy(false); }); }}>
@@ -15,7 +23,10 @@ export function PasteDialog({ paste, onClose, onQuote, onResource }: { paste: In
       <p className="muted">引用を追加すると、編集中の本文も一緒に保存します。</p>
       {error && <p role="alert">{error}</p>}
       <button disabled={busy}>Add Quote</button>
-    </form> : <ResourceForm initialUrl={paste.text.trim()} onSave={onResource} />}
+    </form> : <ResourceForm initialUrl={paste.text.trim()} onSave={async (input) => {
+      setBusy(true);
+      try { await onResource(input); } finally { setBusy(false); }
+    }} />}
     <button type="button" className="secondary" disabled={busy} onClick={onClose}>キャンセル</button>
   </dialog>;
 }
