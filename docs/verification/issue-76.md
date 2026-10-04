@@ -1,0 +1,15 @@
+# Issue #76 — ノードのキーボード操作
+
+main145ab653で、nodeの案内に従ってEnterを押しても詳細/selectedは開かず、pointer選択後のArrowRightは見た目だけ5px動き、PATCH 0回・DB x=0・reloadで0に戻った。Escapeでも詳細/selectedは維持された。実Chromium・所有隔離DB・Mockで全3現象を測定し、task/node-keyboard-evidence/baseline-node-keyboard.jsonへ記録。
+
+node wrapperに直接focusがあるEnter/Space/Escapeだけ、canvasのkeyboard captureで親が持つ選択と既存draftguardへ渡す。ReactFlowの内側の選択toggleを先に止め、拒否された場合に詳細とselectionがずれないようにする。子要素/input/edge/controlのキーはこのhandlerの対象外。既存pointer node選択とedge選択は維持し、edgeを選んだ際にnode詳細とそのdraftも表示する方針を変更しない。
+
+ReactFlow12.11.6のpublic onNodesChangeが通知するdragging:falseの完了位置を、既存のonMove/PATCH/refresh/reconcileへ渡す。矢印による5px/Shiftによる20px移動とpointer dragの保存をこの経路へ統合し、旧onNodeDragStopでの重複保存を除く。初期計測/dimensions/drag途中・busy・保存済位置と同一の完了位置は送信対象外。既存の失敗rollback・応答喪失時のserver確認を利用し、node/map/資料draftとviewportを維持する。
+
+フォーカスした5ケースが成功: 1280/390pxでEnter/Space・全4方向/Shift・座標UI/DB/reload・Escape、node/resource/edge draftの1回確認とcancel/accept、pending中の追加矢印抑制・失敗rollback・commit済み応答喪失のreconcile・手動X/目標/説明/viewport保持・inputキー除外、pointer dragのPATCH1回とdraft保持。実AI・実ユーザーデータ・API/schema・auto layout・認証/公開設定は変更しない。Native zoom、包括的a11y、複数node同時操作の新仕様は追加・検証済みと主張しない。
+
+最初のfull checkはunit132/integration44/buildまで成功し、browser76成功・新規2件失敗。traceではReactFlow初回計測前のvisibility:hiddenのnodeへLocator.focus/pressが送られ、詳細が開かないまま待機していた。人間が操作できる表示状態と実focusを待つよう新テストを修正した。既存テストの期待値や製品sourceを変更して通したものではない。PR #78/main808d9deをベースに更新して再検証する。
+
+PR #78のactual main808d9de postmergeで既存browser82中79成功/3失敗。parallel-edge-labelsの保存前後snapshotは全row/fieldが同一だがnodesの返却順だけが異なっていた。RoadmapService.detailはnodes/edgesにORDER BYを持たないため、両snapshotをID順に揃えて全体の厳密比較を維持する補助テスト修正を別コミットに含める。行数/ID/座標/関係/その他フィールドの追加・削除・変更は引き続き検出する。製品の並び順仕様は追加しない。
+
+最終main808d9deベースのnpm run checkはlint/typecheck/unit132/integration44/build/browser87件すべて成功（22.4s）。task/node-keyboard-check-final.log。補助修正を含むfocused9件も4.6sで成功。初回失敗のログは保持し、actual main78のpostmerge79成功/3失敗を成功扱いにしていない。
