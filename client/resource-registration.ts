@@ -5,6 +5,7 @@ import { confirmedResource } from "../modules/resource/confirmation";
 
 type Input = z.infer<typeof resourceInput>;
 export const RESOURCE_REGISTRATION_TIMEOUT_MS = 20_000;
+export const RESOURCE_CONFIRMATION_TIMEOUT_MS = 20_000;
 export async function registerResource(path: string, workspaceId: string, input: Input) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), RESOURCE_REGISTRATION_TIMEOUT_MS);
@@ -16,6 +17,10 @@ export async function registerResource(path: string, workspaceId: string, input:
   } finally { clearTimeout(timer); }
 }
 export async function checkResourceRegistration(path: string, workspaceId: string, input: Input) {
-  const payload = await request<{ resources?: unknown }>(path);
-  return confirmedResource(payload?.resources, workspaceId, input);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), RESOURCE_CONFIRMATION_TIMEOUT_MS);
+  try {
+    const payload = await request<{ resources?: unknown }>(path, "GET", undefined, { signal: controller.signal });
+    return confirmedResource(payload?.resources, workspaceId, input);
+  } finally { clearTimeout(timer); }
 }

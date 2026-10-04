@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { confirmedResource } from "../../modules/resource/confirmation";
 import { resourceInput } from "../../shared/resource";
-import { checkResourceRegistration, registerResource, RESOURCE_REGISTRATION_TIMEOUT_MS } from "../../client/resource-registration";
+import { checkResourceRegistration, registerResource, RESOURCE_CONFIRMATION_TIMEOUT_MS, RESOURCE_REGISTRATION_TIMEOUT_MS } from "../../client/resource-registration";
 import { UnknownMutationOutcome } from "../../client/api";
 
 const input = resourceInput.parse({ url: "https://example.com/confirmed", title: "Human title", type: "RFC" });
@@ -18,6 +18,43 @@ it("uses only GET for confirmation, leaving an absent result uncertain", async (
   vi.stubGlobal("fetch", fetch);
   expect(await checkResourceRegistration("/documents/d/resources?workspaceId=default", "default", input)).toBeNull();
   expect(fetch).toHaveBeenCalledTimes(1); expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: "GET" });
+});
+it("bounds a stalled confirmation GET and clears its deadline after a response", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetch = vi.fn<typeof globalThis.fetch>((_url, options) => new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetch);
+    const outcome = checkResourceRegistration("/resources", "default", input).then(() => null, (error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(RESOURCE_CONFIRMATION_TIMEOUT_MS);
+    const error = await outcome;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("接続を確認");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]?.[1]?.method).toBe("GET");
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+
+    fetch.mockImplementation(async () => new Response(JSON.stringify({ resources: [resource] })));
+    expect(await checkResourceRegistration("/resources", "default", input)).toEqual(resource);
+    const signal = fetch.mock.calls[1]?.[1]?.signal;
+    await vi.advanceTimersByTimeAsync(RESOURCE_CONFIRMATION_TIMEOUT_MS);
+    expect(signal?.aborted).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); }
+});
+it("bounds a confirmation whose response headers arrive but body never completes", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, options) => new Response(new ReadableStream({
+      start(controller) { options?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")), { once: true }); },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetch);
+    const outcome = checkResourceRegistration("/resources", "default", input).then(() => null, (error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(RESOURCE_CONFIRMATION_TIMEOUT_MS);
+    expect(await outcome).toBeInstanceOf(Error);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  } finally { vi.useRealTimers(); }
 });
 it("treats malformed or foreign successful registration payloads as unknown outcomes", async () => {
   for (const payload of [null, {}, { resource: { ...resource, workspaceId: "other" } }, { resource: { ...resource, url: "https://example.com/other" } }]) {
