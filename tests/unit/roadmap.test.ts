@@ -1,6 +1,6 @@
 import { nextNodePosition } from "../../modules/roadmap/layout";
 import { describe, expect, it } from "vitest";
-import { edgeInput, nodeInput, nodePatch, roadmapInput } from "../../shared/roadmap";
+import { edgeInput, edgePositionPatch, nodeInput, nodePatch, roadmapInput } from "../../shared/roadmap";
 describe("roadmap input validation", () => {
   it("position-only patches do not reset learner state or objectives", () => {
     expect(nodePatch.parse({ positionX: 15, positionY: 30 })).toEqual({ positionX: 15, positionY: 30 });
@@ -20,4 +20,16 @@ describe("roadmap input validation", () => {
 it("places new nodes below the lowest existing node after moves or deletions", () => {
   expect(nextNodePosition([])).toEqual({ positionX: 40, positionY: 0 });
   expect(nextNodePosition([{ positionY: 0 }, { positionY: 600 }])).toEqual({ positionX: 40, positionY: 820 });
+});
+
+it("keeps legacy edge direction, accepts four sides and restricts position-only updates", () => {
+  const edge = { roadmapId: "r", sourceId: "a", targetId: "b", type: "RELATED" };
+  expect(edgeInput.parse(edge)).toMatchObject({ sourceSide: "bottom", targetSide: "top" });
+  for (const side of ["top", "right", "bottom", "left"]) {
+    expect(edgeInput.safeParse({ ...edge, sourceSide: side, targetSide: side }).success).toBe(true);
+  }
+  expect(edgePositionPatch.parse({ sourceSide: "right" })).toEqual({ sourceSide: "right" });
+  for (const invalid of [{}, { sourceSide: "center" }, { targetSide: null }, { sourceId: "other" }, { type: "PARENT" }]) {
+    expect(edgePositionPatch.safeParse(invalid).success).toBe(false);
+  }
 });

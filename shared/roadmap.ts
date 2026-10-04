@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const nodeStatuses = ["NOT_STARTED", "LEARNING", "REVIEWING", "LEARNED"] as const;
+export const edgeSides = ["top", "right", "bottom", "left"] as const;
+export type EdgeSide = typeof edgeSides[number];
+export const edgePositionPatch = z.object({ sourceSide: z.enum(edgeSides), targetSide: z.enum(edgeSides) }).strict().partial().refine((v) => Object.keys(v).length > 0);
 export const edgeTypes = ["PREREQUISITE", "PARENT", "RELATED"] as const;
 const title = z.string().trim().min(1).max(200);
 const lines = z.array(z.string().trim().min(1).max(2000)).max(100);
@@ -19,10 +22,10 @@ export const nodePatch = z.object({
   positionX: z.number().finite().min(-100000).max(100000), positionY: z.number().finite().min(-100000).max(100000),
   status: z.enum(nodeStatuses), learningObjectives: lines, guidingQuestions: lines,
 }).strict().partial().refine((v) => Object.keys(v).length > 0);
-export const edgeInput = z.object({ roadmapId: z.string().min(1), sourceId: z.string().min(1), targetId: z.string().min(1), type: z.enum(edgeTypes) }).strict().refine((v) => v.sourceId !== v.targetId, { message: "Node cannot connect to itself" });
+export const edgeInput = z.object({ roadmapId: z.string().min(1), sourceId: z.string().min(1), targetId: z.string().min(1), type: z.enum(edgeTypes), sourceSide: z.enum(edgeSides).default("bottom"), targetSide: z.enum(edgeSides).default("top") }).strict().refine((v) => v.sourceId !== v.targetId, { message: "Node cannot connect to itself" });
 export const roadmapSchema = roadmapInput.extend({ id: z.string(), workspaceId: z.string(), createdAt: z.string() });
 export const learningNodeSchema = nodeFields.extend({ id: z.string(), roadmapId: z.string(), stats: z.object({ documents: z.number(), sources: z.number(), openFindings: z.number(), outdatedReviews: z.number() }) });
-export const edgeSchema = z.object({ id: z.string(), roadmapId: z.string(), sourceId: z.string(), targetId: z.string(), type: z.enum(edgeTypes) });
+export const edgeSchema = z.object({ id: z.string(), roadmapId: z.string(), sourceId: z.string(), targetId: z.string(), type: z.enum(edgeTypes), sourceSide: z.enum(edgeSides), targetSide: z.enum(edgeSides) });
 export const roadmapDetailSchema = z.object({ roadmap: roadmapSchema, nodes: z.array(learningNodeSchema), edges: z.array(edgeSchema) });
 export type Roadmap = z.infer<typeof roadmapSchema>;
 export type LearningNode = z.infer<typeof learningNodeSchema>;

@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 import { getDatabase, type Database } from "../../db/client";
 import { learningNodes, roadmapEdges, roadmaps, workspaces } from "../../db/schema";
-import { edgeInput, nodeInput, nodePatch, roadmapInput, roadmapPatch } from "../../shared/roadmap";
+import { edgeInput, edgePositionPatch, nodeInput, nodePatch, roadmapInput, roadmapPatch } from "../../shared/roadmap";
 import { DomainError, requireFound } from "../../lib/errors";
 
 export function roadmapService(db: Database = getDatabase()) {
@@ -44,12 +44,19 @@ export function roadmapService(db: Database = getDatabase()) {
       const [row] = await db.update(learningNodes).set(nodePatch.parse(input)).where(eq(learningNodes.id, id)).returning(); return row;
     },
     async removeNode(id: string, workspaceId: string) { await node(id, workspaceId); await db.delete(learningNodes).where(eq(learningNodes.id, id)); },
-    async createEdge(workspaceId: string, input: z.infer<typeof edgeInput>) {
+    async createEdge(workspaceId: string, input: z.input<typeof edgeInput>) {
       const data = edgeInput.parse(input); await roadmap(data.roadmapId, workspaceId);
       const [source, target] = await Promise.all([node(data.sourceId, workspaceId), node(data.targetId, workspaceId)]);
       if (source.roadmapId !== data.roadmapId || target.roadmapId !== data.roadmapId) throw new DomainError("Nodes must belong to the same roadmap");
       const [row] = await db.insert(roadmapEdges).values({ id: randomUUID(), ...data }).onConflictDoNothing().returning();
       if (!row) throw new DomainError("Connection already exists", 409); return row;
+    },
+    async updateEdgePosition(id: string, workspaceId: string, input: z.infer<typeof edgePositionPatch>) {
+      const data = edgePositionPatch.parse(input);
+      const [row] = await db.select({ edge: roadmapEdges }).from(roadmapEdges).innerJoin(roadmaps, eq(roadmapEdges.roadmapId, roadmaps.id)).where(and(eq(roadmapEdges.id, id), eq(roadmaps.workspaceId, workspaceId)));
+      requireFound(row, "Edge");
+      const [updated] = await db.update(roadmapEdges).set(data).where(eq(roadmapEdges.id, id)).returning();
+      return requireFound(updated, "Edge");
     },
     async removeEdge(id: string, workspaceId: string) {
       const [row] = await db.select({ edge: roadmapEdges }).from(roadmapEdges).innerJoin(roadmaps, eq(roadmapEdges.roadmapId, roadmaps.id)).where(and(eq(roadmapEdges.id, id), eq(roadmaps.workspaceId, workspaceId)));

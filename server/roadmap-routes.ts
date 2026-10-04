@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Database } from "../db/client";
 import { roadmapService } from "../modules/roadmap/service";
-import { edgeInput, nodeInput, nodePatch, roadmapInput, roadmapPatch } from "../shared/roadmap";
+import { edgeInput, edgePositionPatch, nodeInput, nodePatch, roadmapInput, roadmapPatch } from "../shared/roadmap";
 
 export function roadmapRoutes(database?: () => Database) {
   const api = new Hono();
@@ -15,6 +15,7 @@ export function roadmapRoutes(database?: () => Database) {
   api.patch("/nodes/:id", async (c) => c.json({ node: await service().updateNode(c.req.param("id"), c.req.query("workspaceId") ?? "default", nodePatch.parse(await c.req.json())) }));
   api.delete("/nodes/:id", async (c) => { await service().removeNode(c.req.param("id"), c.req.query("workspaceId") ?? "default"); return c.body(null, 204); });
   api.post("/edges", async (c) => c.json({ edge: await service().createEdge(c.req.query("workspaceId") ?? "default", edgeInput.parse(await c.req.json())) }, 201));
+  api.patch("/edges/:id", async (c) => c.json({ edge: await service().updateEdgePosition(c.req.param("id"), c.req.query("workspaceId") ?? "default", edgePositionPatch.parse(await c.req.json())) }));
   api.delete("/edges/:id", async (c) => { await service().removeEdge(c.req.param("id"), c.req.query("workspaceId") ?? "default"); return c.body(null, 204); });
   return api;
 }

@@ -43,10 +43,21 @@ describe("roadmap REST and database constraints", () => {
     expect((await api("/edges", "POST", { ...connection, targetId: nodes[0].id })).status).toBe(400);
     await expect(db.insert(roadmapEdges).values({ id: randomUUID(), ...connection, type: "PREREQUISITE", targetId: foreign.id })).rejects.toThrow();
     const { edge } = await (await api("/edges", "POST", connection)).json();
+    expect(edge).toMatchObject({ sourceSide: "bottom", targetSide: "top" });
     expect((await api("/edges", "POST", connection)).status).toBe(409);
+    expect((await api(`/edges/${edge.id}`, "PATCH", { sourceSide: "right" }, "another-workspace")).status).toBe(404);
+    expect((await api(`/edges/${edge.id}`, "PATCH", { targetSide: "center" })).status).toBe(400);
+    expect((await api(`/edges/${edge.id}`, "PATCH", { sourceId: nodes[2].id })).status).toBe(400);
+    expect((await api(`/edges/missing`, "PATCH", { targetSide: "left" })).status).toBe(404);
+    const moved = await api(`/edges/${edge.id}`, "PATCH", { sourceSide: "right", targetSide: "left" });
+    expect(moved.status).toBe(200);
+    expect((await moved.json()).edge).toMatchObject({ ...edge, sourceSide: "right", targetSide: "left" });
+    expect((await api(`/edges/${edge.id}`, "PATCH", { sourceSide: "top" })).status).toBe(200);
+    await expect(db.update(roadmapEdges).set({ targetSide: "center" as "left" }).where(eq(roadmapEdges.id, edge.id))).rejects.toThrow();
     const update = await api(`/nodes/${nodes[1].id}`, "PATCH", { title: "OAuth 2", status: "LEARNING", learningObjectives: ["Explain delegation"], guidingQuestions: ["Who grants access?"], positionX: 120.5, positionY: -31 }); expect(update.status).toBe(200);
     await api(`/roadmaps/${roadmap.id}`, "PATCH", { title: "Backend", description: "My path" });
     const detail = roadmapDetailSchema.parse(await (await api(`/roadmaps/${roadmap.id}`)).json());
+    expect(detail.edges).toEqual([expect.objectContaining({ id: edge.id, sourceSide: "top", targetSide: "left" })]);
     expect(detail.roadmap.title).toBe("Backend"); expect(detail.nodes.find((n) => n.id === nodes[1].id)).toMatchObject({ title: "OAuth 2", positionX: 120.5, positionY: -31, status: "LEARNING", learningObjectives: ["Explain delegation"] });
     expect((await api(`/edges/${edge.id}`, "DELETE")).status).toBe(204);
     await api("/edges", "POST", connection);
@@ -58,6 +69,7 @@ describe("roadmap REST and database constraints", () => {
   it("seeds the specified map once, retaining learner edits and deletions", async () => {
     await seedRoadmap(db, workspaceId); const mapId = `${workspaceId}:backend-engineering`;
     const detail = roadmapDetailSchema.parse(await (await api(`/roadmaps/${mapId}`)).json());
+    expect(detail.edges.every((edge) => edge.sourceSide === "bottom" && edge.targetSide === "top")).toBe(true);
     expect(detail.nodes).toHaveLength(8); expect(detail.nodes.find((n) => n.title === "OAuth")?.learningObjectives).toHaveLength(4);
     const id = detail.nodes[0].id;
     await db.update(learningNodes).set({ title: "User title" }).where(eq(learningNodes.id, id));

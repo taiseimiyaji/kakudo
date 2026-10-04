@@ -166,3 +166,18 @@ dialog > .secondary { margin-top: 15px; }
 .note-reading-title { font-size: 26px; margin: 28px 0 12px; }
 .save-state { font-size: 13px; color: var(--muted); }
 .save-message { min-height: 1.7em; font-size: 13px; color: var(--green); margin: 10px 0; }
+
+.connection-end { display: flex; flex: 2; gap: 8px; min-width: 210px; }
+.connection-end > label:first-child { flex: 3; }
+.connection-end > label:last-child { flex: 1; min-width: 64px; }
+.react-flow__handle.connection-handle { width: 12px; height: 12px; border: 2px solid white; background: var(--green); }
+.react-flow__handle.connection-handle:hover { box-shadow: 0 0 0 4px #275b4326; }
+.react-flow__edge.selected .react-flow__edge-path { stroke: var(--green); stroke-width: 3; }
+.edge-position-editor { border: 1px solid #9cb9a2; border-radius: 8px; background: #f0f5ec; padding: 16px; margin: 0 0 16px; }
+.edge-position-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.edge-position-heading h2, .edge-position-editor p { margin: 0; }
+.edge-position-editor p { font-size: 13px; overflow-wrap: anywhere; }
+.edge-position-fields { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.edge-position-fields label { flex: 1; min-width: 100px; }
+.edge-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.map-notice { margin: 0; padding: 8px 24px; background: #e8eee7; color: var(--green); }
