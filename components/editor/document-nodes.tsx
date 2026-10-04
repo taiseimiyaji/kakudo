@@ -5,10 +5,15 @@ import { request } from "../../client/api";
 import { documentNodeSchema, type DocumentNode } from "../../shared/document";
 import { Feedback } from "../common/feedback";
 
-export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave, onRefresh }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; disabled: boolean; onSave: (ids: string[]) => Promise<void>; onRefresh: () => void }) {
+export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave, onRefresh, onDraftProtectionChange }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; disabled: boolean; onSave: (ids: string[]) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
   const [options, setOptions] = useState<DocumentNode[] | null>(null);
   const [selected, setSelected] = useState(nodes.map((node) => node.id));
   const [version, setVersion] = useState(0); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [status, setStatus] = useState("");
+  const linkedIds = new Set(nodes.map((node) => node.id));
+  const dirty = selected.length !== nodes.length || selected.some((id) => !linkedIds.has(id));
+  const protectedDraft = dirty || busy;
+  useEffect(() => { onDraftProtectionChange?.(protectedDraft); }, [onDraftProtectionChange, protectedDraft]);
+  useEffect(() => () => { onDraftProtectionChange?.(false); }, [onDraftProtectionChange]);
   useEffect(() => { setSelected(nodes.map((node) => node.id)); }, [nodes]);
   useEffect(() => {
     let active = true;
@@ -28,8 +33,9 @@ export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave
     </article>)}
     <details><summary>学習項目の関連を変更</summary><p>関連だけを更新します。編集中の本文と名前は保持します。</p>
       {options === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); setBusy(true); setError(""); setStatus(""); void onSave(selected).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => setError(e.message)).finally(() => setBusy(false)); }}>
-        <fieldset disabled={disabled || busy}><legend>関連する学習項目</legend>{options.map((node) => <label className="node-link-option" key={node.id}><input type="checkbox" checked={selected.includes(node.id)} onChange={(e) => setSelected((ids) => e.target.checked ? [...ids, node.id] : ids.filter((id) => id !== node.id))} />{node.roadmapTitle} / {node.title}</label>)}</fieldset>
-        <button disabled={disabled || busy}>関連を保存</button><button type="button" className="secondary" disabled={disabled || busy} onClick={() => setSelected([])}>関連をすべて解除</button>
+        <fieldset disabled={disabled || busy}><legend>関連する学習項目</legend>{options.map((node) => <label className="node-link-option" key={node.id}><input type="checkbox" checked={selected.includes(node.id)} onChange={(e) => { setSelected((ids) => e.target.checked ? [...ids, node.id] : ids.filter((id) => id !== node.id)); setStatus(""); }} />{node.roadmapTitle} / {node.title}</label>)}</fieldset>
+        {dirty && <Feedback>関連の変更は未保存です。「関連を保存」で確定してください。</Feedback>}
+        <button disabled={disabled || busy}>関連を保存</button><button type="button" className="secondary" disabled={disabled || busy} onClick={() => { setSelected([]); setStatus(""); }}>関連をすべて解除</button>
       </form>}
       <button className="secondary" disabled={disabled || busy} onClick={() => { setVersion((value) => value + 1); onRefresh(); }}>学習項目と目標を再取得</button>
     </details>{error && <Feedback error>{error}</Feedback>}{status && <Feedback>{status}</Feedback>}

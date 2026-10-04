@@ -35,6 +35,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [contextVersion, setContextVersion] = useState(0);
   const [resourceVersion, setResourceVersion] = useState(0);
   const [resourceProtected, setResourceProtected] = useState(false);
+  const [associationProtected, setAssociationProtected] = useState(false);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [session] = useState(() => new NoteSession({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId, revisionId: initial.document.currentRevisionId },
@@ -57,7 +58,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [recoveryError, setRecoveryError] = useState(""); const [recovering, setRecovering] = useState(false);
   const busy = saving || recovering;
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
-  useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected) && !window.confirm("未保存・保存中の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected });
+  useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected || associationProtected) && !window.confirm("未保存・保存中の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected || associationProtected });
   async function save() {
     if (await session.save(true)) { setLatest(null); setRecoveryError(""); }
   }
@@ -74,7 +75,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {mode === "edit" ? <label className="document-title">ノート名（必須）<input value={title} onChange={(e) => session.edit({ title: e.target.value })} onCompositionStart={() => session.setComposing(true)} onCompositionEnd={() => session.setComposing(false)} maxLength={200} required /></label> : <h2 className="note-reading-title">{title}</h2>}
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
-    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} disabled={busy || !!paste} onRefresh={() => setContextVersion((value) => value + 1)} onSave={async (nodeIds) => {
+    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} disabled={busy || !!paste} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onSave={async (nodeIds) => {
       const result = await session.updateContext((baseWriteId) => request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId }).then((payload) => documentLinksSchema.parse(payload)));
       setNodes(result.nodes); setContextVersion((v) => v + 1);
     }} />
