@@ -16,6 +16,8 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
   const [items, setItems] = useState<Resource[]>([]);
   const [all, setAll] = useState<Resource[]>([]);
   const [load, setLoad] = useState<"loading" | "ready" | "failed">("loading");
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const hasKnownList = useRef(false);
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
@@ -25,28 +27,31 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
   const path = target ? `/${target.kind}s/${encodeURIComponent(target.id)}/resources` : "/resources";
   useEffect(() => {
     let active = true;
+    setRefreshFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), RESOURCE_LIST_TIMEOUT_MS);
     Promise.all([request<{ resources: Resource[] }>(path + suffix, "GET", undefined, { signal: controller.signal }), target ? request<{ resources: Resource[] }>("/resources" + suffix, "GET", undefined, { signal: controller.signal }) : Promise.resolve(null)])
-      .then(([linked, available]) => { if (active) { setItems(linked.resources); setAll(available?.resources ?? linked.resources); setLoad("ready"); } })
-      .catch(() => { controller.abort(); if (active) setLoad("failed"); })
+      .then(([linked, available]) => { if (active) { hasKnownList.current = true; setItems(linked.resources); setAll(available?.resources ?? linked.resources); setLoad("ready"); } })
+      .catch(() => { controller.abort(); if (active) { if (hasKnownList.current) { setLoad("ready"); setRefreshFailed(true); } else setLoad("failed"); } })
       .finally(() => clearTimeout(timer));
     return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [path, suffix, version, refresh, target?.kind, target?.id]);
-  const retry = () => { setLoad("loading"); setVersion((v) => v + 1); };
+  const retry = () => { if (!hasKnownList.current) setLoad("loading"); setRefreshFailed(false); setVersion((v) => v + 1); };
   const added = (resource: Resource) => {
+    hasKnownList.current = true;
     setItems((current) => [...current.filter((item) => item.id !== resource.id), resource]);
     setAll((current) => [...current.filter((item) => item.id !== resource.id), resource]);
+    setLoad("ready"); setRefreshFailed(false); setVersion((v) => v + 1);
     onChange?.();
   };
   return <section className="resource-panel" aria-label="参考資料">{showHeading && <h2>参考資料</h2>}
     {load === "loading" && <Feedback>資料を読み込んでいます…</Feedback>}
-    {load === "failed" && <><Feedback error>資料を読み込めませんでした。接続を確認して再試行してください。</Feedback><button className="secondary" onClick={retry}>資料を再読み込み</button></>}
+    {(load === "failed" || refreshFailed) && <><Feedback error>資料を読み込めませんでした。接続を確認して再試行してください。</Feedback><button className="secondary" onClick={retry}>資料を再読み込み</button></>}
     {load === "ready" && <>
-      <ul>{items.map((item) => <ResourceRow key={item.id} item={item} suffix={suffix} unlinkPath={target ? `${path}/${encodeURIComponent(item.id)}${suffix}` : undefined} onUnlink={() => { setItems((current) => current.filter((r) => r.id !== item.id)); setLinkMessage({ text: `「${item.title || item.url}」の関連を外しました。資料は登録済み一覧に残っています。`, error: false }); onChange?.(); }} />)}</ul>
-      {!items.length && <p className="muted">登録された資料はありません。</p>}
+      <ul>{items.map((item) => <ResourceRow key={item.id} item={item} suffix={suffix} unlinkPath={target ? `${path}/${encodeURIComponent(item.id)}${suffix}` : undefined} onUnlink={() => { setItems((current) => current.filter((r) => r.id !== item.id)); setRefreshFailed(false); setVersion((v) => v + 1); setLinkMessage({ text: `「${item.title || item.url}」の関連を外しました。資料は登録済み一覧に残っています。`, error: false }); onChange?.(); }} />)}</ul>
+      {!items.length && !refreshFailed && <p className="muted">登録された資料はありません。</p>}
     </>}
-    <ResourceForm onDraftProtectionChange={onDraftProtectionChange} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); if (load !== "ready") retry(); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={(resource) => { added(resource); if (load !== "ready") retry(); }} />
+    <ResourceForm onDraftProtectionChange={onDraftProtectionChange} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={added} />
     {target && <form aria-busy={linkBusy} onSubmit={(event) => {
       event.preventDefault(); if (linkPending.current || !selected || load !== "ready") return;
       linkPending.current = true; setLinkBusy(true); setLinkMessage({ text: "", error: false });
