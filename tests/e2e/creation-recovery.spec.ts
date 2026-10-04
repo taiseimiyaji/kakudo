@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 test.use({ viewport: { width: 390, height: 844 } });
 
 for (const kind of ["map", "note"] as const) {
-  for (const responseKind of ["lost", "invalid", "server-error", "server-after-commit"] as const) {
+  for (const responseKind of ["lost", "invalid", "server-error", "server-after-commit", "recovery-conflict"] as const) {
+    if (responseKind === "recovery-conflict" && kind !== "note") continue;
     test(`${kind} creation ${responseKind} is uncertain and requires a read-only check before a new creation`, async ({ page, request }) => {
       const noun = kind === "map" ? "マップ" : "ノート";
       const path = kind === "map" ? "roadmaps" : "documents";
@@ -23,7 +24,7 @@ for (const kind of ["map", "note"] as const) {
         posts++;
         if (posts === 1 && responseKind === "server-error") return route.fulfill({ status: 500, json: { error: "private-stack" } });
         const response = await route.fetch(); const payload = await response.json(); created.push((kind === "map" ? payload.roadmap : payload.document).id);
-        if (posts === 1) return responseKind === "lost" ? route.abort() : route.fulfill({ status: responseKind === "server-after-commit" ? 502 : 201, json: { invalid: true } });
+        if (posts === 1) return responseKind === "lost" ? route.abort() : route.fulfill({ status: responseKind === "server-after-commit" ? 502 : responseKind === "recovery-conflict" ? 409 : 201, json: responseKind === "recovery-conflict" ? { code: "DOCUMENT_CREATE_OUTCOME_UNKNOWN", error: "private-recovery" } : { invalid: true } });
         return route.fulfill({ response });
       });
       try {

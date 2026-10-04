@@ -4,7 +4,7 @@ Issue #97。人間が入力したタイトルから空のノート・マップ�
 
 POST 成功後にブラウザへ返す応答だけを失わせると、従来は「再試行してください」と通常の作成を再び有効にし、別 UUID の同名データを二つ作成した。main `6949815` の専用DBで両経路を再現した。
 
-作成操作だけで `uncertainMutation` と `uncertainServerError` を有効にする。通信失敗、成功応答の JSON/スキーマ/タイトル・workspace の不一致、5xx は結果不明とする。既知の 4xx 入力拒否は修正して再試行できる。他の API のエラー分類は変更しない。
+作成操作だけで `uncertainMutation` と `uncertainServerError` を有効にする。通信失敗、成功応答の JSON/スキーマ/タイトル・workspace の不一致、5xx は結果不明とする。ノート作成の journal recovery 失敗は、HTTP 409 と `DOCUMENT_CREATE_OUTCOME_UNKNOWN` の専用コードで結果不明とする。この409の本文を読み取れない場合も拒否確定とはみなさない。通常の409や既知の 4xx 入力拒否は修正して再試行できる。他の API のエラー分類は変更しない。
 
 結果不明時はタイトルを保持し、通常の作成ボタンと submit handler を止める。「作成済みの…を確認」は元の workspace、ノートの場合は元の node を指定した一覧 GET のみを送る。一覧確認が失敗した場合は作成を止めたまま再取得できる。
 
@@ -14,10 +14,13 @@ POST 成功後にブラウザへ返す応答だけを失わせると、従来は
 
 ## 検証
 
-- `tests/e2e/creation-recovery.spec.ts`: ノート・マップ双方で、サーバーの作成後に応答だけ喪失、不正な成功応答、作成前の 500、作成後の 502。通常の再送拒否、読み取りの失敗・再取得、正しい範囲、同名候補からの再開、新しい作成への確認拒否・承諾、後のタイトル保持を検証する。
+- `tests/e2e/creation-recovery.spec.ts`: ノート・マップ双方で、サーバーの作成後に応答だけ喪失、不正な成功応答、作成前の 500、作成後の 502、ノート作成の専用 recovery 409。通常の再送拒否、読み取りの失敗・再取得、正しい範囲、同名候補からの再開、新しい作成への確認拒否・承諾、後のタイトル保持を検証する。
 - 同ファイルで、確認 GET を遅延させて項目を変更・往復し、古い確認結果を反映しないことも検証する。
 - `tests/e2e/creation-context.spec.ts` の既知の拒否 fixture は 400 にする。5xx は拒否確定ではなく、新しい結果不明のテストで作成前・後双方を検証する。
 - `tests/unit/client-api.test.ts`: 5xx の結果不明扱いは両 option を有効にした mutation に限定。GET、未指定の mutation、4xx の既存分類を維持する。
+
+- `tests/integration/document-create-recovery.test.ts`: 実DB transaction をコミットした後に確定応答だけを失わせ、続く storage recovery も失敗させる。409でも実レコード/本文/journalが残ること、専用コードとクライアントの結果不明分類、健康なstorageでの読み取り回復を検証する。コミット前のstorage失敗とrollback失敗も同じ成否不明の契約で検証する。
+- `tests/unit/creation-request.test.ts`: recovery codeのない通常409、異なるcode/status/pathは通常エラーを維持する。
 
 ## 制約
 
