@@ -151,5 +151,12 @@ test("pending quote guards browser departure and unmount clears the autosave tim
     page.once("dialog", (event) => event.accept()); await page.goBack(); await expect(page).toHaveURL(/\/workspaces\/default\/documents$/);
     hold.release(); await expect.poll(() => returned).toBe(true); await page.clock.runFor(6000); expect(saves).toBe(0);
     const current = await (await request.get(path)).json(); expect(current.content).toContain("Pending draft."); expect(current.content).toContain("> Departure reference");
+    // A separate ordinary draft has neither pending paste nor failed write state.
+    // Without interval cleanup, this old session would PUT after departure.
+    await page.getByRole("link", { name: "離脱確認", exact: true }).click(); await page.getByRole("button", { name: "編集", exact: true }).click();
+    const freshEditor = page.getByRole("textbox", { name: "Markdown本文" }); await freshEditor.click(); await freshEditor.press("ControlOrMeta+End"); await freshEditor.pressSequentially(" Deliberately discarded draft.");
+    page.once("dialog", (event) => event.accept()); await page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true }).click();
+    await expect(page).toHaveURL(/\/workspaces\/default$/); await page.clock.runFor(6000); expect(saves).toBe(0);
+    expect((await (await request.get(path)).json()).content).toBe(current.content);
   } finally { hold.release(); await page.unrouteAll({ behavior: "wait" }); await request.delete(path); }
 });
