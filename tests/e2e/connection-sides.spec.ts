@@ -56,16 +56,25 @@ test("endpoint drafts survive failed writes and cancelled close/navigation witho
   const { node: a } = await (await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title: "A", positionX: 0 } })).json();
   const { node: b } = await (await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title: "B", positionX: 400 } })).json();
   const { edge } = await (await request.post("/api/edges", { data: { roadmapId: roadmap.id, sourceId: a.id, targetId: b.id, type: "RELATED" } })).json();
+  const { edge: otherEdge } = await (await request.post("/api/edges", { data: { roadmapId: roadmap.id, sourceId: b.id, targetId: a.id, type: "PARENT" } })).json();
   try {
     await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
     await page.locator(`.react-flow__node[data-id="${a.id}"]`).click();
     await page.getByLabel("学習目標（任意・1行1項目）").fill("保持する目標");
     await page.getByLabel("マップの説明（任意）").fill("保持する説明");
     await page.getByRole("button", { name: "拡大", exact: true }).click();
-    await page.getByText("接続一覧 (1)", { exact: true }).click(); await page.getByRole("button", { name: "接続位置を変更" }).click();
+    await page.getByText("接続一覧 (2)", { exact: true }).click();
+    const originalButton = page.locator(".edge-row").filter({ hasText: "A → B" }).getByRole("button", { name: "接続位置を変更" });
+    const otherButton = page.locator(".edge-row").filter({ hasText: "B → A" }).getByRole("button", { name: "接続位置を変更" });
+    await originalButton.click();
     const editor = page.getByRole("form", { name: "接続位置の編集" });
     const viewport = page.locator(".react-flow__viewport"); const transform = await viewport.getAttribute("style");
     await editor.getByLabel("出口の位置").selectOption("left"); await editor.getByLabel("入口の位置").selectOption("right");
+    page.once("dialog", (dialog) => dialog.dismiss()); await otherButton.click();
+    await expect(editor).toContainText("A → B"); await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
+    const cancelDeparture = (dialog: import("@playwright/test").Dialog) => { void dialog.dismiss(); };
+    page.on("dialog", cancelDeparture); await page.locator(`.react-flow__node[data-id="${b.id}"]`).click(); page.off("dialog", cancelDeparture);
+    await expect(page.getByLabel("学習項目名（必須）")).toHaveValue("A"); await expect(editor.getByLabel("入口の位置")).toHaveValue("right");
     page.once("dialog", (dialog) => dialog.dismiss()); await editor.getByRole("button", { name: "閉じる" }).click();
     await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
     page.once("dialog", (dialog) => dialog.dismiss()); await page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true }).click();
@@ -76,12 +85,16 @@ test("endpoint drafts survive failed writes and cancelled close/navigation witho
     await expect(page.getByLabel("学習目標（任意・1行1項目）")).toHaveValue("保持する目標"); await expect(page.getByLabel("マップの説明（任意）")).toHaveValue("保持する説明");
     expect(await viewport.getAttribute("style")).toBe(transform);
     await page.unroute(`**/api/edges/${edge.id}?*`); await editor.getByRole("button", { name: "接続位置を保存" }).click(); await expect(editor.getByRole("status")).toHaveText("保存しました");
-    expect((await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).edges).toEqual([expect.objectContaining({ ...edge, sourceSide: "left", targetSide: "right" })]);
+    expect((await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).edges).toEqual(expect.arrayContaining([expect.objectContaining({ ...edge, sourceSide: "left", targetSide: "right" }), expect.objectContaining(otherEdge)]));
     expect(await viewport.getAttribute("style")).toBe(transform);
     await expect(page.getByLabel("学習目標（任意・1行1項目）")).toHaveValue("保持する目標");
     await page.screenshot({ path: testInfo.outputPath("connection-sides-draft.png"), fullPage: true });
     await editor.getByLabel("出口の位置").selectOption("top"); page.once("dialog", (dialog) => dialog.accept()); await editor.getByRole("button", { name: "閉じる" }).click();
-    await page.getByRole("button", { name: "接続位置を変更" }).click(); await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
+    await originalButton.click(); await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
+    await editor.getByLabel("出口の位置").selectOption("top");
+    page.once("dialog", (dialog) => dialog.accept()); await otherButton.click();
+    await expect(editor).toContainText("B → A"); await expect(editor.getByLabel("出口の位置")).toHaveValue("bottom");
+    await originalButton.click(); await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
     for (const width of [390, 640, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
