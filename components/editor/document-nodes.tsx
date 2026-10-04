@@ -5,11 +5,12 @@ import { request } from "../../client/api";
 import { documentNodeSchema, type DocumentNode } from "../../shared/document";
 import { Feedback } from "../common/feedback";
 
-export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave, onRefresh, onDraftProtectionChange }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; disabled: boolean; onSave: (ids: string[]) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
+export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, onSave, onRefresh, onDraftProtectionChange }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
   const [options, setOptions] = useState<DocumentNode[] | null>(null);
   const [selected, setSelected] = useState(nodes.map((node) => node.id));
   const savedIds = useRef(new Set(nodes.map((node) => node.id)));
-  const failedSubmittedIds = useRef<string[] | null>(null);
+  const failedSubmission = useRef<{ ids: string[]; baseWriteId: string | null | undefined } | null>(null);
+  const seenConfirmationVersion = useRef(confirmation.version);
   const [version, setVersion] = useState(0); const [error, setError] = useState(""); const [optionsError, setOptionsError] = useState(""); const [busy, setBusy] = useState(false); const [status, setStatus] = useState("");
   const linkedIds = new Set(nodes.map((node) => node.id));
   const dirty = selected.length !== nodes.length || selected.some((id) => !linkedIds.has(id));
@@ -18,14 +19,18 @@ export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave
   useEffect(() => () => { onDraftProtectionChange?.(false); }, [onDraftProtectionChange]);
   useEffect(() => {
     const ids = nodes.map((node) => node.id);
-    if (ids.length === savedIds.current.size && ids.every((id) => savedIds.current.has(id))) return;
-    const failedIds = failedSubmittedIds.current;
-    if (failedIds && ids.length === failedIds.length && ids.every((id) => failedIds.includes(id))) {
-      failedSubmittedIds.current = null;
+    const sameSavedIds = ids.length === savedIds.current.size && ids.every((id) => savedIds.current.has(id));
+    const freshlyConfirmed = confirmation.version !== seenConfirmationVersion.current;
+    seenConfirmationVersion.current = confirmation.version;
+    const failed = failedSubmission.current;
+    if (freshlyConfirmed && failed && ids.length === failed.ids.length && ids.every((id) => failed.ids.includes(id)) &&
+      (!sameSavedIds || (failed.baseWriteId !== undefined && confirmation.writeId !== failed.baseWriteId))) {
+      failedSubmission.current = null;
       setError(""); setStatus("関連の保存結果を確認しました。");
     }
+    if (sameSavedIds) return;
     savedIds.current = new Set(ids); setSelected(ids);
-  }, [nodes]);
+  }, [nodes, confirmation]);
   useEffect(() => {
     let active = true;
     request(`/documents/${documentId}/node-options?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => {
@@ -43,7 +48,7 @@ export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave
       {node.learningObjectives.length ? <ul>{node.learningObjectives.map((objective, index) => <li key={index}>{objective}</li>)}</ul> : <p>学習目標は未設定です。</p>}
     </article>)}
     <details><summary>学習項目の関連を変更</summary><p>関連だけを更新します。編集中の本文と名前は保持します。</p>
-      {options === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); const submitted = [...selected]; failedSubmittedIds.current = null; setBusy(true); setError(""); setStatus(""); void onSave(submitted).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => { failedSubmittedIds.current = submitted; setError(e.message); }).finally(() => setBusy(false)); }}>
+      {options === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); const submitted = [...selected]; let baseWriteId: string | null | undefined; failedSubmission.current = null; setBusy(true); setError(""); setStatus(""); void onSave(submitted, (id) => { baseWriteId = id; }).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => { failedSubmission.current = { ids: submitted, baseWriteId }; setError(e.message); }).finally(() => setBusy(false)); }}>
         <fieldset disabled={disabled || busy}><legend>関連する学習項目</legend>{options.map((node) => <label className="node-link-option" key={node.id}><input type="checkbox" checked={selected.includes(node.id)} onChange={(e) => { setSelected((ids) => e.target.checked ? [...ids, node.id] : ids.filter((id) => id !== node.id)); setStatus(""); }} />{node.roadmapTitle} / {node.title}</label>)}</fieldset>
         {dirty && <Feedback>関連の変更は未保存です。「関連を保存」で確定してください。</Feedback>}
         <button disabled={disabled || busy}>関連を保存</button><button type="button" className="secondary" disabled={disabled || busy} onClick={() => { setSelected([]); setStatus(""); }}>関連をすべて解除</button>
