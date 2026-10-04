@@ -91,6 +91,13 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
     await expect(page.getByLabel("X", { exact: true })).toHaveValue(String(Number(x) + 15));
     await expect.poll(() => viewport(page)).toBe(view);
     await page.unroute(`**/api/nodes/${node.id}?*`);
+    // The form's 500 is uncertain; reading current state never resends the save.
+    const recovery = page.getByRole("region", { name: "マップ・項目の保存結果の確認", exact: true });
+    await expect(page.getByRole("button", { name: "学習項目を保存", exact: true })).toBeDisabled();
+    await recovery.getByRole("button", { name: "現在の保存済み内容を確認", exact: true }).click();
+    await expect(recovery.getByRole("region", { name: "確認した保存済み内容", exact: true })).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    await recovery.getByRole("button", { name: "保存済み内容を確認しました。保存を再開", exact: true }).click();
     await page.getByRole("button", { name: "学習項目を保存", exact: true }).click();
     await idle(page);
     await expect.poll(() => viewport(page)).toBe(view);

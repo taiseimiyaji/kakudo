@@ -8,8 +8,8 @@ test("map drafts survive refreshes, failed saves and cancelled departures", asyn
   for (const [index, title] of ["First", "Second"].entries()) {
     await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title, positionX: index * 280, positionY: 0 } });
   }
-  let dialogs = 0;
-  page.on("dialog", async (dialog) => { dialogs++; await dialog.dismiss(); });
+  let dialogs = 0; let allowSaveRecovery = false;
+  page.on("dialog", async (dialog) => { dialogs++; if (allowSaveRecovery) await dialog.accept(); else await dialog.dismiss(); });
   try {
     await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
     await card(page, "First").click();
@@ -48,9 +48,16 @@ test("map drafts survive refreshes, failed saves and cancelled departures", asyn
       else await route.continue();
     });
     await page.getByRole("button", { name: "学習項目を保存" }).click();
-    await expect(page.locator(".node-details > form [role=status]")).toContainText("保存に失敗しました");
+    await expect(page.locator(".node-details > form [role=status]")).toContainText("保存結果は不明です");
     await expect(objectives(page)).toHaveValue("人間が定義した目標");
     await page.unroute("**/api/nodes/*");
+    const recovery = page.getByRole("region", { name: "マップ・項目の保存結果の確認", exact: true });
+    await expect(page.getByRole("button", { name: "学習項目を保存" })).toBeDisabled();
+    await recovery.getByRole("button", { name: "現在の保存済み内容を確認", exact: true }).click();
+    await expect(recovery.getByRole("region", { name: "確認した保存済み内容", exact: true })).toContainText("First");
+    allowSaveRecovery = true;
+    await recovery.getByRole("button", { name: "保存済み内容を確認しました。保存を再開", exact: true }).click();
+    allowSaveRecovery = false;
     await page.getByRole("button", { name: "学習項目を保存" }).click();
     await expect(page.locator(".node-details > form [role=status]")).toHaveText("保存しました");
     await expect(page.getByLabel("マップの説明（任意）")).toHaveValue("編集中の説明");
@@ -128,9 +135,15 @@ test("map save reports pending and failure, keeps input for retry, and guards ma
     await expect(page.locator(".map-toolbar [role=status]")).toHaveText("保存中…");
     await expect(page.getByLabel("マップ名（必須）", { exact: true })).toBeDisabled();
     release();
-    await expect(page.locator(".map-toolbar [role=status]")).toContainText("保存に失敗しました");
+    await expect(page.locator(".map-toolbar [role=status]")).toContainText("保存結果は不明です");
     await expect(page.getByLabel("マップの説明（任意）")).toHaveValue("保持する説明");
     await page.unroute(`**/api/roadmaps/${roadmap.id}?*`);
+    const recovery = page.getByRole("region", { name: "マップ・項目の保存結果の確認", exact: true });
+    await expect(page.getByRole("button", { name: "マップを保存" })).toBeDisabled();
+    await recovery.getByRole("button", { name: "現在の保存済み内容を確認", exact: true }).click();
+    await expect(recovery.getByRole("region", { name: "確認した保存済み内容", exact: true })).toContainText("Map save retry");
+    page.once("dialog", (dialog) => dialog.accept());
+    await recovery.getByRole("button", { name: "保存済み内容を確認しました。保存を再開", exact: true }).click();
     await page.getByRole("button", { name: "マップを保存" }).click();
     await expect(page.locator(".map-toolbar [role=status]")).toHaveText("保存しました");
     await expect(page.getByLabel("マップ名（必須）", { exact: true })).toHaveValue("Changed map");
