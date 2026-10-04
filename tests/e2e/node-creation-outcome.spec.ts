@@ -63,7 +63,8 @@ test('confirmed node creation plus failed refresh remains confirmed and does not
 });
 
 test('multiple same-name candidates and graph selection never release uncertain creation', async ({ page, request, map }) => {
-  const title = '同じ名前の候補'; const { node: existing } = await (await request.post('/api/nodes', { data: { roadmapId: map.id, title } })).json(); await page.goto(`/workspaces/default/roadmaps/${map.id}`); await page.getByLabel('新しい学習項目（必須）').fill(title); let posts = 0;
+  // Keep this candidate clear of the fixture's node at (0, 0) for a real pointer click.
+  const title = '同じ名前の候補'; const { node: existing } = await (await request.post('/api/nodes', { data: { roadmapId: map.id, title, positionX: 320 } })).json(); await page.goto(`/workspaces/default/roadmaps/${map.id}`); await page.getByLabel('新しい学習項目（必須）').fill(title); let posts = 0;
   await page.route('**/api/nodes?*', async (route) => { posts++; await route.fetch(); return route.abort(); }); await page.getByRole('button', { name: '学習項目を追加', exact: true }).click(); const recovery = page.getByRole('region', { name: '学習項目の作成結果の確認', exact: true }); await expect(recovery).toBeVisible(); await recovery.getByRole('button', { name: '作成済みの学習項目を確認', exact: true }).click(); await expect(recovery.getByRole('listitem')).toHaveCount(2); await page.locator(`.react-flow__node[data-id="${existing.id}"]`).click(); await expect(page.getByLabel('学習項目名（必須）', { exact: true })).toHaveValue(title); await expect(recovery).toBeVisible(); await expect(page.getByRole('button', { name: '学習項目を追加', exact: true })).toBeDisabled(); expect(posts).toBe(1);
 });
 
