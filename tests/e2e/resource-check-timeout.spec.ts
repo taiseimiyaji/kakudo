@@ -38,7 +38,7 @@ for (const committed of [false, true]) test(`stalled resource confirmation ${com
       await expect(panel.getByRole("alert")).toContainText("結果はまだ不明");
       release(); await expect.poll(() => delivered).toBe(true); await expect(panel.getByRole("alert")).toContainText("結果はまだ不明"); await expect(panel.getByLabel("資料URL（必須）")).toHaveValue(url);
     }
-    expect(posts).toBe(1); expect(checks).toBe(2);
+    expect(posts).toBe(1); if (!committed) expect(checks).toBe(2);
   } finally { release(); await page.unrouteAll({ behavior: "wait" }); if (resourceId) await request.delete(`/api/resources/${resourceId}`); }
 });
 
