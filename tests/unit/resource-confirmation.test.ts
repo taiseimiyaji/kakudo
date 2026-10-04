@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { confirmedResource } from "../../modules/resource/confirmation";
 import { resourceInput } from "../../shared/resource";
-import { checkResourceRegistration, registerResource } from "../../client/resource-registration";
+import { checkResourceRegistration, registerResource, RESOURCE_REGISTRATION_TIMEOUT_MS } from "../../client/resource-registration";
 import { UnknownMutationOutcome } from "../../client/api";
 
 const input = resourceInput.parse({ url: "https://example.com/confirmed", title: "Human title", type: "RFC" });
@@ -26,4 +26,34 @@ it("treats malformed or foreign successful registration payloads as unknown outc
   }
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ resource }), { status: 201 })));
   expect(await registerResource("/resources", "default", input)).toEqual(resource);
+});
+it("bounds a stalled registration as uncertain without retrying its POST", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetch = vi.fn<typeof globalThis.fetch>((_url, options) => new Promise<Response>((_resolve, reject) => {
+      options?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    }));
+    vi.stubGlobal("fetch", fetch);
+    const attempt = registerResource("/resources", "default", input);
+    const outcome = attempt.then(() => null, (error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(RESOURCE_REGISTRATION_TIMEOUT_MS - 1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await outcome).toBeInstanceOf(UnknownMutationOutcome);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  } finally { vi.useRealTimers(); }
+});
+it("clears the registration deadline after a successful response", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(JSON.stringify({ resource }), { status: 201 }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await registerResource("/resources", "default", input)).toEqual(resource);
+    const signal = fetch.mock.calls[0]?.[1]?.signal;
+    await vi.advanceTimersByTimeAsync(RESOURCE_REGISTRATION_TIMEOUT_MS);
+    expect(signal?.aborted).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  } finally { vi.useRealTimers(); }
 });
