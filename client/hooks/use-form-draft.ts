@@ -2,9 +2,15 @@ import { useState } from "react";
 
 // Only edited fields override refreshed server data; clean fields follow the server.
 export function useFormDraft<T extends Record<string, string>>(identity: string, source: T) {
-  const [state, setState] = useState<{ identity: string; edits: Partial<T> }>({ identity, edits: {} });
-  if (state.identity !== identity) setState({ identity, edits: {} });
-  const edits = state.identity === identity ? state.edits : {};
+  const sourceKey = JSON.stringify(source);
+  const [state, setState] = useState<{ identity: string; sourceKey: string; edits: Partial<T> }>({ identity, sourceKey, edits: {} });
+  let edits: Partial<T> = state.identity === identity ? state.edits : {};
+  if (state.identity !== identity) setState({ identity, sourceKey, edits: {} });
+  else if (state.sourceKey !== sourceKey) {
+    edits = { ...edits };
+    for (const key of Object.keys(edits) as (keyof T)[]) if (edits[key] === source[key]) delete edits[key];
+    setState({ identity, sourceKey, edits });
+  }
   const values = { ...source, ...edits };
   const dirty = Object.keys(source).some((key) => values[key] !== source[key]);
   return {
@@ -13,9 +19,9 @@ export function useFormDraft<T extends Record<string, string>>(identity: string,
       setState((current) => {
         const next = { ...current.edits, [key]: value };
         if (value === source[key]) delete next[key];
-        return { identity, edits: next };
+        return { identity, sourceKey, edits: next };
       });
     },
-    reset() { setState({ identity, edits: {} }); },
+    reset() { setState({ identity, sourceKey, edits: {} }); },
   };
 }
