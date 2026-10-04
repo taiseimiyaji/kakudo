@@ -72,7 +72,8 @@ test("resource operations retain input and block duplicates while pending, then 
     await expect(row.getByRole("button", { name: "取得確認中…" })).toBeDisabled();
     await expect(row.getByRole("button", { name: "関連を外す" })).toBeDisabled();
     await expect.poll(() => fetchCount).toBe(1); release();
-    await expect(row.getByRole("alert")).toContainText("内容が間違っているという意味ではありません");
+    await expect(row.getByRole("alert")).toContainText("取得結果を確認できませんでした");
+    await expect(row.getByRole("alert")).not.toContainText("UNAVAILABLE");
     await panel.screenshot({ path: "test-results/resource-feedback.png" });
     fail = false;
     await row.getByRole("button", { name: "取得を確認" }).click();

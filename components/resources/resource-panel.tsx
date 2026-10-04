@@ -1,6 +1,6 @@
 import { label } from "../../client/labels";
 import { useEffect, useRef, useState } from "react";
-import { request } from "../../client/api";
+import { request, UnknownMutationOutcome } from "../../client/api";
 import type { Resource, ResourceTarget } from "../../shared/resource";
 import { Feedback } from "../common/feedback";
 import { ResourceForm } from "./resource-form";
@@ -8,6 +8,7 @@ import { checkResourceRegistration, registerResource } from "../../client/resour
 
 type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean; onDraftProtectionChange?: (protectedDraft: boolean) => void };
 export const RESOURCE_LIST_TIMEOUT_MS = 20_000;
+export const RESOURCE_FETCH_TIMEOUT_MS = 20_000;
 export function ResourcePanel(props: Props) {
   // A new scope must never inherit another document/node's pending operations.
   return <ScopedResourcePanel key={`${props.workspaceId}:${props.target?.kind}:${props.target?.id}`} {...props} />;
@@ -69,18 +70,28 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
 }
 function ResourceRow({ item, suffix, unlinkPath, onUnlink }: { item: Resource; suffix: string; unlinkPath?: string; onUnlink: () => void }) {
   const pending = useRef(false);
+  const fetchController = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState<"fetch" | "unlink" | null>(null);
   const [message, setMessage] = useState({ text: "", error: false });
+  useEffect(() => () => fetchController.current?.abort(), []);
   async function operate(action: "fetch" | "unlink") {
     if (pending.current) return;
     pending.current = true; setBusy(action); setMessage({ text: "", error: false });
+    const controller = action === "fetch" ? new AbortController() : null;
+    if (controller) fetchController.current = controller;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await request(action === "fetch" ? `/resources/${encodeURIComponent(item.id)}/fetch${suffix}` : unlinkPath!, action === "fetch" ? "POST" : "DELETE");
+      if (controller) {
+        await Promise.race([
+          request(`/resources/${encodeURIComponent(item.id)}/fetch${suffix}`, "POST", undefined, { signal: controller.signal, uncertainMutation: true }),
+          new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new UnknownMutationOutcome()); }, RESOURCE_FETCH_TIMEOUT_MS); }),
+        ]);
+      } else await request(unlinkPath!, "DELETE");
       if (action === "unlink") onUnlink();
       else setMessage({ text: "資料を取得できました。内容の正確性を判定する操作ではありません。", error: false });
-    } catch {
-      setMessage({ text: action === "fetch" ? "資料を取得できませんでした（UNAVAILABLE）。内容が間違っているという意味ではありません。接続や公開状況を確認し、再試行してください。" : "関連を外せませんでした。接続を確認して再試行してください。", error: true });
-    } finally { pending.current = false; setBusy(null); }
+    } catch (error) {
+      setMessage({ text: action === "fetch" ? error instanceof UnknownMutationOutcome ? "資料の取得結果を確認できませんでした。処理が完了した可能性があります。接続を確認し、必要なら再試行してください。" : "資料を取得できませんでした（UNAVAILABLE）。内容が間違っているという意味ではありません。接続や公開状況を確認し、再試行してください。" : "関連を外せませんでした。接続を確認して再試行してください。", error: true });
+    } finally { if (timer) clearTimeout(timer); if (fetchController.current === controller) fetchController.current = null; pending.current = false; setBusy(null); }
   }
   return <li aria-busy={!!busy}>
     <a href={item.url} target="_blank" rel="noreferrer">{item.title || item.url}</a> <small>{label(item.type)}</small>
