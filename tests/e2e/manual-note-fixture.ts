@@ -4,12 +4,12 @@ import { test as base, expect, type Page } from "@playwright/test";
 // an explicit save/quote. Control only the new autosave interval; review polling
 // and every other browser timer continue normally. Autosave specs use base test.
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    await page.addInitScript(() => {
+  context: async ({ context }, use) => {
+    await context.addInitScript(() => {
       const interval = window.setInterval.bind(window);
       window.setInterval = ((handler: TimerHandler, delay?: number, ...args: unknown[]) => interval(handler, delay === 1000 ? 3_600_000 : delay, ...args)) as typeof window.setInterval;
     });
-    await use(page);
+    await use(context);
   },
 });
 export { expect };

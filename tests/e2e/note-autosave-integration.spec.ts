@@ -127,3 +127,29 @@ test("title-only conflict and a stale confirmed baseline never overwrite another
     await page.reload(); await expect(title).toHaveValue("Local title");
   } finally { await request.delete(path); }
 });
+
+
+test("pending quote guards browser departure and unmount clears the autosave timer", async ({ page, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "離脱確認", content: "Human words." } })).json();
+  const path = `/api/documents/${document.id}`; const hold = deferred(); let quoted = false; let returned = false; let saves = 0;
+  page.on("request", (req) => { if (req.method() === "PUT" && new URL(req.url()).pathname === path) saves++; });
+  await page.route(`**${path}/quotes?*`, async (route) => {
+    const response = await route.fetch(); quoted = true; await hold.promise;
+    await route.fulfill({ response }); returned = true;
+  });
+  try {
+    await page.clock.install(); await page.goto("/workspaces/default/documents");
+    await page.getByRole("link", { name: "離脱確認", exact: true }).click();
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" }); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Pending draft.");
+    await pasteText(editor, "Departure reference"); const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("出典URL（必須）").fill("https://example.com/departure"); await dialog.getByRole("button", { name: "引用を追加", exact: true }).click();
+    await expect.poll(() => quoted).toBe(true);
+    page.once("dialog", (event) => event.dismiss()); await page.goBack({ timeout: 1000 }).catch(() => {});
+    await expect(page).toHaveURL(new RegExp(`/documents/${document.id}`)); await expect(editor).toContainText("Pending draft.");
+    page.once("dialog", (event) => event.accept()); await page.goBack(); await expect(page).toHaveURL(/\/workspaces\/default\/documents$/);
+    hold.release(); await expect.poll(() => returned).toBe(true); await page.clock.runFor(6000); expect(saves).toBe(0);
+    const current = await (await request.get(path)).json(); expect(current.content).toContain("Pending draft."); expect(current.content).toContain("> Departure reference");
+  } finally { hold.release(); await page.unrouteAll({ behavior: "wait" }); await request.delete(path); }
+});
