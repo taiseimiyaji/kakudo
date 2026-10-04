@@ -32,6 +32,14 @@ test("connect from side handles, edit an existing connection and persist each en
     await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
     await expect(editor.getByLabel("入口の位置")).toHaveValue("right");
     await editor.getByRole("button", { name: "閉じる" }).click();
+    const edgeElement = page.locator(".react-flow__edge");
+    await edgeElement.click(); await expect(editor).toBeVisible(); await edgeElement.focus(); await page.keyboard.press("Escape");
+    await expect(editor).toHaveCount(0); await expect(edgeElement).not.toHaveClass(/selected/);
+    await edgeElement.focus(); await page.keyboard.press("Enter"); await expect(editor).toBeVisible();
+    await editor.getByLabel("出口の位置").selectOption("top");
+    page.once("dialog", (event) => event.dismiss()); await edgeElement.focus(); await page.keyboard.press("Escape");
+    await expect(editor.getByLabel("出口の位置")).toHaveValue("top");
+    page.once("dialog", (event) => event.accept()); await edgeElement.focus(); await page.keyboard.press("Escape"); await expect(editor).toHaveCount(0);
     // The select-based alternative remains available without dragging.
     await page.getByRole("combobox", { name: "接続元", exact: true }).selectOption(target.id);
     await page.getByRole("combobox", { name: "接続先", exact: true }).selectOption(source.id);

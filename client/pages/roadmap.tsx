@@ -80,9 +80,10 @@ function RoadmapSession() {
     setSelected(id); setSelectedEdge(undefined);
   }
   function selectEdge(id: string | undefined) {
-    if (busy || id === selectedEdge) return;
-    if (edgeDraft.dirty && !window.confirm("未保存の変更を破棄して移動しますか？")) return;
-    setSelectedEdge(id);
+    if (busy) return false;
+    if (id === selectedEdge) return true;
+    if (edgeDraft.dirty && !window.confirm("未保存の変更を破棄して移動しますか？")) return false;
+    setSelectedEdge(id); return true;
   }
   return <main className="map-workspace">
     <header className="app-header"><Link to="/">Kakudo</Link><h1>学習マップ</h1></header><WorkspaceNav workspaceId={workspaceId} />

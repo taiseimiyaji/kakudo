@@ -21,7 +21,7 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
   onDeleteEdge: (id: string) => Promise<void>;
   onUpdateEdge: (id: string, sourceSide: EdgeSide, targetSide: EdgeSide) => Promise<boolean>;
   edgeDraft: ReturnType<typeof useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>>;
-  selectedEdgeId?: string; onSelectEdge: (id: string | undefined) => void;
+  selectedEdgeId?: string; onSelectEdge: (id: string | undefined) => boolean;
 }) {
   const [type, setType] = useState<typeof edgeTypes[number]>("PREREQUISITE");
   const mapNodes = (detail: RoadmapDetail): MapNode[] => detail.nodes.map((n) => ({ id: n.id, type: "learning", data: { title: n.title, status: n.status, stats: n.stats }, position: { x: n.positionX, y: n.positionY } }));
@@ -48,7 +48,14 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
     </form>
     {selectedEdge && <EdgePositionEditor key={selectedEdge.id} edge={selectedEdge} draft={edgeDraft} detail={detail} busy={busy} onSave={onUpdateEdge} onClose={() => onSelectEdge(undefined)} />}
     <p className="muted">四辺の丸を別の項目へドラッグすると接続できます。線を選ぶと出口・入口の位置を変更できます。</p><div className="flow-canvas" aria-label="学習マップ">
-      <ReactFlow nodes={nodes.map((n) => ({ ...n, selected: n.id === selected }))} edges={edges.map((e) => ({ ...e, selected: e.id === selectedEdgeId || e.selected }))} onEdgesChange={onEdgesChange}
+      <ReactFlow nodes={nodes.map((n) => ({ ...n, selected: n.id === selected }))} edges={edges.map((e) => ({ ...e, selected: e.id === selectedEdgeId }))} onEdgesChange={(changes) => {
+        const selection = changes.find((change) => change.type === "select" && change.selected)
+          ?? changes.find((change) => change.type === "select" && change.id === selectedEdgeId && !change.selected);
+        if (selection?.type === "select" && !onSelectEdge(selection.selected ? selection.id : undefined)) {
+          onEdgesChange(changes.filter((change) => change.type !== "select")); return;
+        }
+        onEdgesChange(changes);
+      }}
         ariaLabelConfig={{
           "controls.ariaLabel": "マップの表示操作", "controls.zoomIn.ariaLabel": "拡大", "controls.zoomOut.ariaLabel": "縮小",
           "controls.fitView.ariaLabel": "全体を表示", "controls.interactive.ariaLabel": "操作を切り替え",
@@ -57,7 +64,7 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
           "node.a11yDescription.ariaLiveMessage": ({ x, y }) => `項目を移動しました。横位置 ${x}、縦位置 ${y}`,
           "edge.a11yDescription.default": "Enterで接続を選択できます。Escapeで選択を解除します。",
           "handle.ariaLabel": "接続点",
-        }} connectionMode={ConnectionMode.Loose} isValidConnection={(c) => c.source !== c.target} onEdgeClick={(_event, edge) => onSelectEdge(edge.id)} nodeTypes={nodeTypes} onNodesChange={onNodesChange} nodesDraggable={!busy} nodesConnectable={!busy} deleteKeyCode={null}
+        }} connectionMode={ConnectionMode.Loose} isValidConnection={(c) => c.source !== c.target} nodeTypes={nodeTypes} onNodesChange={onNodesChange} nodesDraggable={!busy} nodesConnectable={!busy} deleteKeyCode={null}
         onNodeClick={(_e, n) => onSelect(n.id)} onNodeDragStop={(_e, n) => { void onMove(n.id, n.position.x, n.position.y); }}
         onConnect={(c) => { if (c.source && c.target) void onConnect(c.source, c.target, type, c.sourceHandle as EdgeSide, c.targetHandle as EdgeSide); }} fitView minZoom={0.2} maxZoom={2}>
         <Background /><Controls />
