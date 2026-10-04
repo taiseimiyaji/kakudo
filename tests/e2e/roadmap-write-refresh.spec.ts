@@ -84,9 +84,9 @@ for (const laterTitle of ['その後に人間が書いた名前', '初期名']) 
   } finally { await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/roadmaps/${roadmap.id}`); }
 });
 
-test('a rejected map PATCH is not reported as saved', async ({ page, request }) => {
+test('a known rejected map PATCH is not reported as saved', async ({ page, request }) => {
   const { roadmap } = await (await request.post('/api/roadmaps', { data: { title: '元の名前' } })).json();
-  await page.route(`**/api/roadmaps/${roadmap.id}?*`, (route) => route.request().method() === 'PATCH' ? route.fulfill({ status: 500, json: { error: 'private stack' } }) : route.continue());
+  await page.route(`**/api/roadmaps/${roadmap.id}?*`, (route) => route.request().method() === 'PATCH' ? route.fulfill({ status: 400, json: { error: 'private stack' } }) : route.continue());
   try {
     await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
     const title = page.getByLabel('マップ名（必須）'); await title.fill('保存されない名前');

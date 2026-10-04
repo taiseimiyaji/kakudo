@@ -10,10 +10,13 @@ import { request, UnknownMutationOutcome } from "../api";
 import { requestCreation } from "../creation-request";
 import { useCreationRecovery } from "../hooks/use-creation-recovery";
 import { CreationRecovery } from "../../components/common/creation-recovery";
-import { roadmapDetailSchema, roadmapSchema, learningNodeSchema, edgeSchema, type RoadmapDetail, type Roadmap, type LearningNode, type RoadmapEdge, type EdgeSide } from "../../shared/roadmap";
+import { roadmapDetailSchema, roadmapSchema, learningNodeSchema, edgeSchema, nodePatch, type RoadmapDetail, type Roadmap, type LearningNode, type RoadmapEdge, type EdgeSide } from "../../shared/roadmap";
 import { MapCanvas } from "../../components/roadmap/map-canvas";
 import { useFormDraft } from "../hooks/use-form-draft";
 import { NodeDetails, nodeFormValues } from "../../components/roadmap/node-details";
+import { requestGraphSave, readGraphSave, type GraphSaveTarget, type GraphSaveCurrent, type GraphSaveOutcome } from "../graph-save";
+import { useGraphSaveRecovery } from "../hooks/use-graph-save-recovery";
+import { GraphSaveRecovery } from "../../components/roadmap/graph-save-recovery";
 
 export default function RoadmapPage() {
   const { workspaceId, roadmapId } = useParams({ strict: false });
@@ -42,6 +45,7 @@ function RoadmapSession() {
   const nodeRecovery = useCreationRecovery(JSON.stringify([workspaceId, roadmapId]));
   const [newNodeTitle, setNewNodeTitle] = useState("");
   const nodeCreationPending = useRef(false); const nodeCreationReadPending = useRef(false);
+  const saveRecovery = useGraphSaveRecovery(workspaceId, roadmapId); const graphSavePending = useRef(false);
   const resourceProtectedRef = useRef(false);
   useLayoutEffect(() => { resourceProtectedRef.current = resourceProtected; }, [resourceProtected]);
   const mounted = useRef(true);
@@ -76,7 +80,7 @@ function RoadmapSession() {
         retryDisplay.current = recover; setRefreshFailed(!!recover);
         return true;
       }
-      // Creation forms present unknown outcomes in their scoped recovery panels.
+      // Scoped recovery panels present unknown mutation outcomes.
       if (e instanceof UnknownMutationOutcome) { setError(""); return false; }
       setError((e as Error).message);
       // Roll back optimistic positions, then reconcile writes whose response was lost.
@@ -137,6 +141,37 @@ function RoadmapSession() {
       });
     } finally { nodeCreationReadPending.current = false; }
   }
+  async function saveGraph(target: GraphSaveTarget, acknowledge: (result: GraphSaveCurrent) => void): Promise<GraphSaveOutcome> {
+    if (graphSavePending.current || busy || saveRecovery.blocked) return "unknown";
+    graphSavePending.current = true; let uncertain = false;
+    try {
+      const saved = await act(async (markCommitted) => {
+        const result = await requestGraphSave(target).catch((error) => { if (mounted.current && error instanceof UnknownMutationOutcome) { uncertain = true; saveRecovery.unknown(target); } throw error; });
+        markCommitted(); if (!mounted.current) return;
+        acknowledge(result); await refresh();
+      });
+      return uncertain ? "unknown" : saved;
+    } finally { graphSavePending.current = false; }
+  }
+  function saveMap(): Promise<GraphSaveOutcome> {
+    if (!roadmapId || !detail) return Promise.resolve(false);
+    const submitted = mapDraft.values;
+    return saveGraph({ kind: "map", workspaceId, mapId: roadmapId, name: detail.roadmap.title, input: submitted }, (result) => { if (result.kind === "map") mapDraft.acknowledge({ title: result.saved.title, description: result.saved.description }, submitted); });
+  }
+  function saveNode(data: z.infer<typeof nodePatch>): Promise<GraphSaveOutcome> {
+    if (!roadmapId || !node) return Promise.resolve(false);
+    const submitted = nodeDraft.values;
+    return saveGraph({ kind: "node", workspaceId, mapId: roadmapId, nodeId: node.id, name: node.title, input: data }, (result) => { if (result.kind === "node") nodeDraft.acknowledge(nodeFormValues({ ...result.saved, stats: node.stats }), submitted); });
+  }
+  async function readSavedGraph() {
+    await saveRecovery.read(async (target) => {
+      const version = ++refreshVersion.current;
+      const result = await readGraphSave(target);
+      if (!mounted.current || version !== refreshVersion.current) throw new Error("Save context changed");
+      // Read-only comparison: never replace the human's editable form or selection.
+      return result;
+    });
+  }
   async function refresh() {
     const version = ++refreshVersion.current;
     const [payload, listPayload] = await Promise.all([
@@ -157,8 +192,10 @@ function RoadmapSession() {
   const nodeDraft = useFormDraft(node?.id ?? "", nodeFormValues(node));
   const edge = detail?.edges.find((e) => e.id === selectedEdge);
   const edgeDraft = useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>(edge?.id ?? "", { sourceSide: edge?.sourceSide ?? "bottom", targetSide: edge?.targetSide ?? "top" });
-  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected || mapRecovery.blocked || nodeRecovery.blocked || !!newNodeTitle.trim();
-  const confirmDeparture = () => window.confirm(creationProtected || mapRecovery.blocked || nodeRecovery.blocked
+  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected || mapRecovery.blocked || nodeRecovery.blocked || saveRecovery.blocked || !!newNodeTitle.trim();
+  const confirmDeparture = () => window.confirm(saveRecovery.blocked
+    ? "未保存の変更・未登録資料、または保存結果が不明なマップ・項目があります。移動で編集中の入力を失う可能性があり、遅い保存や別画面の変更が反映される可能性もあります。このまま移動しますか？"
+    : creationProtected || mapRecovery.blocked || nodeRecovery.blocked
     ? "ノート・マップ・学習項目の作成結果は不明です。作成された可能性がある操作を再実行すると重複することがあります。このまま移動しますか？"
     : "未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
   useBlocker({ shouldBlockFn: () => dirty && !confirmDeparture(), enableBeforeUnload: dirty });
@@ -176,6 +213,7 @@ function RoadmapSession() {
   return <main className="map-workspace">
     <header className="app-header"><Link to="/">Kakudo</Link><h1>学習マップ</h1></header><WorkspaceNav workspaceId={workspaceId} />
     {error && <Feedback error>{error}</Feedback>}
+    <GraphSaveRecovery recovery={saveRecovery} onRead={() => { void readSavedGraph(); }} />
     {refreshFailed && <button className="secondary" disabled={busy} onClick={() => { const recover = retryDisplay.current; if (!recover) return; setBusy(true); void recover().then(() => { setError(""); setRefreshFailed(false); retryDisplay.current = null; }).catch(() => setError("最新の表示を取得できませんでした。接続を確認して再取得してください。")).finally(() => setBusy(false)); }}>最新の表示を再取得</button>}
     <div className="map-layout" aria-busy={busy}>
       <aside className="explorer"><h2>マップ一覧</h2>
@@ -188,11 +226,11 @@ function RoadmapSession() {
       </aside>
       <section className="map-center">
         {detail && detail.roadmap.id === roadmapId ? <>
-          <form className="map-toolbar" onSubmit={(event) => { event.preventDefault(); setMapStatus("保存中…"); void act(async (markCommitted) => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "PATCH", mapDraft.values); markCommitted(); const saved = roadmapSchema.parse(roadmap); mapDraft.acknowledge({ title: saved.title, description: saved.description }, mapDraft.values); await refresh(); }).then((saved) => setMapStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。")); }}>
+          <form className="map-toolbar" onSubmit={(event) => { event.preventDefault(); if (busy || saveRecovery.blocked || graphSavePending.current) return; setMapStatus("保存中…"); void saveMap().then((saved) => setMapStatus(saved === "unknown" ? "unknown" : saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。")); }}>
             <label>マップ名（必須）<input name="title" value={mapDraft.values.title} disabled={busy} onChange={(e) => { mapDraft.change("title", e.target.value); setMapStatus(""); }} required maxLength={200} /></label>
             <label>マップの説明（任意）<input name="description" value={mapDraft.values.description} disabled={busy} onChange={(e) => { mapDraft.change("description", e.target.value); setMapStatus(""); }} maxLength={10000} /></label>
-            <p role="status">{mapStatus || (mapDraft.dirty ? "未保存の変更" : "保存済み")}</p>
-            <button disabled={busy}>マップを保存</button>
+            <p role="status">{mapStatus === "unknown" ? saveRecovery.blocked ? "保存結果は不明です。現在の保存済み内容を確認してください。" : "前の保存結果は不明です。次に保存すると新たな保存要求を送ります。" : mapStatus || (mapDraft.dirty ? "未保存の変更" : "保存済み")}</p>
+            <button disabled={busy || saveRecovery.blocked}>マップを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async (markCommitted) => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); markCommitted(); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }, async () => { await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
           <form className="node-create" onSubmit={(event) => { event.preventDefault(); void createNode(); }}>
@@ -206,8 +244,8 @@ function RoadmapSession() {
             onDeleteEdge={async (id) => { await act(async (markCommitted) => { await request(`/edges/${id}${scope}`, "DELETE"); markCommitted(); await refresh(); }); }} />
         </> : <p className="empty-state">マップを選択するか、新しく作成してください。</p>}
       </section>
-      <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft}
-        onSave={(data) => act(async (markCommitted) => { const { node: saved } = await request<{ node: LearningNode }>(`/nodes/${node.id}${scope}`, "PATCH", data); markCommitted(); nodeDraft.acknowledge(nodeFormValues(learningNodeSchema.parse({ ...saved, stats: node.stats })), nodeDraft.values); await refresh(); })}
+      <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft} saveBlocked={saveRecovery.blocked} canSave={() => !graphSavePending.current}
+        onSave={saveNode}
         onDelete={() => act(async (markCommitted) => { await request(`/nodes/${node.id}${scope}`, "DELETE"); markCommitted(); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} onCreationProtectionChange={setCreationProtected} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
