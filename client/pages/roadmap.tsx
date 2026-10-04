@@ -146,7 +146,7 @@ function RoadmapSession() {
     graphSavePending.current = true; let uncertain = false;
     try {
       const saved = await act(async (markCommitted) => {
-        const result = await requestGraphSave(target).catch((error) => { if (mounted.current && error instanceof UnknownMutationOutcome) { uncertain = true; saveRecovery.unknown(target); } throw error; });
+        const result = await requestGraphSave(target).catch((error) => { if (mounted.current && error instanceof UnknownMutationOutcome) { uncertain = true; (target.kind === "map" ? mapDraft : nodeDraft).retainEdits(); saveRecovery.unknown(target); } throw error; });
         markCommitted(); if (!mounted.current) return;
         acknowledge(result); await refresh();
       });
