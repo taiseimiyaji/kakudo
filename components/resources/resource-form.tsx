@@ -1,17 +1,37 @@
-import { useId, useRef, useState } from "react";
-import { resourceInput, resourceTypes } from "../../shared/resource";
+import { useEffect, useId, useRef, useState } from "react";
+import { resourceInput, resourceTypes, type Resource } from "../../shared/resource";
+import { UnknownMutationOutcome } from "../../client/api";
 import { Feedback } from "../common/feedback";
 import type { z } from "zod";
-export function ResourceForm({ initialUrl = "", onSave }: { initialUrl?: string; onSave: (input: z.infer<typeof resourceInput>) => Promise<void> }) {
+type Input = z.infer<typeof resourceInput>;
+export function ResourceForm({ initialUrl = "", onSave, onCheck, onConfirmed }: { initialUrl?: string; onSave: (input: Input) => Promise<void>; onCheck: (input: Input) => Promise<Resource | null>; onConfirmed: (resource: Resource) => void }) {
   const id = useId();
   const pending = useRef(false);
+  const mounted = useRef(true);
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [fields, setFields] = useState<Record<string, string>>({});
-  return <form noValidate aria-busy={busy} onSubmit={(event) => {
+  const [unknown, setUnknown] = useState<Input | null>(null);
+  async function check() {
+    if (pending.current || !unknown) return;
+    pending.current = true; setBusy(true); setError(""); setStatus("");
+    try {
+      const resource = await onCheck(unknown);
+      if (!mounted.current) return;
+      if (resource) {
+        setUnknown(null); formRef.current?.reset(); setStatus("登録済みの資料を確認しました。"); onConfirmed(resource);
+      } else setError("登録済み一覧で一致する資料を確認できませんでした。結果はまだ不明です。再登録せず、時間をおいてもう一度確認してください。");
+    } catch {
+      if (mounted.current) setError("登録結果を確認できませんでした。接続を確認して、もう一度確認してください。入力内容は保持されています。");
+    } finally { pending.current = false; if (mounted.current) setBusy(false); }
+  }
+  const disabled = busy || !!unknown;
+  return <form ref={formRef} noValidate aria-busy={busy} onSubmit={(event) => {
     event.preventDefault();
-    if (pending.current) return;
+    if (pending.current || unknown) return;
     const form = event.currentTarget; const values = new FormData(form);
     const result = resourceInput.safeParse({ url: values.get("url"), title: values.get("title"), type: values.get("type") });
     setError(""); setStatus(""); setFields({});
@@ -26,16 +46,21 @@ export function ResourceForm({ initialUrl = "", onSave }: { initialUrl?: string;
       return;
     }
     pending.current = true; setBusy(true);
-    void onSave(result.data).then(() => { form.reset(); setStatus("資料を登録しました。"); }).catch(() => setError("資料を登録できませんでした。接続と入力内容を確認して再試行してください。入力内容は保持されています。")).finally(() => { pending.current = false; setBusy(false); });
+    void onSave(result.data).then(() => { if (mounted.current) { form.reset(); setStatus("資料を登録しました。"); } }).catch((error) => {
+      if (!mounted.current) return;
+      if (error instanceof UnknownMutationOutcome) { setUnknown(result.data); setError("登録結果を受け取れなかったため、結果は不明です。入力内容は保持されています。再登録せず、登録済みの資料を確認してください。"); }
+      else setError("資料を登録できませんでした。接続と入力内容を確認して再試行してください。入力内容は保持されています。");
+    }).finally(() => { pending.current = false; if (mounted.current) setBusy(false); });
   }}>
-    <label>Resource URL（必須）<input name="url" type="url" defaultValue={initialUrl} required maxLength={4096} disabled={busy} aria-invalid={!!fields.url} aria-describedby={fields.url ? `${id}-url` : undefined} /></label>
+    <label>Resource URL（必須）<input name="url" type="url" defaultValue={initialUrl} required maxLength={4096} disabled={disabled} aria-invalid={!!fields.url} aria-describedby={fields.url ? `${id}-url` : undefined} /></label>
     {fields.url && <Feedback error id={`${id}-url`}>{fields.url}</Feedback>}
-    <label>Resource Title（任意）<input name="title" maxLength={500} disabled={busy} aria-invalid={!!fields.title} aria-describedby={fields.title ? `${id}-title` : undefined} /></label>
+    <label>Resource Title（任意）<input name="title" maxLength={500} disabled={disabled} aria-invalid={!!fields.title} aria-describedby={fields.title ? `${id}-title` : undefined} /></label>
     {fields.title && <Feedback error id={`${id}-title`}>{fields.title}</Feedback>}
-    <label>Resource Type<select name="type" disabled={busy} aria-invalid={!!fields.type} aria-describedby={fields.type ? `${id}-type` : undefined}>{resourceTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
+    <label>Resource Type<select name="type" disabled={disabled} aria-invalid={!!fields.type} aria-describedby={fields.type ? `${id}-type` : undefined}>{resourceTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
     {fields.type && <Feedback error id={`${id}-type`}>{fields.type}</Feedback>}
     {error && <Feedback error>{error}</Feedback>}{status && <Feedback>{status}</Feedback>}
-    {busy && <Feedback>資料を登録しています。</Feedback>}
-    <button disabled={busy}>{busy ? "登録中…" : "資料を登録"}</button>
+    {busy && <Feedback>{unknown ? "登録済みの資料を確認しています。" : "資料を登録しています。"}</Feedback>}
+    {unknown && <button type="button" disabled={busy} onClick={() => { void check(); }}>{busy ? "確認中…" : "登録結果を確認"}</button>}
+    <button disabled={disabled}>{busy && !unknown ? "登録中…" : "資料を登録"}</button>
   </form>;
 }

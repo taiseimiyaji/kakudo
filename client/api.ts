@@ -7,11 +7,17 @@ const reviewAdmissionMessages: Record<ReviewAdmissionCode, string> = {
   REVIEW_EXTERNAL_CONTENT_CHANGED: "Markdownが外部で変更されています。未保存の本文を退避してページを再読み込みし、内容を確認・保存してからReviewしてください。",
 };
 
-export async function request<T = unknown>(path: string, method = "GET", data?: unknown): Promise<T> {
+export class UnknownMutationOutcome extends Error {
+  constructor() { super("更新結果を確認できませんでした。"); this.name = "UnknownMutationOutcome"; }
+}
+
+export async function request<T = unknown>(path: string, method = "GET", data?: unknown, options: { uncertainMutation?: boolean } = {}): Promise<T> {
+  const uncertainMutation = options.uncertainMutation && !["GET", "HEAD"].includes(method.toUpperCase());
   let response: Response;
   try {
     response = await fetch(`/api${path}`, { method, headers: data === undefined ? undefined : { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
   } catch {
+    if (uncertainMutation) throw new UnknownMutationOutcome();
     throw new Error("通信できませんでした。接続を確認して再試行してください。");
   }
   // Server payloads can contain provider diagnostics, URLs or internal details.
@@ -39,5 +45,5 @@ export async function request<T = unknown>(path: string, method = "GET", data?: 
   }
   if (response.status === 204) return undefined as T;
   try { return await response.json() as T; }
-  catch { throw new Error("応答を読み取れませんでした。再試行してください。"); }
+  catch { if (uncertainMutation) throw new UnknownMutationOutcome(); throw new Error("応答を読み取れませんでした。再試行してください。"); }
 }
