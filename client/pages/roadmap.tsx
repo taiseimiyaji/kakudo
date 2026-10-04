@@ -3,11 +3,11 @@ import { Feedback } from "../../components/common/feedback";
 import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
 import { request } from "../api";
-import { roadmapDetailSchema, roadmapSchema, type RoadmapDetail, type Roadmap, type EdgeSide } from "../../shared/roadmap";
+import { roadmapDetailSchema, roadmapSchema, learningNodeSchema, edgeSchema, type RoadmapDetail, type Roadmap, type LearningNode, type RoadmapEdge, type EdgeSide } from "../../shared/roadmap";
 import { MapCanvas } from "../../components/roadmap/map-canvas";
 import { useFormDraft } from "../hooks/use-form-draft";
 import { NodeDetails, nodeFormValues } from "../../components/roadmap/node-details";
@@ -28,10 +28,12 @@ function RoadmapSession() {
   const [selectedEdge, setSelectedEdge] = useState<string>();
   const [mapStatus, setMapStatus] = useState("");
   const [error, setError] = useState("");
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const retryDisplay = useRef<(() => Promise<void>) | null>(null);
   const [resourceProtected, setResourceProtected] = useState(false);
   const resourceProtectedRef = useRef(false);
-  resourceProtectedRef.current = resourceProtected;
+  useLayoutEffect(() => { resourceProtectedRef.current = resourceProtected; }, [resourceProtected]);
   const mounted = useRef(true);
   const mapCreationPending = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -49,10 +51,21 @@ function RoadmapSession() {
     return () => { active = false; };
   }, [scope, roadmapId]);
 
-  async function act(work: () => Promise<void>) {
-    setBusy(true); setError("");
-    try { await work(); return true; } catch (e) {
+  async function act(work: (markCommitted: () => void) => Promise<void>, recoverAfterCommit?: () => Promise<void>) {
+    setBusy(true); setError(""); setRefreshFailed(false); retryDisplay.current = null;
+    let committed = false;
+    try { await work(() => { committed = true; }); return true; } catch (e) {
       if (!mounted.current) return false;
+      if (committed) {
+        const recover = recoverAfterCommit ?? (roadmapId ? refresh : null);
+        if (recover) {
+          try { await recover(); setError(""); return true; }
+          catch { /* The write is confirmed; only the view refresh failed. */ }
+        }
+        setError("変更は保存されましたが、最新の表示を取得できませんでした。再取得してください。");
+        retryDisplay.current = recover; setRefreshFailed(!!recover);
+        return true;
+      }
       setError((e as Error).message);
       // Roll back optimistic positions, then reconcile writes whose response was lost.
       setDetail((current) => current ? { ...current } : current);
@@ -68,13 +81,15 @@ function RoadmapSession() {
     if (mapCreationPending.current || busy) return;
     const title = String(new FormData(form).get("title"));
     mapCreationPending.current = true;
+    let createdId: string | undefined;
     try {
-      await act(async () => {
+      await act(async (markCommitted) => {
         const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title });
+        createdId = roadmap.id; markCommitted();
         if (!mounted.current) return;
         setMaps((current) => [...current, roadmap]); form.reset();
         await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } });
-      });
+      }, async () => { if (createdId) await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: createdId } }); });
     } finally { mapCreationPending.current = false; }
   }
   async function refresh() {
@@ -86,6 +101,11 @@ function RoadmapSession() {
     const list = z.object({ roadmaps: z.array(roadmapSchema) }).parse(listPayload);
     if (version !== refreshVersion.current) return;
     setDetail(result); setMaps(list.roadmaps);
+    mapDraft.reconcile({ title: result.roadmap.title, description: result.roadmap.description });
+    const refreshedNode = result.nodes.find((node) => node.id === selected);
+    if (refreshedNode) nodeDraft.reconcile(nodeFormValues(refreshedNode));
+    const refreshedEdge = result.edges.find((edge) => edge.id === selectedEdge);
+    if (refreshedEdge) edgeDraft.reconcile({ sourceSide: refreshedEdge.sourceSide, targetSide: refreshedEdge.targetSide });
   }
   const node = detail && detail.roadmap.id === roadmapId ? detail.nodes.find((n) => n.id === selected) : undefined;
   const mapDraft = useFormDraft(roadmapId ?? "", { title: detail?.roadmap.title ?? "", description: detail?.roadmap.description ?? "" });
@@ -109,6 +129,7 @@ function RoadmapSession() {
   return <main className="map-workspace">
     <header className="app-header"><Link to="/">Kakudo</Link><h1>学習マップ</h1></header><WorkspaceNav workspaceId={workspaceId} />
     {error && <Feedback error>{error}</Feedback>}
+    {refreshFailed && <button className="secondary" disabled={busy} onClick={() => { const recover = retryDisplay.current; if (!recover) return; setBusy(true); void recover().then(() => { setError(""); setRefreshFailed(false); retryDisplay.current = null; }).catch(() => setError("最新の表示を取得できませんでした。接続を確認して再取得してください。")).finally(() => setBusy(false)); }}>最新の表示を再取得</button>}
     <div className="map-layout" aria-busy={busy}>
       <aside className="explorer"><h2>マップ一覧</h2>
         <nav>{maps.map((map) => <Link key={map.id} to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: map.id }} activeProps={{ className: "active-map" }}>{map.title}</Link>)}</nav>
@@ -119,26 +140,26 @@ function RoadmapSession() {
       </aside>
       <section className="map-center">
         {detail && detail.roadmap.id === roadmapId ? <>
-          <form className="map-toolbar" onSubmit={(event) => { event.preventDefault(); setMapStatus("保存中…"); void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "PATCH", mapDraft.values); await refresh(); mapDraft.reset(); }).then((saved) => setMapStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。")); }}>
+          <form className="map-toolbar" onSubmit={(event) => { event.preventDefault(); setMapStatus("保存中…"); void act(async (markCommitted) => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "PATCH", mapDraft.values); markCommitted(); const saved = roadmapSchema.parse(roadmap); mapDraft.acknowledge({ title: saved.title, description: saved.description }, mapDraft.values); await refresh(); }).then((saved) => setMapStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。")); }}>
             <label>マップ名（必須）<input name="title" value={mapDraft.values.title} disabled={busy} onChange={(e) => { mapDraft.change("title", e.target.value); setMapStatus(""); }} required maxLength={200} /></label>
             <label>マップの説明（任意）<input name="description" value={mapDraft.values.description} disabled={busy} onChange={(e) => { mapDraft.change("description", e.target.value); setMapStatus(""); }} maxLength={10000} /></label>
             <p role="status">{mapStatus || (mapDraft.dirty ? "未保存の変更" : "保存済み")}</p>
             <button disabled={busy}>マップを保存</button>
-            <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
+            <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async (markCommitted) => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); markCommitted(); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }, async () => { await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current) setSelected(node.id); form.reset(); }); }}>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async (markCommitted) => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); markCommitted(); form.reset(); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current) setSelected(node.id); }); }}>
             <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy} selectedEdgeId={selectedEdge} onSelectEdge={selectEdge} edgeDraft={edgeDraft}
-            onMove={async (id, x, y) => { await act(async () => { await request(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); await refresh(); }); }}
-            onConnect={async (sourceId, targetId, type, sourceSide, targetSide) => { await act(async () => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type, sourceSide, targetSide }); await refresh(); }); }}
-            onUpdateEdge={(id, sourceSide, targetSide) => act(async () => { await request(`/edges/${id}${scope}`, "PATCH", { sourceSide, targetSide }); await refresh(); edgeDraft.reset(); })}
-            onDeleteEdge={async (id) => { await act(async () => { await request(`/edges/${id}${scope}`, "DELETE"); await refresh(); }); }} />
+            onMove={async (id, x, y) => { await act(async (markCommitted) => { const { node: saved } = await request<{ node: LearningNode }>(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); markCommitted(); if (node?.id === id) { const result = learningNodeSchema.parse({ ...saved, stats: node.stats }); nodeDraft.acknowledge({ x: String(result.positionX), y: String(result.positionY) }); } await refresh(); }); }}
+            onConnect={async (sourceId, targetId, type, sourceSide, targetSide) => { await act(async (markCommitted) => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type, sourceSide, targetSide }); markCommitted(); await refresh(); }); }}
+            onUpdateEdge={(id, sourceSide, targetSide) => act(async (markCommitted) => { const { edge } = await request<{ edge: RoadmapEdge }>(`/edges/${id}${scope}`, "PATCH", { sourceSide, targetSide }); markCommitted(); const saved = edgeSchema.parse(edge); edgeDraft.acknowledge({ sourceSide: saved.sourceSide, targetSide: saved.targetSide }, edgeDraft.values); await refresh(); })}
+            onDeleteEdge={async (id) => { await act(async (markCommitted) => { await request(`/edges/${id}${scope}`, "DELETE"); markCommitted(); await refresh(); }); }} />
         </> : <p className="empty-state">マップを選択するか、新しく作成してください。</p>}
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft}
-        onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); await refresh(); nodeDraft.reset(); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onSave={(data) => act(async (markCommitted) => { const { node: saved } = await request<{ node: LearningNode }>(`/nodes/${node.id}${scope}`, "PATCH", data); markCommitted(); nodeDraft.acknowledge(nodeFormValues(learningNodeSchema.parse({ ...saved, stats: node.stats })), nodeDraft.values); await refresh(); })}
+        onDelete={() => act(async (markCommitted) => { await request(`/nodes/${node.id}${scope}`, "DELETE"); markCommitted(); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
