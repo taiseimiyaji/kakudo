@@ -6,12 +6,12 @@ import { Feedback } from "../common/feedback";
 import { ResourceForm } from "./resource-form";
 import { checkResourceRegistration, registerResource } from "../../client/resource-registration";
 
-type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean };
+type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean; onDraftProtectionChange?: (protectedDraft: boolean) => void };
 export function ResourcePanel(props: Props) {
   // A new scope must never inherit another document/node's pending operations.
   return <ScopedResourcePanel key={`${props.workspaceId}:${props.target?.kind}:${props.target?.id}`} {...props} />;
 }
-function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showHeading = true }: Props) {
+function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showHeading = true, onDraftProtectionChange }: Props) {
   const [items, setItems] = useState<Resource[]>([]);
   const [all, setAll] = useState<Resource[]>([]);
   const [load, setLoad] = useState<"loading" | "ready" | "failed">("loading");
@@ -42,7 +42,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
       <ul>{items.map((item) => <ResourceRow key={item.id} item={item} suffix={suffix} unlinkPath={target ? `${path}/${encodeURIComponent(item.id)}${suffix}` : undefined} onUnlink={() => { setItems((current) => current.filter((r) => r.id !== item.id)); setLinkMessage({ text: `「${item.title || item.url}」の関連を外しました。資料は登録済み一覧に残っています。`, error: false }); onChange?.(); }} />)}</ul>
       {!items.length && <p className="muted">登録された資料はありません。</p>}
     </>}
-    <ResourceForm onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); if (load !== "ready") retry(); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={(resource) => { added(resource); if (load !== "ready") retry(); }} />
+    <ResourceForm onDraftProtectionChange={onDraftProtectionChange} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); if (load !== "ready") retry(); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={(resource) => { added(resource); if (load !== "ready") retry(); }} />
     {target && <form aria-busy={linkBusy} onSubmit={(event) => {
       event.preventDefault(); if (linkPending.current || !selected || load !== "ready") return;
       linkPending.current = true; setLinkBusy(true); setLinkMessage({ text: "", error: false });
