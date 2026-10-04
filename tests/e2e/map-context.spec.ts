@@ -78,7 +78,8 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
       else await route.continue();
     });
     await drag(page, node.id);
-    await expect(page.getByRole("alert")).toContainText("保存失敗のテスト");
+    await expect(page.getByRole("alert")).toHaveText("サーバーで処理できませんでした。少し待って再試行してください。");
+    await expect(page.getByRole("alert")).not.toContainText("保存失敗のテスト");
     await expect(page.locator(`.react-flow__node[data-id="${node.id}"]`)).toHaveAttribute("style", beforeFailure!);
     await expect(page.getByLabel("X", { exact: true })).toHaveValue(x);
     await expect.poll(() => viewport(page)).toBe(view);
