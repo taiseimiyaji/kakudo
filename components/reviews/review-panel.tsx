@@ -3,17 +3,22 @@ import { useEffect, useState } from "react";
 import { request } from "../../client/api";
 import type { ReviewDetail } from "../../shared/review";
 import type { FindingSelection } from "../../modules/editor/review-highlight";
+import { pollReview } from "../../modules/review/polling";
 type HistoryItem = { id: string; revisionId: string; type: string; status: string; createdAt: string };
 export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string }) {
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [detail, setDetail] = useState<ReviewDetail | null>(null); const [history, setHistory] = useState<HistoryItem[]>([]); const [historyVersion, setHistoryVersion] = useState(0);
   const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [version, setVersion] = useState(0);
+  const [pollError, setPollError] = useState("");
   useEffect(() => { let active = true; request<{ reviews: HistoryItem[] }>(`/documents/${documentId}/reviews${suffix}`).then((data) => { if (active) { setHistory(data.reviews); setRunId((current) => current ?? (data.reviews.some((r) => r.id === initialRunId) ? initialRunId! : data.reviews[0]?.id ?? null)); } }).catch((e) => { if (active) setError(e.message); }); return () => { active = false; }; }, [documentId, suffix, historyVersion, initialRunId]);
   useEffect(() => {
+    setPollError("");
     if (!runId) return;
-    let active = true; let timer: ReturnType<typeof setTimeout>;
-    const load = async () => { try { const data = await request<ReviewDetail>(`/reviews/${runId}${suffix}`); if (!active) return; setDetail(data); if (["QUEUED", "RUNNING"].includes(data.run.status)) timer = setTimeout(() => { void load(); }, 1000); } catch (e) { if (active) setError((e as Error).message); } };
-    void load(); return () => { active = false; clearTimeout(timer); };
+    return pollReview({ load: () => request<ReviewDetail>(`/reviews/${runId}${suffix}`),
+      onData: (data) => { setDetail(data); setPollError(""); },
+      onError: (e) => setPollError(`Review状態を取得できませんでした。${(e as Error).message} 自動で再試行します。`),
+      pending: (data) => ["QUEUED", "RUNNING"].includes(data.run.status),
+    });
   }, [runId, suffix, revisionId, version]);
   async function start(type: ReviewDetail["run"]["type"]) {
     setBusy(true); setError(""); onSelect(null);
@@ -23,11 +28,12 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
     setBusy(true); setError("");
     try { await request(`/findings/${id}${suffix}`, "PATCH", { status }); setVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-  const running = busy || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
+  const running = busy || !!runId && !detail || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="Reviews"><h2>Reviews</h2>
     {([ ["FULL", "Review"], ["FACT_CHECK", "Check Facts"], ["SOURCE", "Check Sources"], ["LOGIC", "Check Logic"], ["COVERAGE", "Check Coverage"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running} onClick={() => { void start(type); }}>{label}</button>)}
     {(dirty || !revisionId) && <p>本文を保存してからReviewしてください。</p>}{error && <Feedback error>{error}</Feedback>}
+    {pollError && <><Feedback error>{pollError}</Feedback><button onClick={() => setVersion((v) => v + 1)}>状態を再取得</button></>}
     {history.length > 0 && <label>Review履歴<select value={runId ?? ""} onChange={(e) => { onSelect(null); setDetail(null); setRunId(e.target.value); }}>{history.map((run) => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} · {run.type} · {run.revisionId.slice(0, 8)}</option>)}</select></label>}
     {detail && <><p aria-label="Review Status">{detail.run.status} / {detail.run.stage}</p><p>Provider: {detail.run.provider === "mock" ? "Mock（実AI・実資料取得ではありません）" : detail.run.provider}</p><small>対象Revision: {detail.run.revisionId}</small>
       {detail.run.error && <p role="alert">{detail.run.error}</p>}
