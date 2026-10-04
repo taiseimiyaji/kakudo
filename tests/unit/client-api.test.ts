@@ -63,3 +63,10 @@ it("keeps HTTP errors and 204 results outside uncertain-mutation classification"
   vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
   await expect(request("/resources", "DELETE", undefined, { uncertainMutation: true })).resolves.toBeUndefined();
 });
+it("classifies 5xx as uncertain only for the explicitly opted-in creation contract", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("private-stack", { status: 500 })));
+  await expect(request("/documents", "POST", {}, { uncertainMutation: true, uncertainServerError: true })).rejects.toBeInstanceOf(UnknownMutationOutcome);
+  await expect(request("/documents", "GET", undefined, { uncertainMutation: true, uncertainServerError: true })).rejects.not.toBeInstanceOf(UnknownMutationOutcome);
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("private-stack", { status: 400 })));
+  await expect(request("/documents", "POST", {}, { uncertainMutation: true, uncertainServerError: true })).rejects.not.toBeInstanceOf(UnknownMutationOutcome);
+});

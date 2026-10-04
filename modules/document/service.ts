@@ -12,6 +12,10 @@ import type { ContentStorage } from "../storage/content-storage";
 import { getContentStorage } from "../storage/local";
 import { DomainError, requireFound } from "../../lib/errors";
 
+export class DocumentRecoveryRequiredError extends DomainError {
+  constructor() { super("保存の回復が必要です。保存先へのアクセスを確認して再読み込みしてください。", 409); }
+}
+
 // One local filesystem writer per application process. Multi-replica writes are outside this PoC.
 let queue: Promise<unknown> = Promise.resolve();
 export function serializeContent<T>(work: () => Promise<T>): Promise<T> { const result = queue.then(work); queue = result.catch(() => {}); return result; }
@@ -41,7 +45,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
       if (intent.after == null) await storage.delete(intent.path); else await storage.write(intent.path, intent.after);
       await db.transaction(commit);
     } catch (error) {
-      try { await recover(); } catch { throw new DomainError("保存の回復が必要です。保存先へのアクセスを確認して再読み込みしてください。", 409); }
+      try { await recover(); } catch { throw new DocumentRecoveryRequiredError(); }
       throw error;
     }
     // If cleanup is interrupted, the durable journal identifies the committed write on the next access.

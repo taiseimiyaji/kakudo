@@ -4,14 +4,20 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import type { Database } from "../db/client";
 import type { ContentStorage } from "../modules/storage/content-storage";
-import { documentService } from "../modules/document/service";
-import { documentCreate, documentSave, documentNodesInput } from "../shared/document";
+import { documentService, DocumentRecoveryRequiredError } from "../modules/document/service";
+import { documentCreate, documentSave, documentNodesInput, DOCUMENT_CREATE_OUTCOME_UNKNOWN } from "../shared/document";
 export function documentRoutes(database?: () => Database, storage?: () => ContentStorage) {
   const api = new Hono(); const service = () => documentService(database?.(), storage?.());
   api.use("/documents/*", bodyLimit({ maxSize: 8_000_000 }));
   api.use("/documents", bodyLimit({ maxSize: 8_000_000 }));
   api.get("/documents", async (c) => c.json({ documents: await service().list(c.req.query("workspaceId") ?? "default", c.req.query("nodeId")) }));
-  api.post("/documents", async (c) => c.json({ document: await service().create(c.req.query("workspaceId") ?? "default", documentCreate.parse(await c.req.json())) }, 201));
+  api.post("/documents", async (c) => {
+    try { return c.json({ document: await service().create(c.req.query("workspaceId") ?? "default", documentCreate.parse(await c.req.json())) }, 201); }
+    catch (error) {
+      if (error instanceof DocumentRecoveryRequiredError) return c.json({ code: DOCUMENT_CREATE_OUTCOME_UNKNOWN, error: error.message }, 409);
+      throw error;
+    }
+  });
   api.get("/documents/:id", async (c) => c.json(await service().get(c.req.param("id"), c.req.query("workspaceId") ?? "default")));
   api.get("/documents/:id/node-options", async (c) => c.json({ nodes: await service().nodeOptions(c.req.param("id"), c.req.query("workspaceId") ?? "default") }));
   api.patch("/documents/:id/nodes", async (c) => c.json(await service().setNodes(c.req.param("id"), c.req.query("workspaceId") ?? "default", documentNodesInput.parse(await c.req.json()))));

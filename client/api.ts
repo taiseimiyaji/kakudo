@@ -11,7 +11,7 @@ export class UnknownMutationOutcome extends Error {
   constructor() { super("更新結果を確認できませんでした。"); this.name = "UnknownMutationOutcome"; }
 }
 
-export async function request<T = unknown>(path: string, method = "GET", data?: unknown, options: { uncertainMutation?: boolean; signal?: AbortSignal } = {}): Promise<T> {
+export async function request<T = unknown>(path: string, method = "GET", data?: unknown, options: { uncertainMutation?: boolean; uncertainServerError?: boolean; uncertainErrors?: ReadonlyArray<{ status: number; code: string }>; signal?: AbortSignal } = {}): Promise<T> {
   const uncertainMutation = options.uncertainMutation && !["GET", "HEAD"].includes(method.toUpperCase());
   let response: Response;
   try {
@@ -23,6 +23,14 @@ export async function request<T = unknown>(path: string, method = "GET", data?: 
   // Server payloads can contain provider diagnostics, URLs or internal details.
   // Display only messages defined by the client, including for non-JSON errors.
   if (!response.ok) {
+    if (uncertainMutation && options.uncertainServerError && response.status >= 500) throw new UnknownMutationOutcome();
+    const uncertainCodes = uncertainMutation ? options.uncertainErrors?.filter((error) => error.status === response.status) : undefined;
+    if (uncertainCodes?.length) {
+      let payload: unknown;
+      try { payload = await response.json(); } catch { throw new UnknownMutationOutcome(); }
+      const code = payload && typeof payload === "object" && "code" in payload ? payload.code : undefined;
+      if (typeof code === "string" && uncertainCodes.some((error) => error.code === code)) throw new UnknownMutationOutcome();
+    }
     if (method === "POST" && /^\/documents\/[^/?#]+\/reviews(?:\?|$)/.test(path)) {
       let payload: unknown;
       try { payload = await response.json(); } catch { /* Keep the safe HTTP fallback. */ }
