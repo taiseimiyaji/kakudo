@@ -57,17 +57,19 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   }
   const [latest, setLatest] = useState<DocumentDetail | null>(null);
   const [recoveryError, setRecoveryError] = useState(""); const [recovering, setRecovering] = useState(false);
+  const latestReadVersion = useRef(0);
+  function invalidateLatest() { latestReadVersion.current++; setLatest(null); setRecovering(false); }
   const busy = saving || recovering;
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
   useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected || associationProtected) && !window.confirm("未保存・保存中の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected || associationProtected });
   async function save() {
-    if (await session.save(true)) { setLatest(null); setRecoveryError(""); }
+    if (await session.save(true)) { invalidateLatest(); setRecoveryError(""); }
   }
   return <main className="document-workspace">
     <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><span className="save-state">{recovering ? "確認中…" : saving ? "保存中…" : error ? "保存できませんでした" : dirty ? "未保存の変更" : "保存済み"}</span><button className="secondary" disabled={busy || !!paste || !title.trim()} onClick={() => { void save(); }}>{retryRequired ? "保存を再試行" : "保存"}</button></header><WorkspaceNav workspaceId={workspaceId} />
     {error && <p role="alert" className="error">{error}。自動保存を停止しています。入力内容はこの画面に残っています。再読み込みする前に本文と名前を確認してください。</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}<p className="save-message" role="status">{status}</p>
-    {retryRequired && <button disabled={busy || !!paste} onClick={() => { setRecovering(true); setRecoveryError(""); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => setLatest(documentDetailSchema.parse(payload))).catch((e) => setRecoveryError(e.message)).finally(() => setRecovering(false)); }}>最新の保存内容を確認</button>}
-    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy || !!paste} onClick={() => { session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); setLatest(null); }}>確認した内容を基準に再試行</button></section>}
+    {retryRequired && <button disabled={busy || !!paste} onClick={() => { const version = ++latestReadVersion.current; setRecovering(true); setRecoveryError(""); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => { if (version === latestReadVersion.current) setLatest(documentDetailSchema.parse(payload)); }).catch((e) => { if (version === latestReadVersion.current) setRecoveryError(e.message); }).finally(() => { if (version === latestReadVersion.current) setRecovering(false); }); }}>最新の保存内容を確認</button>}
+    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy || !!paste} onClick={() => { session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
     <div className="document-toolbar">
       <div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => setMode("read")}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={() => setMode("edit")}>編集</button></div>
       {mode === "edit" && <button className="secondary" aria-pressed={showPreview} disabled={!!paste} onClick={togglePreview}>{showPreview ? "プレビューを非表示" : "プレビューを表示"}</button>}
@@ -76,8 +78,8 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {mode === "edit" ? <label className="document-title">ノート名（必須）<input value={title} onChange={(e) => session.edit({ title: e.target.value })} onCompositionStart={() => session.setComposing(true)} onCompositionEnd={() => session.setComposing(false)} maxLength={200} required /></label> : <h2 className="note-reading-title">{title}</h2>}
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
-    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onSave={async (nodeIds, onWrite) => {
-      setLatest(null);
+    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onLinkedRemovalConfirmed={() => { if (latest || recovering) setRecoveryError("項目の再取得で関連の状態が変わりました。最新の保存内容をもう一度確認してください。本文と名前は保持しています。"); invalidateLatest(); }} onSave={async (nodeIds, onWrite) => {
+      invalidateLatest();
       const result = await session.updateContext((baseWriteId) => { onWrite(baseWriteId); return request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId }).then((payload) => documentLinksSchema.parse(payload)); });
       setNodes(result.nodes); setContextVersion((v) => v + 1);
     }} />
@@ -88,7 +90,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
         if (!editorRef.current) throw new Error("ノートを閉じています");
         editorRef.current.applyQuote(paste, content);
       });
-      setLatest(null); closePaste(paste);
+      invalidateLatest(); closePaste(paste);
     }} />}
     <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty || busy || retryRequired} content={content} onSelect={(finding) => { setSelection(finding); if (finding) setMode("edit"); }} initialRunId={initialRunId} contextVersion={contextVersion} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} onDraftProtectionChange={setResourceProtected} />

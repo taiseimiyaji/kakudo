@@ -5,10 +5,11 @@ import { request } from "../../client/api";
 import { documentNodeSchema, type DocumentNode } from "../../shared/document";
 import { Feedback } from "../common/feedback";
 
-export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, onSave, onRefresh, onDraftProtectionChange }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
+export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, onSave, onRefresh, onDraftProtectionChange, onLinkedRemovalConfirmed }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void; onLinkedRemovalConfirmed?: () => void }) {
   const context = useMemo(() => ({ documentId, workspaceId, nodes, confirmationVersion: confirmation.version }), [documentId, workspaceId, nodes, confirmation.version]);
   const contextRef = useRef(context);
-  useLayoutEffect(() => { contextRef.current = context; }, [context]);
+  const removalCallback = useRef(onLinkedRemovalConfirmed);
+  useLayoutEffect(() => { contextRef.current = context; removalCallback.current = onLinkedRemovalConfirmed; }, [context, onLinkedRemovalConfirmed]);
   const [options, setOptions] = useState<{ items: DocumentNode[]; context: typeof context } | null>(null);
   const [selected, setSelected] = useState(nodes.map((node) => node.id));
   const savedIds = useRef(new Set(nodes.map((node) => node.id)));
@@ -51,6 +52,7 @@ export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, di
       if (!active || contextRef.current !== context) return;
       const { nodes: items } = z.object({ nodes: z.array(documentNodeSchema) }).parse(payload);
       setOptions({ items, context }); setOptionsError(""); setSelected((ids) => ids.filter((id) => items.some((node) => node.id === id)));
+      if (nodes.some((node) => !items.some((item) => item.id === node.id))) removalCallback.current?.();
     }).catch((e) => { if (active && contextRef.current === context) setOptionsError(e.message); });
     return () => { active = false; };
   }, [documentId, workspaceId, version, context]);
