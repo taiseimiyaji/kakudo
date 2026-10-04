@@ -51,7 +51,9 @@ export function useReviewAdmission(documentId: string, workspaceId: string) {
     },
     open(id: string, onOpen: (id: string, rows: ReviewHistoryItem[]) => void) {
       if (!active() || !recovery || recovery.reading || unknown.current !== recovery.attempt || !candidates?.some((run) => run.id === id)) return;
-      unknown.current = null; update((value) => ({ ...value, recovery: null })); onOpen(id, recovery.rows!);
+      // A candidate can belong to another request. Viewing it never proves the
+      // original admission, so only allowNew's acknowledgment releases the lock.
+      onOpen(id, recovery.rows!);
     },
     allowNew() {
       if (!active() || !recovery || recovery.rows === null || recovery.reading || unknown.current !== recovery.attempt) return;

@@ -46,14 +46,14 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="レビュー"><h2>理解を確かめる</h2><p className="muted">AIが問題点や根拠、考えるための問いを提示します。本文の修正は自分で行います。</p><div className="review-actions">
     {([ ["FULL", "全体を確認"], ["FACT_CHECK", "事実を確認"], ["SOURCE", "出典を確認"], ["LOGIC", "論理を確認"], ["COVERAGE", "学習目標を確認"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running || admission.blocked} onClick={() => { void start(type); }}>{label}</button>)}</div>
-    <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); }} />
+    <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); setVersion((v) => v + 1); }} />
     {(dirty || !revisionId) && <p>本文を保存してからレビューしてください。</p>}{error && <Feedback error>{error}</Feedback>}
     {historyError && <><Feedback error>{historyError}</Feedback><button onClick={() => setHistoryVersion((v) => v + 1)}>履歴を再取得</button></>}
     {pollError && <><Feedback error>{pollError}</Feedback><button onClick={() => setVersion((v) => v + 1)}>状態を再取得</button></>}
     {history.length > 0 && <label>レビュー履歴<select value={runId ?? ""} onChange={(e) => { onSelect(null); setDetail(null); setRunId(e.target.value); }}>{history.map((run) => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} · {label(run.type)} · {run.revisionId.slice(0, 8)}</option>)}</select></label>}
     {detail && <><p aria-label="レビューの状態">{label(detail.run.status)} / {label(detail.run.stage)}</p><p>確認方法: {detail.run.provider === "mock" ? "デモ（Mock：実AI・実資料取得ではありません）" : label(detail.run.provider)}</p><small>対象の保存版: {detail.run.revisionId}</small>
       {detail.run.error && <p role="alert">{detail.run.error}</p>}
-      {stale && <div className="stale-review"><p>更新前のレビュー — {detail.objectivesChanged ? "学習目標が変更されています。" : "このレビュー後にノートが変更されています。"}</p><button disabled={dirty || !revisionId || running} onClick={() => { void start(detail.run.type); }}>もう一度レビュー</button><p>過去の結果です。本文のハイライトは無効です。</p></div>}
+      {stale && <div className="stale-review"><p>更新前のレビュー — {detail.objectivesChanged ? "学習目標が変更されています。" : "このレビュー後にノートが変更されています。"}</p><button disabled={dirty || !revisionId || running || admission.blocked} onClick={() => { void start(detail.run.type); }}>もう一度レビュー</button><p>過去の結果です。本文のハイライトは無効です。</p></div>}
       {detail.run.status === "COMPLETED" && !detail.findings.length && !(detail.run.type === "COVERAGE" && !detail.run.objectives.length) && <p>指摘はありません（正確性や理解の保証ではありません）。</p>}
       {["COVERAGE", "FULL"].includes(detail.run.type) && !detail.run.objectives.length && <p>学習目標が未設定です。学習目標との対応は評価していません。学習項目に自分で目標を設定してください。</p>}
       {detail.run.coverage.length > 0 && <section aria-label="学習目標の確認結果"><h3>学習目標の確認結果</h3><p>関連する全学習項目の、レビュー開始時の学習目標を評価しています。</p>{detail.run.coverage.map((result) => {

@@ -12,7 +12,7 @@ export function ReviewAdmissionRecovery({ admission, onOpen }: { admission: Retu
     {recovery.reading && <p role="status">履歴を確認しています…</p>}
     {recovery.error && <p role="alert">{recovery.error}</p>}
     {admission.candidates !== null && <>
-      <p>受付前の履歴にはなかった、同じ保存版・種類の候補です。別の画面で開始された結果も含むため、同じ受付要求の結果とは限りません。候補がなくても先の受付が遅れて完了する可能性があります。</p>
+      <p>受付前の履歴にはなかった、同じ保存版・種類の候補です。別の画面で開始された結果も含むため、同じ受付要求の結果とは限りません。候補を開いても元の受付結果は不明のままです。候補がなくても先の受付が遅れて完了する可能性があります。</p>
       {!admission.candidates.length && <p>該当する候補は見つかりませんでした。受付結果はまだ不明です。</p>}
       <ul>{admission.candidates.map((run) => <li key={run.id}>{new Date(run.createdAt).toLocaleString()} · {label(run.status)} · {run.id.slice(0, 8)} <button className="secondary" disabled={recovery.reading} onClick={() => admission.open(run.id, onOpen)}>このレビューを確認</button></li>)}</ul>
       <button className="secondary" disabled={recovery.reading} onClick={() => { if (window.confirm("先の受付が完了している場合、レビューが重複します。新しいレビューの開始を可能にしますか？")) admission.allowNew(); }}>履歴を確認しました。新しく開始</button>
