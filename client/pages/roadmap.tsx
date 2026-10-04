@@ -29,6 +29,9 @@ function RoadmapSession() {
   const [mapStatus, setMapStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resourceProtected, setResourceProtected] = useState(false);
+  const resourceProtectedRef = useRef(false);
+  resourceProtectedRef.current = resourceProtected;
   const refreshVersion = useRef(0);
   useEffect(() => {
     let active = true;
@@ -72,11 +75,12 @@ function RoadmapSession() {
   const nodeDraft = useFormDraft(node?.id ?? "", nodeFormValues(node));
   const edge = detail?.edges.find((e) => e.id === selectedEdge);
   const edgeDraft = useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>(edge?.id ?? "", { sourceSide: edge?.sourceSide ?? "bottom", targetSide: edge?.targetSide ?? "top" });
-  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty;
-  useBlocker({ shouldBlockFn: () => dirty && !window.confirm("未保存の変更を破棄して移動しますか？"), enableBeforeUnload: dirty });
+  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected;
+  const confirmDeparture = () => window.confirm("未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
+  useBlocker({ shouldBlockFn: () => dirty && !confirmDeparture(), enableBeforeUnload: dirty });
   function selectNode(id: string) {
     if (id === selected || busy) return;
-    if ((nodeDraft.dirty || edgeDraft.dirty) && !window.confirm("未保存の変更を破棄して移動しますか？")) return;
+    if ((nodeDraft.dirty || edgeDraft.dirty || resourceProtected) && !confirmDeparture()) return;
     setSelected(id); setSelectedEdge(undefined);
   }
   function selectEdge(id: string | undefined) {
@@ -105,7 +109,7 @@ function RoadmapSession() {
             <button disabled={busy}>マップを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async () => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty) setSelected(node.id); form.reset(); }); }}>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current) setSelected(node.id); form.reset(); }); }}>
             <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy} selectedEdgeId={selectedEdge} onSelectEdge={selectEdge} edgeDraft={edgeDraft}
@@ -117,7 +121,7 @@ function RoadmapSession() {
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft}
         onSave={(data) => act(async () => { await request(`/nodes/${node.id}${scope}`, "PATCH", data); await refresh(); nodeDraft.reset(); })}
-        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async () => { await request(`/nodes/${node.id}${scope}`, "DELETE"); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
