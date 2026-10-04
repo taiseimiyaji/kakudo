@@ -1,0 +1,54 @@
+import { expect, test } from "@playwright/test";
+
+test("a surviving note can relink nodes, show objectives, keep drafts and return to the selected map node", async ({ page, request }, testInfo) => {
+  const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: `Node context ${Date.now()}` } })).json();
+  const node = async (title: string) => (await (await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title, learningObjectives: [`${title}の目的を説明できる`] } })).json()).node;
+  const old = await node("Deleted"); const a = await node("OAuth"); const b = await node("PKCE");
+  const { document } = await (await request.post("/api/documents", { data: { title: "Surviving note", content: "My words.", nodeIds: [old.id] } })).json();
+  await request.delete(`/api/nodes/${old.id}`);
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "関連する学習項目と目標" });
+    await expect(panel).toContainText("関連する学習項目はありません");
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" My draft.");
+    await page.getByLabel("Document名").fill("My draft title");
+    await panel.getByText("学習項目の関連を変更", { exact: true }).click();
+    await panel.getByRole("checkbox", { name: `${roadmap.title} / OAuth`, exact: true }).check();
+    await panel.getByRole("checkbox", { name: `${roadmap.title} / PKCE`, exact: true }).check();
+    await panel.getByRole("button", { name: "関連を保存", exact: true }).click();
+    await expect(panel.getByRole("status")).toContainText("関連を更新しました");
+    await expect(panel).toContainText("OAuthの目的を説明できる"); await expect(panel).toContainText("PKCEの目的を説明できる");
+    await expect(editor).toContainText("My words. My draft."); await expect(page.getByLabel("Document名")).toHaveValue("My draft title");
+    let saved = await (await request.get(`/api/documents/${document.id}`)).json();
+    expect(saved.content).toBe("My words."); expect(saved.document.title).toBe("Surviving note"); expect(saved.nodeIds.sort()).toEqual([a.id, b.id].sort());
+    expect(saved.document.currentRevisionId).toBe(document.currentRevisionId);
+    const returnLink = panel.getByRole("link", { name: `${roadmap.title}の「OAuth」へ戻る` });
+    page.once("dialog", (dialog) => dialog.dismiss()); await returnLink.click();
+    await expect(editor).toContainText("My words. My draft."); await expect(page).toHaveURL(new RegExp(`/documents/${document.id}`));
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Check Coverage", exact: true }).click();
+    await expect(page.getByLabel("Review Status")).toContainText("COMPLETED");
+    await request.patch(`/api/nodes/${a.id}`, { data: { learningObjectives: ["人間が更新したOAuthの目標"] } });
+    await panel.getByRole("button", { name: "学習項目と目標を再取得", exact: true }).click();
+    await expect(panel).toContainText("人間が更新したOAuthの目標");
+    await expect(page.locator(".stale-review")).toContainText("Learning Objectivesが変更されています");
+    await page.getByRole("button", { name: "Review Again", exact: true }).click();
+    await expect(page.getByLabel("Review Status")).toContainText("COMPLETED");
+    await expect(page.locator(".stale-review")).toHaveCount(0);
+    await panel.getByRole("checkbox", { name: `${roadmap.title} / PKCE`, exact: true }).uncheck();
+    await panel.getByRole("button", { name: "関連を保存", exact: true }).click();
+    await expect(page.locator(".stale-review")).toContainText("Learning Objectivesが変更されています");
+    await page.screenshot({ path: testInfo.outputPath("document-objectives.png"), fullPage: true });
+    await returnLink.click();
+    await expect(page.getByLabel("Node名", { exact: true })).toHaveValue("OAuth");
+    await expect(page.locator(`.react-flow__node[data-id="${a.id}"]`)).toHaveClass(/selected/);
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await panel.getByText("学習項目の関連を変更", { exact: true }).click();
+    await panel.getByRole("button", { name: "関連をすべて解除", exact: true }).click();
+    await panel.getByRole("button", { name: "関連を保存", exact: true }).click();
+    await expect(panel).toContainText("関連する学習項目はありません");
+    saved = await (await request.get(`/api/documents/${document.id}`)).json(); expect(saved.content).toBe("My words. My draft.");
+  } finally { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/roadmaps/${roadmap.id}`); }
+});

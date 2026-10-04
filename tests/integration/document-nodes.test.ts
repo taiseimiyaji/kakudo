@@ -1,0 +1,62 @@
+import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { inArray } from "drizzle-orm";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import { expect, it } from "vitest";
+import { createDatabase } from "../../db/client";
+import { workspaces } from "../../db/schema";
+import { readTestDatabaseUrl } from "../../lib/env";
+import { documentService } from "../../modules/document/service";
+import { roadmapService } from "../../modules/roadmap/service";
+import { revisionService } from "../../modules/revision/service";
+import { reviewService } from "../../modules/review/service";
+import { mockProvider } from "../../modules/review/mock-provider";
+import { mockReviewFetcher } from "../../modules/review/fixtures";
+import { LocalFileSystemStorage } from "../../modules/storage/local";
+import { createApp } from "../../server/app";
+import { findWorkspace } from "../../modules/workspace/service";
+
+it("updates existing document links within the workspace without changing content or past revision/objective snapshots", async () => {
+  const { db, client } = createDatabase(readTestDatabaseUrl());
+  const workspaceId = `document-nodes-${randomUUID()}`; const other = `${workspaceId}-other`;
+  const root = await mkdtemp(join(tmpdir(), "kakudo-document-nodes-"));
+  try {
+    await migrate(db, { migrationsFolder: "./db/migrations" });
+    await db.insert(workspaces).values([{ id: workspaceId, name: "Own" }, { id: other, name: "Other" }]);
+    const maps = roadmapService(db); const map = await maps.create(workspaceId, { title: "Own map", description: "" });
+    const foreignMap = await maps.create(other, { title: "Foreign", description: "" });
+    const makeNode = (roadmapId: string, scope: string, title: string) => maps.createNode(scope, { roadmapId, title, description: "", positionX: 0, positionY: 0, status: "LEARNING", learningObjectives: [`${title}を説明できる`], guidingQuestions: [] });
+    const a = await makeNode(map.id, workspaceId, "A"); const b = await makeNode(map.id, workspaceId, "B"); const foreign = await makeNode(foreignMap.id, other, "Foreign");
+    const storage = new LocalFileSystemStorage(root); const docs = documentService(db, storage);
+    const doc = await docs.create(workspaceId, { title: "Human title", content: "Human prose.", nodeIds: [a.id] });
+    const initial = await docs.get(doc.id, workspaceId);
+    const reviews = reviewService({ db, storage, provider: mockProvider(), fetcher: mockReviewFetcher, search: { async search() { return []; } } });
+    const old = await reviews.start(doc.id, workspaceId, { type: "COVERAGE", revisionId: doc.currentRevisionId! }, false); await reviews.execute(old.id);
+    const app = createApp({ database: () => db, storage: () => storage, findWorkspace: (id) => findWorkspace(id, db), checkDatabase: async () => {} });
+    const patch = (nodeIds: string[], baseWriteId: string | null) => app.request(`/api/documents/${doc.id}/nodes?workspaceId=${workspaceId}`, { method: "PATCH", headers: { "Content-Type": "application/json", Origin: "http://127.0.0.1:43171" }, body: JSON.stringify({ nodeIds, baseWriteId }) });
+    expect((await patch([foreign.id], initial.document.lastWriteId)).status).toBe(404);
+    expect((await docs.get(doc.id, workspaceId)).nodeIds).toEqual([a.id]);
+    const options = await (await app.request(`/api/documents/${doc.id}/node-options?workspaceId=${workspaceId}`)).json();
+    expect(options.nodes.map((node: { id: string }) => node.id)).not.toContain(foreign.id);
+    expect((await app.request(`/api/documents/${doc.id}/node-options?workspaceId=${other}`)).status).toBe(404);
+    expect((await patch([a.id, b.id, a.id], initial.document.lastWriteId)).status).toBe(200);
+    expect((await patch([], initial.document.lastWriteId)).status).toBe(409);
+    const linked = await docs.get(doc.id, workspaceId); expect(linked.nodeIds).toHaveLength(2);
+    expect(linked.nodes.map((node) => node.roadmapTitle)).toEqual(["Own map", "Own map"]);
+    const full = await reviews.start(doc.id, workspaceId, { type: "FULL", revisionId: doc.currentRevisionId! }, false); await reviews.execute(full.id);
+    expect((await reviews.get(full.id, workspaceId)).run.objectives.map((item) => item.text).sort()).toEqual(["Aを説明できる", "Bを説明できる"]);
+    const past = await reviews.get(old.id, workspaceId); expect(past.objectivesChanged).toBe(true); expect(past.stale).toBe(true); expect(past.run.objectives.map((item) => item.text)).toEqual(["Aを説明できる"]);
+    await maps.removeNode(a.id, workspaceId); expect((await docs.get(doc.id, workspaceId)).nodeIds).toEqual([b.id]);
+    await docs.setNodes(doc.id, workspaceId, { nodeIds: [], baseWriteId: linked.document.lastWriteId });
+    const detached = await docs.get(doc.id, workspaceId); expect(detached.nodes).toEqual([]);
+    await docs.setNodes(doc.id, workspaceId, { nodeIds: [b.id], baseWriteId: detached.document.lastWriteId });
+    const final = await docs.get(doc.id, workspaceId);
+    expect(final.content).toBe(initial.content); expect(final.document.title).toBe("Human title"); expect(final.document.currentRevisionId).toBe(doc.currentRevisionId);
+    expect(await revisionService(db).list(doc.id, workspaceId)).toHaveLength(1); expect(await storage.read(doc.path)).toBe(initial.content);
+    expect((await reviews.get(full.id, workspaceId)).run.objectives).toHaveLength(2); expect((await reviews.get(full.id, workspaceId)).stale).toBe(true);
+  } finally {
+    await db.delete(workspaces).where(inArray(workspaces.id, [workspaceId, other])); await client.end(); await rm(root, { recursive: true, force: true });
+  }
+});

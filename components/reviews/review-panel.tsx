@@ -5,7 +5,7 @@ import type { ReviewDetail } from "../../shared/review";
 import type { FindingSelection } from "../../modules/editor/review-highlight";
 import { pollReview } from "../../modules/review/polling";
 type HistoryItem = { id: string; revisionId: string; type: string; status: string; createdAt: string };
-export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string }) {
+export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0 }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number }) {
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [detail, setDetail] = useState<ReviewDetail | null>(null); const [history, setHistory] = useState<HistoryItem[]>([]); const [historyVersion, setHistoryVersion] = useState(0);
   const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [version, setVersion] = useState(0);
@@ -19,7 +19,7 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
       onError: (e) => setPollError(`Review状態を取得できませんでした。${(e as Error).message} 自動で再試行します。`),
       pending: (data) => ["QUEUED", "RUNNING"].includes(data.run.status),
     });
-  }, [runId, suffix, revisionId, version]);
+  }, [runId, suffix, revisionId, version, contextVersion]);
   async function start(type: ReviewDetail["run"]["type"]) {
     setBusy(true); setError(""); onSelect(null);
     try { const data = await request<{ run: { id: string } }>(`/documents/${documentId}/reviews${suffix}`, "POST", { type, revisionId }); setRunId(data.run.id); setDetail(null); setHistoryVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
