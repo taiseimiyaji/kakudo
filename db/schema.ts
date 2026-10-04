@@ -10,6 +10,7 @@ export const workspaces = pgTable("workspaces", {
 });
 
 export const learningStatus = pgEnum("learning_status", ["NOT_STARTED", "LEARNING", "REVIEWING", "LEARNED"]);
+export const roadmapEdgeSide = pgEnum("roadmap_edge_side", ["top", "right", "bottom", "left"]);
 export const roadmapEdgeType = pgEnum("roadmap_edge_type", ["PREREQUISITE", "PARENT", "RELATED"]);
 export const roadmaps = pgTable("roadmaps", {
   id: text("id").primaryKey(),
@@ -29,6 +30,7 @@ export const learningNodes = pgTable("learning_nodes", {
 export const roadmapEdges = pgTable("roadmap_edges", {
   id: text("id").primaryKey(), roadmapId: text("roadmap_id").notNull().references(() => roadmaps.id, { onDelete: "cascade" }),
   sourceId: text("source_id").notNull(), targetId: text("target_id").notNull(), type: roadmapEdgeType("type").notNull(),
+  sourceSide: roadmapEdgeSide("source_side").notNull().default("bottom"), targetSide: roadmapEdgeSide("target_side").notNull().default("top"),
 }, (t) => [
   foreignKey({ columns: [t.roadmapId, t.sourceId], foreignColumns: [learningNodes.roadmapId, learningNodes.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.roadmapId, t.targetId], foreignColumns: [learningNodes.roadmapId, learningNodes.id] }).onDelete("cascade"),
