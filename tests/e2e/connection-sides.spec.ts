@@ -74,5 +74,11 @@ test("endpoint drafts survive failed writes and cancelled close/navigation witho
     await page.screenshot({ path: testInfo.outputPath("connection-sides-draft.png"), fullPage: true });
     await editor.getByLabel("出口の位置").selectOption("top"); page.once("dialog", (dialog) => dialog.accept()); await editor.getByRole("button", { name: "閉じる" }).click();
     await page.getByRole("button", { name: "接続位置を変更" }).click(); await expect(editor.getByLabel("出口の位置")).toHaveValue("left");
+    for (const width of [390, 640, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      expect(await editor.locator("button,select").evaluateAll((elements) => elements.filter((element) => { const r = element.getBoundingClientRect(); return r.left < 0 || r.right > window.innerWidth; }).length)).toBe(0);
+      await page.screenshot({ path: testInfo.outputPath(`connection-editor-${width}.png`), fullPage: true });
+    }
   } finally { await request.delete(`/api/roadmaps/${roadmap.id}`); }
 });
