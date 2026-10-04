@@ -7,7 +7,7 @@ export const quoteInput = z.object({
   content: z.string().max(2_000_000), title: z.string().trim().min(1).max(200), baseHash: z.string().regex(/^[a-f0-9]{64}$/), baseWriteId: z.string().min(1).nullable(),
   from: z.number().int().nonnegative(), to: z.number().int().nonnegative(),
 }).strict().refine((v) => v.from <= v.to && v.to <= v.content.length, { message: "Invalid quote selection" });
-export function quoteMarkdown(text: string, url: string, title?: string) {
+export function quoteMarkdown(text: string, url: string, title?: string, lineSeparator = "\n") {
   const label = (title || url).replace(/[\r\n]/g, " ").replace(/[\\[\]]/g, "\\$&");
-  return `\n\n${text.split(/\r\n|\r|\n/).map((line) => `> ${line}`).join("\n")}\n>\n> Source: [${label}](<${url}>)\n\n`;
+  return `\n\n${text.split(/\r\n|\r|\n/).map((line) => `> ${line}`).join("\n")}\n>\n> Source: [${label}](<${url}>)\n\n`.replaceAll("\n", lineSeparator);
 }

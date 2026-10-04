@@ -83,7 +83,7 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
     quote(id: string, workspaceId: string, input: z.infer<typeof quoteInput>) { return run(async () => {
       const data = quoteInput.parse(input); const doc = await row(id, workspaceId); const before = await storage.read(doc.path);
       if (contentHash(before) !== data.baseHash || doc.lastWriteId !== data.baseWriteId) throw new DomainError("Document changed. Reload before adding a quote.", 409);
-      const quoted = quoteMarkdown(data.text, data.sourceUrl, data.sourceTitle);
+      const quoted = quoteMarkdown(data.text, data.sourceUrl, data.sourceTitle, data.content.includes("\r\n") ? "\r\n" : "\n");
       const after = data.content.slice(0, data.from) + quoted + data.content.slice(data.to);
       if (after.length > 2_000_000) throw new DomainError("Document is too large");
       const operationId = randomUUID(); const quoteId = randomUUID();
