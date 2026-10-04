@@ -11,11 +11,11 @@ export class UnknownMutationOutcome extends Error {
   constructor() { super("更新結果を確認できませんでした。"); this.name = "UnknownMutationOutcome"; }
 }
 
-export async function request<T = unknown>(path: string, method = "GET", data?: unknown, options: { uncertainMutation?: boolean } = {}): Promise<T> {
+export async function request<T = unknown>(path: string, method = "GET", data?: unknown, options: { uncertainMutation?: boolean; signal?: AbortSignal } = {}): Promise<T> {
   const uncertainMutation = options.uncertainMutation && !["GET", "HEAD"].includes(method.toUpperCase());
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, { method, headers: data === undefined ? undefined : { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
+    response = await fetch(`/api${path}`, { method, headers: data === undefined ? undefined : { "Content-Type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data), signal: options.signal });
   } catch {
     if (uncertainMutation) throw new UnknownMutationOutcome();
     throw new Error("通信できませんでした。接続を確認して再試行してください。");
