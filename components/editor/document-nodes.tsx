@@ -12,8 +12,10 @@ export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, di
   const failedSubmission = useRef<{ ids: string[]; baseWriteId: string | null | undefined } | null>(null);
   const seenConfirmationVersion = useRef(confirmation.version);
   const [version, setVersion] = useState(0); const [error, setError] = useState(""); const [optionsError, setOptionsError] = useState(""); const [busy, setBusy] = useState(false); const [status, setStatus] = useState("");
-  const linkedIds = new Set(nodes.map((node) => node.id));
-  const dirty = selected.length !== nodes.length || selected.some((id) => !linkedIds.has(id));
+  // A successful complete options read removes deleted nodes from the saved baseline too.
+  const linked = options ? nodes.flatMap((node) => options.find((option) => option.id === node.id) ?? []) : nodes;
+  const linkedIds = new Set(linked.map((node) => node.id));
+  const dirty = selected.length !== linked.length || selected.some((id) => !linkedIds.has(id));
   const protectedDraft = dirty || busy;
   useEffect(() => { onDraftProtectionChange?.(protectedDraft); }, [onDraftProtectionChange, protectedDraft]);
   useEffect(() => () => { onDraftProtectionChange?.(false); }, [onDraftProtectionChange]);
@@ -40,7 +42,6 @@ export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, di
     }).catch((e) => { if (active) setOptionsError(e.message); });
     return () => { active = false; };
   }, [documentId, workspaceId, version]);
-  const linked = options ? nodes.flatMap((node) => options.find((option) => option.id === node.id) ?? []) : nodes;
   return <section className="document-node-context" aria-label="関連する学習項目と目標"><h2>関連する学習項目と目標</h2>
     <p>目標は人間が定義します。レビューは関連する全項目の目標を確認します。</p>
     {!linked.length && <p>関連する学習項目はありません。</p>}
