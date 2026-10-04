@@ -7,7 +7,7 @@ Markdownを書くのは人間。AIは問題点・根拠・考えるための問�
 
 ## PoCでできること
 
-- Knowledge MapのRoadmap / Node / Edge編集、位置保存、学習状態・人間が定義するObjectives。
+- Knowledge MapのRoadmap / Node / Edge編集、位置保存、学習状態・人間が定義するObjectives。接続点は上下左右から選択・ドラッグでき、既存接続の出口・入口も編集できます。
 - Nodeと独立したDocument、CodeMirror 6によるMarkdown編集、Preview、実 `.md` ファイル保存。
 - 通常Pasteは出典必須のQuote、URLのみはResource、Code Block内は直接Paste。
 - Node / Document / Workspaceの資料管理、SSRF対策付き取得、引用元の照合。

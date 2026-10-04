@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
 import { request } from "../api";
-import { roadmapDetailSchema, roadmapSchema, type RoadmapDetail, type Roadmap } from "../../shared/roadmap";
+import { roadmapDetailSchema, roadmapSchema, type RoadmapDetail, type Roadmap, type EdgeSide } from "../../shared/roadmap";
 import { MapCanvas } from "../../components/roadmap/map-canvas";
 import { useFormDraft } from "../hooks/use-form-draft";
 import { NodeDetails, nodeFormValues } from "../../components/roadmap/node-details";
@@ -25,6 +25,7 @@ function RoadmapSession() {
   const [detail, setDetail] = useState<RoadmapDetail | null>(null);
   const { nodeId } = useSearch({ strict: false });
   const [selected, setSelected] = useState<string | undefined>(nodeId);
+  const [selectedEdge, setSelectedEdge] = useState<string>();
   const [mapStatus, setMapStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,12 +70,19 @@ function RoadmapSession() {
   const node = detail && detail.roadmap.id === roadmapId ? detail.nodes.find((n) => n.id === selected) : undefined;
   const mapDraft = useFormDraft(roadmapId ?? "", { title: detail?.roadmap.title ?? "", description: detail?.roadmap.description ?? "" });
   const nodeDraft = useFormDraft(node?.id ?? "", nodeFormValues(node));
-  const dirty = mapDraft.dirty || nodeDraft.dirty;
+  const edge = detail?.edges.find((e) => e.id === selectedEdge);
+  const edgeDraft = useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>(edge?.id ?? "", { sourceSide: edge?.sourceSide ?? "bottom", targetSide: edge?.targetSide ?? "top" });
+  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty;
   useBlocker({ shouldBlockFn: () => dirty && !window.confirm("未保存の変更を破棄して移動しますか？"), enableBeforeUnload: dirty });
   function selectNode(id: string) {
     if (id === selected || busy) return;
-    if (nodeDraft.dirty && !window.confirm("未保存の変更を破棄して移動しますか？")) return;
-    setSelected(id);
+    if ((nodeDraft.dirty || edgeDraft.dirty) && !window.confirm("未保存の変更を破棄して移動しますか？")) return;
+    setSelected(id); setSelectedEdge(undefined);
+  }
+  function selectEdge(id: string | undefined) {
+    if (busy || id === selectedEdge) return;
+    if (edgeDraft.dirty && !window.confirm("未保存の変更を破棄して移動しますか？")) return;
+    setSelectedEdge(id);
   }
   return <main className="map-workspace">
     <header className="app-header"><Link to="/">Kakudo</Link><h1>学習マップ</h1></header><WorkspaceNav workspaceId={workspaceId} />
@@ -99,9 +107,10 @@ function RoadmapSession() {
           <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); await refresh(); if (!nodeDraft.dirty) setSelected(node.id); form.reset(); }); }}>
             <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
           </form>
-          <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy}
+          <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy} selectedEdgeId={selectedEdge} onSelectEdge={selectEdge} edgeDraft={edgeDraft}
             onMove={async (id, x, y) => { await act(async () => { await request(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); await refresh(); }); }}
-            onConnect={async (sourceId, targetId, type) => { await act(async () => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type }); await refresh(); }); }}
+            onConnect={async (sourceId, targetId, type, sourceSide, targetSide) => { await act(async () => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type, sourceSide, targetSide }); await refresh(); }); }}
+            onUpdateEdge={(id, sourceSide, targetSide) => act(async () => { await request(`/edges/${id}${scope}`, "PATCH", { sourceSide, targetSide }); await refresh(); edgeDraft.reset(); })}
             onDeleteEdge={async (id) => { await act(async () => { await request(`/edges/${id}${scope}`, "DELETE"); await refresh(); }); }} />
         </> : <p className="empty-state">マップを選択するか、新しく作成してください。</p>}
       </section>
