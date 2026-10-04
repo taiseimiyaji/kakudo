@@ -5,7 +5,7 @@ import { bodyLimit } from "hono/body-limit";
 import type { Database } from "../db/client";
 import type { ContentStorage } from "../modules/storage/content-storage";
 import { documentService } from "../modules/document/service";
-import { documentCreate, documentSave } from "../shared/document";
+import { documentCreate, documentSave, documentNodesInput } from "../shared/document";
 export function documentRoutes(database?: () => Database, storage?: () => ContentStorage) {
   const api = new Hono(); const service = () => documentService(database?.(), storage?.());
   api.use("/documents/*", bodyLimit({ maxSize: 8_000_000 }));
@@ -13,6 +13,8 @@ export function documentRoutes(database?: () => Database, storage?: () => Conten
   api.get("/documents", async (c) => c.json({ documents: await service().list(c.req.query("workspaceId") ?? "default", c.req.query("nodeId")) }));
   api.post("/documents", async (c) => c.json({ document: await service().create(c.req.query("workspaceId") ?? "default", documentCreate.parse(await c.req.json())) }, 201));
   api.get("/documents/:id", async (c) => c.json(await service().get(c.req.param("id"), c.req.query("workspaceId") ?? "default")));
+  api.get("/documents/:id/node-options", async (c) => c.json({ nodes: await service().nodeOptions(c.req.param("id"), c.req.query("workspaceId") ?? "default") }));
+  api.patch("/documents/:id/nodes", async (c) => c.json(await service().setNodes(c.req.param("id"), c.req.query("workspaceId") ?? "default", documentNodesInput.parse(await c.req.json()))));
   api.put("/documents/:id", async (c) => c.json(await service().save(c.req.param("id"), c.req.query("workspaceId") ?? "default", documentSave.parse(await c.req.json()))));
   api.post("/documents/:id/quotes", async (c) => c.json(await service().quote(c.req.param("id"), c.req.query("workspaceId") ?? "default", quoteInput.parse(await c.req.json())), 201));
   api.get("/documents/:id/revisions", async (c) => c.json({ revisions: await revisionService(database?.()).list(c.req.param("id"), c.req.query("workspaceId") ?? "default") }));

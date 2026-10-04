@@ -7,7 +7,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { z } from "zod";
 import { getDatabase, type DatabaseTransaction, type Database } from "../../db/client";
 import { quotes, documents, documentNodes, documentWriteIntents, learningNodes, roadmaps, workspaces } from "../../db/schema";
-import { documentCreate, documentSave } from "../../shared/document";
+import { documentCreate, documentSave, documentNodesInput } from "../../shared/document";
 import type { ContentStorage } from "../storage/content-storage";
 import { getContentStorage } from "../storage/local";
 import { DomainError, requireFound } from "../../lib/errors";
@@ -17,6 +17,10 @@ let queue: Promise<unknown> = Promise.resolve();
 export function serializeContent<T>(work: () => Promise<T>): Promise<T> { const result = queue.then(work); queue = result.catch(() => {}); return result; }
 
 export function documentService(db: Database = getDatabase(), storage: ContentStorage = getContentStorage()) {
+  const nodeFields = { id: learningNodes.id, title: learningNodes.title, roadmapId: roadmaps.id, roadmapTitle: roadmaps.title, learningObjectives: learningNodes.learningObjectives };
+  async function linkedNodes(id: string, workspaceId: string) {
+    return db.select(nodeFields).from(documentNodes).innerJoin(learningNodes, eq(documentNodes.nodeId, learningNodes.id)).innerJoin(roadmaps, eq(learningNodes.roadmapId, roadmaps.id)).where(and(eq(documentNodes.documentId, id), eq(roadmaps.workspaceId, workspaceId))).orderBy(roadmaps.title, learningNodes.title);
+  }
   async function row(id: string, workspaceId: string) {
     const [doc] = await db.select().from(documents).where(and(eq(documents.id, id), eq(documents.workspaceId, workspaceId)));
     return requireFound(doc, "Document");
@@ -51,8 +55,28 @@ export function documentService(db: Database = getDatabase(), storage: ContentSt
     }); },
     get(id: string, workspaceId: string) { return run(async () => {
       const doc = await row(id, workspaceId); const content = await storage.read(doc.path);
-      const links = await db.select().from(documentNodes).where(eq(documentNodes.documentId, id));
-      return { document: doc, content, contentHash: contentHash(content), nodeIds: links.map((r) => r.nodeId) };
+      const nodes = await linkedNodes(id, workspaceId);
+      return { document: doc, content, contentHash: contentHash(content), nodeIds: nodes.map((r) => r.id), nodes };
+    }); },
+    nodeOptions(id: string, workspaceId: string) { return run(async () => {
+      await row(id, workspaceId);
+      return db.select(nodeFields).from(learningNodes).innerJoin(roadmaps, eq(learningNodes.roadmapId, roadmaps.id)).where(eq(roadmaps.workspaceId, workspaceId)).orderBy(roadmaps.title, learningNodes.title);
+    }); },
+    setNodes(id: string, workspaceId: string, input: z.infer<typeof documentNodesInput>) { return run(async () => {
+      const data = documentNodesInput.parse(input); const doc = await row(id, workspaceId);
+      if (doc.lastWriteId !== data.baseWriteId) throw new DomainError("Document changed. Check latest before changing links.", 409);
+      const nodeIds = [...new Set(data.nodeIds)];
+      await db.transaction(async (tx) => {
+        if (nodeIds.length) {
+          const found = await tx.select({ id: learningNodes.id }).from(learningNodes).innerJoin(roadmaps, eq(learningNodes.roadmapId, roadmaps.id)).where(and(inArray(learningNodes.id, nodeIds), eq(roadmaps.workspaceId, workspaceId)));
+          if (found.length !== nodeIds.length) throw new DomainError("Node not found in workspace", 404);
+        }
+        await tx.delete(documentNodes).where(eq(documentNodes.documentId, id));
+        if (nodeIds.length) await tx.insert(documentNodes).values(nodeIds.map((nodeId) => ({ documentId: id, nodeId })));
+        await tx.update(documents).set({ lastWriteId: randomUUID(), updatedAt: new Date() }).where(eq(documents.id, id));
+      });
+      const nodes = await linkedNodes(id, workspaceId);
+      return { document: await row(id, workspaceId), nodeIds: nodes.map((node) => node.id), nodes };
     }); },
     create(workspaceId: string, input: z.infer<typeof documentCreate>) { return run(async () => {
       const data = documentCreate.parse(input);

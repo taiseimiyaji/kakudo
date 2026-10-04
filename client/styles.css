@@ -87,3 +87,9 @@ dialog .secondary { margin-top: 15px; background: #e4ebe2; color: var(--ink); }
 [aria-invalid="true"] { border-color: #923225; }
 
 .latest-document pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #f0f3ee; }
+
+.document-node-context { border: 1px solid var(--line); border-radius: 6px; margin: 16px 0; padding: 16px; }
+.document-node-context article { padding: 8px 0; }
+.document-node-context fieldset { max-height: 260px; overflow: auto; }
+.node-link-option { display: flex; flex-direction: row; align-items: center; gap: 8px; margin: 8px 0; }
+.node-link-option input { width: auto; }

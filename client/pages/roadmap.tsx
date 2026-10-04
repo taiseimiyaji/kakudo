@@ -3,7 +3,7 @@ import { nextNodePosition } from "../../modules/roadmap/layout";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useRef, useState } from "react";
-import { Link, useBlocker, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
 import { request } from "../api";
 import { roadmapDetailSchema, roadmapSchema, type RoadmapDetail, type Roadmap } from "../../shared/roadmap";
@@ -13,7 +13,8 @@ import { NodeDetails, nodeFormValues } from "../../components/roadmap/node-detai
 
 export default function RoadmapPage() {
   const { workspaceId, roadmapId } = useParams({ strict: false });
-  return <RoadmapSession key={`${workspaceId}:${roadmapId}`} />;
+  const { nodeId } = useSearch({ strict: false });
+  return <RoadmapSession key={`${workspaceId}:${roadmapId}:${nodeId ?? ""}`} />;
 }
 function RoadmapSession() {
   const { workspaceId = "default", roadmapId } = useParams({ strict: false });
@@ -21,7 +22,8 @@ function RoadmapSession() {
   const scope = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [maps, setMaps] = useState<Roadmap[]>([]);
   const [detail, setDetail] = useState<RoadmapDetail | null>(null);
-  const [selected, setSelected] = useState<string>();
+  const { nodeId } = useSearch({ strict: false });
+  const [selected, setSelected] = useState<string | undefined>(nodeId);
   const [mapStatus, setMapStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
