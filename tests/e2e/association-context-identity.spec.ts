@@ -95,3 +95,22 @@ test("same-ID failed save without a server write remains uncertain after latest 
     const final = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(final.nodeIds).toEqual(before.nodeIds); expect(final.document.lastWriteId).toBe(before.document.lastWriteId);
   } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
 });
+
+test("a new association write invalidates an older latest-content panel before another failed attempt", async ({ page, request }) => {
+  const f = await setup(request, "古い確認パネルの無効化"); let patches = 0;
+  await page.route(`**/api/documents/${f.document.id}/nodes?*`, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    patches++; if (patches === 1 || patches === 3) await route.fulfill({ status: 500, json: { error: "未確定" } }); else await route.continue();
+  });
+  try {
+    await open(page, f.document.id); const b = region(page).getByRole("checkbox", { name: `${f.roadmap.title} / 認可`, exact: true });
+    await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page).getByRole("alert")).toBeVisible();
+    await page.getByRole("button", { name: "最新の保存内容を確認", exact: true }).click(); await expect(page.getByRole("region", { name: "最新の保存内容" })).toBeVisible();
+    await b.check(); await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page).getByRole("status")).toContainText("関連を更新しました。");
+    await expect(page.getByRole("region", { name: "最新の保存内容" })).toHaveCount(0);
+    const committed = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(committed.nodeIds.sort()).toEqual([f.nodes[0].id, f.nodes[1].id].sort());
+    await b.uncheck(); await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page).getByRole("alert")).toBeVisible();
+    await confirm(page); await expect(region(page).getByRole("alert")).toBeVisible(); await expect(b).not.toBeChecked(); await expect(region(page).getByText('関連の変更は未保存です。「関連を保存」で確定してください。')).toBeVisible(); expect(patches).toBe(3);
+    const final = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(final.nodeIds.sort()).toEqual(committed.nodeIds.sort()); expect(final.document.lastWriteId).toBe(committed.document.lastWriteId);
+  } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
+});

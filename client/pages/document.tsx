@@ -77,6 +77,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
     <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onSave={async (nodeIds, onWrite) => {
+      setLatest(null);
       const result = await session.updateContext((baseWriteId) => { onWrite(baseWriteId); return request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId }).then((payload) => documentLinksSchema.parse(payload)); });
       setNodes(result.nodes); setContextVersion((v) => v + 1);
     }} />
