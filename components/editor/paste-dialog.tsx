@@ -1,9 +1,9 @@
 import { ResourceForm } from "../resources/resource-form";
-import type { resourceInput } from "../../shared/resource";
+import type { resourceInput, Resource } from "../../shared/resource";
 import type { z } from "zod";
 import { useEffect, useRef, useState } from "react";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
-export function PasteDialog({ paste, onClose, onQuote, onResource }: { paste: InterceptedPaste; onClose: () => void; onQuote: (url: string, title: string) => Promise<void>; onResource: (input: z.infer<typeof resourceInput>) => Promise<void> }) {
+export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceCheck, onResourceConfirmed }: { paste: InterceptedPaste; onClose: () => void; onQuote: (url: string, title: string) => Promise<void>; onResource: (input: z.infer<typeof resourceInput>) => Promise<void>; onResourceCheck: (input: z.infer<typeof resourceInput>) => Promise<Resource | null>; onResourceConfirmed: (resource: Resource) => void }) {
   const ref = useRef<HTMLDialogElement>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   useEffect(() => {
     const dialog = ref.current;
@@ -26,7 +26,7 @@ export function PasteDialog({ paste, onClose, onQuote, onResource }: { paste: In
     </form> : <ResourceForm initialUrl={paste.text.trim()} onSave={async (input) => {
       setBusy(true);
       try { await onResource(input); } finally { setBusy(false); }
-    }} />}
+    }} onCheck={onResourceCheck} onConfirmed={onResourceConfirmed} />}
     <button type="button" className="secondary" disabled={busy} onClick={onClose}>キャンセル</button>
   </dialog>;
 }

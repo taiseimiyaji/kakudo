@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { request } from "../../client/api";
+import { request, UnknownMutationOutcome } from "../../client/api";
 afterEach(() => vi.unstubAllGlobals());
 it.each([400, 401, 403, 404, 409, 413, 422, 429, 500, 502])("does not expose server diagnostics for HTTP %s", async (status) => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "secret-token internal stack postgres://password" }), { status })));
@@ -46,4 +46,20 @@ it.each([
 it("keeps the safe admission fallback for a non-JSON error", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response("secret-host stack password", { status: 400 })));
   await expect(request("/documents/1/reviews", "POST", {})).rejects.toThrow("入力内容を確認");
+});
+
+it("marks only opted-in mutations uncertain on transport or successful JSON decoding failures", async () => {
+  for (const fetch of [vi.fn().mockRejectedValue(new Error("secret stack")), vi.fn(async () => new Response("secret-invalid-json", { status: 201 }))]) {
+    vi.stubGlobal("fetch", fetch);
+    await expect(request("/resources", "POST", {}, { uncertainMutation: true })).rejects.toBeInstanceOf(UnknownMutationOutcome);
+    await expect(request("/resources", "POST", {}, { uncertainMutation: true })).rejects.not.toThrow(/secret|stack/);
+    await expect(request("/resources", "GET", undefined, { uncertainMutation: true })).rejects.not.toBeInstanceOf(UnknownMutationOutcome);
+    await expect(request("/resources", "POST", {})).rejects.not.toBeInstanceOf(UnknownMutationOutcome);
+  }
+});
+it("keeps HTTP errors and 204 results outside uncertain-mutation classification", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("secret detail", { status: 500 })));
+  await expect(request("/resources", "POST", {}, { uncertainMutation: true })).rejects.not.toBeInstanceOf(UnknownMutationOutcome);
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+  await expect(request("/resources", "DELETE", undefined, { uncertainMutation: true })).resolves.toBeUndefined();
 });

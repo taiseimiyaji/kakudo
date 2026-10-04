@@ -10,6 +10,7 @@ import { request } from "../api";
 import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "../../shared/document";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
 import { MarkdownPreview } from "../../components/editor/preview";
+import { checkResourceRegistration, registerResource } from "../resource-registration";
 
 export default function DocumentPage() {
   const { workspaceId = "default", documentId = "" } = useParams({ strict: false });
@@ -64,7 +65,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       } catch (e) { setError((e as Error).message); throw e; } finally { setBusy(false); }
     }} />
     <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={setContent} onPaste={setPaste} highlight={highlight} /></section><section><h2>Preview</h2><MarkdownPreview content={content} /></section></div>
-    {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await request(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input); setResourceVersion((v) => v + 1); setPaste(null); }} onQuote={async (sourceUrl, sourceTitle) => {
+    {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); setPaste((current) => current === paste ? null : current); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); setPaste((current) => current === paste ? null : current); }} onQuote={async (sourceUrl, sourceTitle) => {
       try {
         const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash, baseWriteId: saved.writeId });
         editorRef.current?.applyQuote(paste, result.content);
