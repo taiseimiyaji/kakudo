@@ -5,11 +5,15 @@ import { request } from "../../client/api";
 import type { ReviewDetail } from "../../shared/review";
 import type { FindingSelection } from "../../modules/editor/review-highlight";
 import { pollReview } from "../../modules/review/polling";
+import { useReviewAdmission } from "../../client/hooks/use-review-admission";
+import { ReviewAdmissionRecovery } from "./admission-recovery";
 type HistoryItem = { id: string; revisionId: string; type: string; status: string; createdAt: string };
-export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0 }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number }) {
+export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0, onAdmissionProtectionChange }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number; onAdmissionProtectionChange?: (value: boolean) => void }) {
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [detail, setDetail] = useState<ReviewDetail | null>(null); const [history, setHistory] = useState<HistoryItem[]>([]); const [historyVersion, setHistoryVersion] = useState(0);
-  const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [version, setVersion] = useState(0);
+  const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [findingBusy, setFindingBusy] = useState(false); const [version, setVersion] = useState(0);
+  const admission = useReviewAdmission(documentId, workspaceId); const busy = findingBusy || admission.busy;
+  useEffect(() => { onAdmissionProtectionChange?.(admission.blocked); return () => onAdmissionProtectionChange?.(false); }, [onAdmissionProtectionChange, admission.blocked]);
   const [pollError, setPollError] = useState("");
   const [historyError, setHistoryError] = useState(""); const [historyReady, setHistoryReady] = useState(false);
   useEffect(() => {
@@ -31,17 +35,18 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
     });
   }, [runId, suffix, revisionId, version, contextVersion]);
   async function start(type: ReviewDetail["run"]["type"]) {
-    setBusy(true); setError(""); onSelect(null);
-    try { const data = await request<{ run: { id: string } }>(`/documents/${documentId}/reviews${suffix}`, "POST", { type, revisionId }); setRunId(data.run.id); setDetail(null); setHistoryVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    if (!revisionId) return;
+    await admission.start(revisionId, type, history.map((run) => run.id), { onStart: () => { setError(""); onSelect(null); }, onAccepted: (id) => { setRunId(id); setDetail(null); setHistoryVersion((v) => v + 1); }, onRejected: setError });
   }
   async function changeStatus(id: string, status: "OPEN" | "RESOLVED" | "DISMISSED") {
-    setBusy(true); setError("");
-    try { await request(`/findings/${id}${suffix}`, "PATCH", { status }); setVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    setFindingBusy(true); setError("");
+    try { await request(`/findings/${id}${suffix}`, "PATCH", { status }); setVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setFindingBusy(false); }
   }
   const running = busy || !historyReady || !!runId && !detail || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="レビュー"><h2>理解を確かめる</h2><p className="muted">AIが問題点や根拠、考えるための問いを提示します。本文の修正は自分で行います。</p><div className="review-actions">
-    {([ ["FULL", "全体を確認"], ["FACT_CHECK", "事実を確認"], ["SOURCE", "出典を確認"], ["LOGIC", "論理を確認"], ["COVERAGE", "学習目標を確認"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running} onClick={() => { void start(type); }}>{label}</button>)}</div>
+    {([ ["FULL", "全体を確認"], ["FACT_CHECK", "事実を確認"], ["SOURCE", "出典を確認"], ["LOGIC", "論理を確認"], ["COVERAGE", "学習目標を確認"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running || admission.blocked} onClick={() => { void start(type); }}>{label}</button>)}</div>
+    <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); }} />
     {(dirty || !revisionId) && <p>本文を保存してからレビューしてください。</p>}{error && <Feedback error>{error}</Feedback>}
     {historyError && <><Feedback error>{historyError}</Feedback><button onClick={() => setHistoryVersion((v) => v + 1)}>履歴を再取得</button></>}
     {pollError && <><Feedback error>{pollError}</Feedback><button onClick={() => setVersion((v) => v + 1)}>状態を再取得</button></>}

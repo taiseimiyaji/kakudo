@@ -37,6 +37,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [resourceVersion, setResourceVersion] = useState(0);
   const [resourceProtected, setResourceProtected] = useState(false);
   const [associationProtected, setAssociationProtected] = useState(false);
+  const [reviewAdmissionProtected, setReviewAdmissionProtected] = useState(false);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const [session] = useState(() => new NoteSession({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId, revisionId: initial.document.currentRevisionId },
@@ -61,7 +62,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   function invalidateLatest() { latestReadVersion.current++; setLatest(null); setRecovering(false); }
   const busy = saving || recovering;
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
-  useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected || associationProtected) && !window.confirm("未保存・保存中の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected || associationProtected });
+  useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected || associationProtected || reviewAdmissionProtected) && !window.confirm("未保存・保存中の変更、未登録・登録結果を確認中の資料、または受付結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected || associationProtected || reviewAdmissionProtected });
   async function save() {
     if (await session.save(true)) { invalidateLatest(); setRecoveryError(""); }
   }
@@ -92,7 +93,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       });
       invalidateLatest(); closePaste(paste);
     }} />}
-    <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty || busy || retryRequired} content={content} onSelect={(finding) => { setSelection(finding); if (finding) setMode("edit"); }} initialRunId={initialRunId} contextVersion={contextVersion} />
+    <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty || busy || retryRequired} content={content} onSelect={(finding) => { setSelection(finding); if (finding) setMode("edit"); }} initialRunId={initialRunId} contextVersion={contextVersion} onAdmissionProtectionChange={setReviewAdmissionProtected} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} onDraftProtectionChange={setResourceProtected} />
     <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy || !!paste} onClick={() => {
       if (!confirm("このノートとMarkdownファイルを削除しますか？")) return;
