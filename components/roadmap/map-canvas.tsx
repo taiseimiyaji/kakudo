@@ -1,3 +1,4 @@
+import { label } from "../../client/labels";
 import { useState } from "react";
 import { ReactFlow, Background, Controls, Handle, Position, MarkerType, useNodesState, useEdgesState, type NodeProps, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -5,7 +6,7 @@ import { edgeTypes, type RoadmapDetail } from "../../shared/roadmap";
 
 type MapNode = Node<{ title: string; status: string; stats: RoadmapDetail["nodes"][number]["stats"] }, "learning">;
 function LearningCard({ data }: NodeProps<MapNode>) {
-  return <div className="learning-card"><Handle type="target" position={Position.Top} /><strong>{data.title}</strong><span>{data.status}</span><small>Docs {data.stats.documents} · Sources {data.stats.sources}</small><small>Review ⚠ {data.stats.openFindings}{data.stats.outdatedReviews > 0 ? ` · Outdated ${data.stats.outdatedReviews}` : ""}</small><Handle type="source" position={Position.Bottom} /></div>;
+  return <div className="learning-card"><Handle type="target" position={Position.Top} /><strong>{data.title}</strong><span>{label(data.status)}</span><small>ノート {data.stats.documents} · 資料 {data.stats.sources}</small><small>未対応の指摘 {data.stats.openFindings}{data.stats.outdatedReviews > 0 ? ` · 更新前 ${data.stats.outdatedReviews}` : ""}</small><Handle type="source" position={Position.Bottom} /></div>;
 }
 const nodeTypes = { learning: LearningCard };
 export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDeleteEdge, busy }: {
@@ -16,7 +17,7 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
 }) {
   const [type, setType] = useState<typeof edgeTypes[number]>("PREREQUISITE");
   const mapNodes = (detail: RoadmapDetail): MapNode[] => detail.nodes.map((n) => ({ id: n.id, type: "learning", data: { title: n.title, status: n.status, stats: n.stats }, position: { x: n.positionX, y: n.positionY } }));
-  const mapEdges = (detail: RoadmapDetail) => detail.edges.map((e) => ({ id: e.id, source: e.sourceId, target: e.targetId, label: e.type, markerEnd: e.type === "RELATED" ? undefined : { type: MarkerType.ArrowClosed }, style: e.type === "RELATED" ? { strokeDasharray: "5 5" } : {} }));
+  const mapEdges = (detail: RoadmapDetail) => detail.edges.map((e) => ({ id: e.id, source: e.sourceId, target: e.targetId, label: label(e.type), markerEnd: e.type === "RELATED" ? undefined : { type: MarkerType.ArrowClosed }, style: e.type === "RELATED" ? { strokeDasharray: "5 5" } : {} }));
   const [nodes, setNodes, onNodesChange] = useNodesState<MapNode>(mapNodes(detail));
   const [edges, setEdges, onEdgesChange] = useEdgesState(mapEdges(detail));
   const [previousDetail, setPreviousDetail] = useState(detail);
@@ -33,7 +34,7 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
     <form className="edge-form" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void onConnect(String(data.get("source")), String(data.get("target")), type); }}>
       <label>接続元<select name="source" required>{detail.nodes.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}</select></label>
       <label>接続先<select name="target" required>{detail.nodes.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}</select></label>
-      <label>関係<select value={type} onChange={(e) => setType(e.target.value as typeof type)}>{edgeTypes.map((v) => <option key={v}>{v}</option>)}</select></label>
+      <label>関係<select value={type} onChange={(e) => setType(e.target.value as typeof type)}>{edgeTypes.map((v) => <option key={v} value={v}>{label(v)}</option>)}</select></label>
       <button disabled={busy || nodes.length < 2}>接続を追加</button>
     </form>
     <div className="flow-canvas" aria-label="学習マップ">
@@ -44,6 +45,6 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
         <Background /><Controls aria-label="マップ表示操作" />
       </ReactFlow>
     </div>
-    <details><summary>接続一覧 ({detail.edges.length})</summary>{detail.edges.map((e) => <div className="edge-row" key={e.id}><span>{detail.nodes.find((n) => n.id === e.sourceId)?.title} → {detail.nodes.find((n) => n.id === e.targetId)?.title} ({e.type})</span><button disabled={busy} onClick={() => { void onDeleteEdge(e.id); }}>接続を削除</button></div>)}</details>
+    <details><summary>接続一覧 ({detail.edges.length})</summary>{detail.edges.map((e) => <div className="edge-row" key={e.id}><span>{detail.nodes.find((n) => n.id === e.sourceId)?.title} → {detail.nodes.find((n) => n.id === e.targetId)?.title} ({label(e.type)})</span><button disabled={busy} onClick={() => { void onDeleteEdge(e.id); }}>接続を削除</button></div>)}</details>
   </>;
 }

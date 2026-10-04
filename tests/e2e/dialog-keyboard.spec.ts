@@ -78,8 +78,8 @@ test("a failed resource registration keeps its fields and allows Escape back to 
     await page.keyboard.press("Tab"); await page.keyboard.type("Retained title"); await page.keyboard.press("Enter");
     await expect(dialog.getByRole("alert")).toContainText("入力内容は保持されています");
     await expect(dialog.getByRole("alert")).not.toContainText("secret-token");
-    await expect(dialog.getByLabel("Resource URL（必須）")).toHaveValue("https://example.com/failed-keyboard");
-    await expect(dialog.getByLabel("Resource Title（任意）")).toHaveValue("Retained title");
+    await expect(dialog.getByLabel("資料URL（必須）")).toHaveValue("https://example.com/failed-keyboard");
+    await expect(dialog.getByLabel("資料名（任意）")).toHaveValue("Retained title");
     await expect(dialog.getByRole("button", { name: "キャンセル", exact: true })).toBeEnabled();
     await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0); await expect(editor).toBeFocused();
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe("Human prose.");

@@ -1,3 +1,4 @@
+import { label } from "../../client/labels";
 import { useEffect, useRef, useState } from "react";
 import { request } from "../../client/api";
 import type { Resource, ResourceTarget } from "../../shared/resource";
@@ -5,12 +6,12 @@ import { Feedback } from "../common/feedback";
 import { ResourceForm } from "./resource-form";
 import { checkResourceRegistration, registerResource } from "../../client/resource-registration";
 
-type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void };
+type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean };
 export function ResourcePanel(props: Props) {
   // A new scope must never inherit another document/node's pending operations.
   return <ScopedResourcePanel key={`${props.workspaceId}:${props.target?.kind}:${props.target?.id}`} {...props} />;
 }
-function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange }: Props) {
+function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showHeading = true }: Props) {
   const [items, setItems] = useState<Resource[]>([]);
   const [all, setAll] = useState<Resource[]>([]);
   const [load, setLoad] = useState<"loading" | "ready" | "failed">("loading");
@@ -34,7 +35,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange }: Pro
     setAll((current) => [...current.filter((item) => item.id !== resource.id), resource]);
     onChange?.();
   };
-  return <section className="resource-panel" aria-label="Sources"><h2>Sources</h2>
+  return <section className="resource-panel" aria-label="参考資料">{showHeading && <h2>参考資料</h2>}
     {load === "loading" && <Feedback>資料を読み込んでいます…</Feedback>}
     {load === "failed" && <><Feedback error>資料を読み込めませんでした。接続を確認して再試行してください。</Feedback><button className="secondary" onClick={retry}>資料を再読み込み</button></>}
     {load === "ready" && <>
@@ -73,7 +74,7 @@ function ResourceRow({ item, suffix, unlinkPath, onUnlink }: { item: Resource; s
     } finally { pending.current = false; setBusy(null); }
   }
   return <li aria-busy={!!busy}>
-    <a href={item.url} target="_blank" rel="noreferrer">{item.title || item.url}</a> <small>{item.type}</small>
+    <a href={item.url} target="_blank" rel="noreferrer">{item.title || item.url}</a> <small>{label(item.type)}</small>
     <button className="secondary" disabled={!!busy} onClick={() => void operate("fetch")}>{busy === "fetch" ? "取得確認中…" : "取得を確認"}</button>
     {unlinkPath && <button className="secondary" disabled={!!busy} onClick={() => void operate("unlink")}>{busy === "unlink" ? "解除中…" : "関連を外す"}</button>}
     {busy && <Feedback>{busy === "fetch" ? "この資料の取得を確認しています…" : "この資料の関連を外しています…"}</Feedback>}

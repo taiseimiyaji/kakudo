@@ -35,8 +35,8 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
     const view = await viewport(page);
     const node = nodes[8];
     await page.locator(`.react-flow__node[data-id="${node.id}"]`).click();
-    await page.getByLabel("Learning Objectives（1行1項目）").fill("編集中の目標を保持する");
-    await page.getByLabel("Roadmapの説明").fill("編集中のマップ説明");
+    await page.getByLabel("学習目標（任意・1行1項目）").fill("編集中の目標を保持する");
+    await page.getByLabel("マップの説明（任意）").fill("編集中のマップ説明");
     await page.locator(".node-details").evaluate((element) => { element.scrollTop = 120; });
     const scroll = await page.locator(".node-details").evaluate((element) => element.scrollTop);
     expect(scroll).toBeGreaterThan(0);
@@ -50,26 +50,26 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
       await expect(page.locator("summary")).toHaveText(`接続一覧 (${i + 1})`);
       await expect.poll(() => viewport(page)).toBe(view);
       await expect(page.locator(`.react-flow__node[data-id="${node.id}"]`)).toHaveClass(/selected/);
-      await expect(page.getByLabel("Learning Objectives（1行1項目）")).toHaveValue("編集中の目標を保持する");
+      await expect(page.getByLabel("学習目標（任意・1行1項目）")).toHaveValue("編集中の目標を保持する");
       await expect.poll(() => page.locator(".node-details").evaluate((element) => element.scrollTop)).toBe(scroll);
     }
     // Select an edge via keyboard; selection survives unrelated map saving.
     const edge = page.locator(".react-flow__edge").first();
     await edge.focus(); await page.keyboard.press("Enter");
     await expect(edge).toHaveClass(/selected/);
-    await page.getByRole("button", { name: "Roadmapを保存", exact: true }).click();
+    await page.getByRole("button", { name: "マップを保存", exact: true }).click();
     await idle(page);
     await expect(edge).toHaveClass(/selected/);
     await expect.poll(() => viewport(page)).toBe(view);
-    await expect(page.getByLabel("Learning Objectives（1行1項目）")).toHaveValue("編集中の目標を保持する");
+    await expect(page.getByLabel("学習目標（任意・1行1項目）")).toHaveValue("編集中の目標を保持する");
     await expect.poll(() => page.locator(".node-details").evaluate((element) => element.scrollTop)).toBe(scroll);
 
     await page.getByLabel("登録済み資料").selectOption({ label: "RFC 6749" });
     await page.getByRole("button", { name: "資料を関連付け", exact: true }).click();
-    await expect(page.locator(`.react-flow__node[data-id="${node.id}"]`)).toContainText("Sources 1");
+    await expect(page.locator(`.react-flow__node[data-id="${node.id}"]`)).toContainText("資料 1");
     await expect.poll(() => viewport(page)).toBe(view);
     await expect(edge).toHaveClass(/selected/);
-    await expect(page.getByLabel("Learning Objectives（1行1項目）")).toHaveValue("編集中の目標を保持する");
+    await expect(page.getByLabel("学習目標（任意・1行1項目）")).toHaveValue("編集中の目標を保持する");
 
     const beforeFailure = await page.locator(`.react-flow__node[data-id="${node.id}"]`).getAttribute("style");
     const x = await page.getByLabel("X", { exact: true }).inputValue();
@@ -86,12 +86,12 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
     const persisted = await (await request.get(`/api/roadmaps/${roadmap.id}`)).json();
     expect(persisted.nodes.find((item: { id: string }) => item.id === node.id).positionX).toBe(Number(x));
     await page.getByLabel("X", { exact: true }).fill(String(Number(x) + 15));
-    await page.getByRole("button", { name: "Nodeを保存", exact: true }).click();
+    await page.getByRole("button", { name: "学習項目を保存", exact: true }).click();
     await idle(page);
     await expect(page.getByLabel("X", { exact: true })).toHaveValue(String(Number(x) + 15));
     await expect.poll(() => viewport(page)).toBe(view);
     await page.unroute(`**/api/nodes/${node.id}?*`);
-    await page.getByRole("button", { name: "Nodeを保存", exact: true }).click();
+    await page.getByRole("button", { name: "学習項目を保存", exact: true }).click();
     await idle(page);
     await expect.poll(() => viewport(page)).toBe(view);
 
@@ -120,7 +120,7 @@ test("large map retains viewport, selection, drafts and scroll across edits and 
     await page.getByRole("link", { name: other.title, exact: true }).click();
     await expect(page.locator(".learning-card")).toHaveCount(1);
     await expect(page.locator(".learning-card")).toBeInViewport();
-    await expect(page.getByLabel("Node名", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("学習項目名（必須）", { exact: true })).toHaveCount(0);
     await expect.poll(() => viewport(page)).not.toBe(view);
     await page.goBack();
     await expect(page.locator(".learning-card")).toHaveCount(24);

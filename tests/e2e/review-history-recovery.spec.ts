@@ -15,8 +15,8 @@ test("review history recovers after a lost initial GET while preserving the unsa
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("通信できませんでした");
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" My draft.");
-    await expect(page.getByLabel("Review履歴")).toHaveValue(run.id, { timeout: 8000 });
-    await expect(page.getByLabel("Review Status")).toContainText("COMPLETED");
+    await expect(page.getByLabel("レビュー履歴")).toHaveValue(run.id, { timeout: 8000 });
+    await expect(page.getByLabel("レビューの状態")).toContainText("完了");
     await expect(page.locator(".review-panel")).not.toContainText("通信できませんでした");
     await expect(editor).toContainText("My words. My draft.");
     await expect(page.getByText("未保存の変更", { exact: true })).toBeVisible();

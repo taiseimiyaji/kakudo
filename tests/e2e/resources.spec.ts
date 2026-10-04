@@ -7,9 +7,9 @@ test("register a node source, associate it with a document, paste a URL and show
   const resourceIds: string[] = [];
   try {
     await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`); await page.locator(".learning-card").filter({ hasText: "OAuth" }).click();
-    const panel = page.getByRole("region", { name: "Sources", exact: true });
+    const panel = page.getByRole("region", { name: "参考資料", exact: true });
     const url = `http://127.0.0.1/source-${Date.now()}`;
-    await panel.getByLabel("Resource URL").fill(url); await panel.getByLabel("Resource Title").fill("My reference"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
+    await panel.getByLabel("資料URL").fill(url); await panel.getByLabel("資料名").fill("My reference"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
     await expect(panel.getByRole("link", { name: "My reference" })).toHaveAttribute("href", url);
     const all = await (await request.get("/api/resources")).json(); resourceIds.push(all.resources.find((r: { url: string }) => r.url === url).id);
     await panel.getByRole("button", { name: "取得を確認" }).click(); await expect(panel.getByRole("alert")).toContainText("UNAVAILABLE");

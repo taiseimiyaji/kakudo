@@ -1,3 +1,4 @@
+import { label } from "../../client/labels";
 import { Feedback } from "../common/feedback";
 import { useState } from "react";
 import type { useFormDraft } from "../../client/hooks/use-form-draft";
@@ -17,18 +18,18 @@ export function NodeDetails({ node, busy, draft, onSave, onDelete }: { node: Lea
     if (!parsed.success) { setError("入力内容を確認してください。目標・問いは各100項目以内、1項目2000文字以内です。"); return; }
     setError(""); setStatus("保存中…"); void onSave(parsed.data).then((saved) => { setStatus(saved ? "保存しました" : "保存に失敗しました。入力を保持しています。再試行してください。"); });
   }}>
-    <h2>Node Details</h2>
+    <h2>学習項目の詳細</h2>
     <Feedback>{status || (draft.dirty ? "未保存の変更" : "保存済み")}</Feedback>
     {error && <Feedback error>{error}</Feedback>}
-    <label>Node名<input name="title" {...field("title")} required maxLength={200} /></label>
-    <label>説明<textarea name="description" {...field("description")} maxLength={10000} /></label>
-    <label>学習状態<select name="status" {...field("status")}>{nodeStatuses.map((status) => <option key={status}>{status}</option>)}</select></label>
-    <label>Learning Objectives（1行1項目）<textarea name="objectives" {...field("objectives")} rows={5} /></label>
-    <label>Guiding Questions（1行1項目）<textarea name="questions" {...field("questions")} rows={4} /></label>
+    <label>学習項目名（必須）<input name="title" {...field("title")} required maxLength={200} /></label>
+    <label>説明（任意）<textarea name="description" {...field("description")} maxLength={10000} /></label>
+    <label>学習状態<select name="status" {...field("status")}>{nodeStatuses.map((status) => <option key={status} value={status}>{label(status)}</option>)}</select></label>
+    <label>学習目標（任意・1行1項目）<textarea name="objectives" {...field("objectives")} rows={5} /></label>
+    <label>考えるための問い（任意・1行1項目）<textarea name="questions" {...field("questions")} rows={4} /></label>
     <div className="coordinates"><label>X<input name="x" type="number" step="any" min={-100000} max={100000} {...field("x")} required /></label><label>Y<input name="y" type="number" step="any" min={-100000} max={100000} {...field("y")} required /></label></div>
 
-    <button disabled={busy}>Nodeを保存</button>
-    <button className="danger" type="button" disabled={busy} onClick={() => { if (confirm("このNodeと接続を削除しますか？")) void onDelete(); }}>Nodeを削除</button>
-    <p className="muted">Docs {node.stats.documents} / Sources {node.stats.sources} / Review ⚠ {node.stats.openFindings}</p><p className="muted">各Documentの直近の完了レビューを集計。Outdated: {node.stats.outdatedReviews}</p>
+    <button disabled={busy}>学習項目を保存</button>
+    <button className="danger" type="button" disabled={busy} onClick={() => { if (confirm("この学習項目と接続を削除しますか？")) void onDelete(); }}>学習項目を削除</button>
+    <p className="muted">ノート {node.stats.documents} / 資料 {node.stats.sources} / 未対応の指摘 {node.stats.openFindings}</p><p className="muted">各ノートの直近の完了レビューを集計。更新前のレビュー: {node.stats.outdatedReviews}</p>
   </form>;
 }

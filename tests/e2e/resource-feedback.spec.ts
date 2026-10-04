@@ -10,7 +10,7 @@ test("resource loading distinguishes failure, retry and empty results", async ({
     else await route.fulfill({ json: { resources: [] } });
   });
   await page.goto("/workspaces/default/resources");
-  const panel = page.getByRole("region", { name: "Sources", exact: true });
+  const panel = page.getByRole("region", { name: "参考資料", exact: true });
   await expect(panel.getByRole("status")).toHaveText("資料を読み込んでいます…");
   await expect(panel.getByText("登録された資料はありません。", { exact: true })).toHaveCount(0);
   release();
@@ -41,20 +41,20 @@ test("resource operations retain input and block duplicates while pending, then 
   await page.route("**/api/resources/feedback-source/fetch?*", async (route) => { fetchCount++; await gate; if (fail) await route.abort(); else await route.fulfill({ json: { status: "AVAILABLE" } }); });
   try {
     await page.goto(`/workspaces/default/documents/${document.id}`);
-    const panel = page.getByRole("region", { name: "Sources", exact: true });
+    const panel = page.getByRole("region", { name: "参考資料", exact: true });
     await expect(panel.getByText("登録された資料はありません。", { exact: true })).toBeVisible();
-    await panel.getByLabel("Resource URL").fill("ftp://example.com");
+    await panel.getByLabel("資料URL").fill("ftp://example.com");
     await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
-    await expect(panel.getByLabel("Resource URL")).toHaveAttribute("aria-invalid", "true");
-    await expect(panel.getByLabel("Resource URL")).toHaveAccessibleDescription("HTTP(S)のURLを入力してください。");
-    await panel.getByLabel("Resource URL").fill(resource.url);
-    await panel.getByLabel("Resource Title").fill("保持するタイトル");
+    await expect(panel.getByLabel("資料URL")).toHaveAttribute("aria-invalid", "true");
+    await expect(panel.getByLabel("資料URL")).toHaveAccessibleDescription("HTTP(S)のURLを入力してください。");
+    await panel.getByLabel("資料URL").fill(resource.url);
+    await panel.getByLabel("資料名").fill("保持するタイトル");
     pause();
     await panel.getByRole("button", { name: "資料を登録", exact: true }).dblclick();
     await expect(panel.getByRole("button", { name: "登録中…", exact: true })).toBeDisabled();
     await expect.poll(() => count).toBe(1); release();
     await expect(panel.getByRole("alert")).toContainText("資料を登録できませんでした");
-    await expect(panel.getByLabel("Resource Title")).toHaveValue("保持するタイトル");
+    await expect(panel.getByLabel("資料名")).toHaveValue("保持するタイトル");
     await expect(panel).not.toContainText("secret-token");
     await panel.getByLabel("登録済み資料").selectOption(resource.id);
     pause();

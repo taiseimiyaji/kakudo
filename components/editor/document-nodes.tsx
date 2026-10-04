@@ -21,10 +21,10 @@ export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave
   }, [documentId, workspaceId, version]);
   const linked = options ? nodes.flatMap((node) => options.find((option) => option.id === node.id) ?? []) : nodes;
   return <section className="document-node-context" aria-label="関連する学習項目と目標"><h2>関連する学習項目と目標</h2>
-    <p>目標は人間が定義します。Coverageは関連する全項目の目標を確認します。</p>
+    <p>目標は人間が定義します。レビューは関連する全項目の目標を確認します。</p>
     {!linked.length && <p>関連する学習項目はありません。</p>}
     {linked.map((node) => <article key={node.id}><h3>{node.title}</h3><Link to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: node.roadmapId }} search={{ nodeId: node.id }}>{node.roadmapTitle}の「{node.title}」へ戻る</Link>
-      {node.learningObjectives.length ? <ul>{node.learningObjectives.map((objective, index) => <li key={index}>{objective}</li>)}</ul> : <p>Learning Objectivesは未設定です。</p>}
+      {node.learningObjectives.length ? <ul>{node.learningObjectives.map((objective, index) => <li key={index}>{objective}</li>)}</ul> : <p>学習目標は未設定です。</p>}
     </article>)}
     <details><summary>学習項目の関連を変更</summary><p>関連だけを更新します。編集中の本文と名前は保持します。</p>
       {options === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); setBusy(true); setError(""); setStatus(""); void onSave(selected).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => setError(e.message)).finally(() => setBusy(false)); }}>
