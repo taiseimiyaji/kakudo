@@ -7,6 +7,7 @@ import { ResourceForm } from "./resource-form";
 import { checkResourceRegistration, registerResource } from "../../client/resource-registration";
 
 type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean; onDraftProtectionChange?: (protectedDraft: boolean) => void };
+export const RESOURCE_LIST_TIMEOUT_MS = 20_000;
 export function ResourcePanel(props: Props) {
   // A new scope must never inherit another document/node's pending operations.
   return <ScopedResourcePanel key={`${props.workspaceId}:${props.target?.kind}:${props.target?.id}`} {...props} />;
@@ -24,10 +25,13 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
   const path = target ? `/${target.kind}s/${encodeURIComponent(target.id)}/resources` : "/resources";
   useEffect(() => {
     let active = true;
-    Promise.all([request<{ resources: Resource[] }>(path + suffix), target ? request<{ resources: Resource[] }>("/resources" + suffix) : Promise.resolve(null)])
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), RESOURCE_LIST_TIMEOUT_MS);
+    Promise.all([request<{ resources: Resource[] }>(path + suffix, "GET", undefined, { signal: controller.signal }), target ? request<{ resources: Resource[] }>("/resources" + suffix, "GET", undefined, { signal: controller.signal }) : Promise.resolve(null)])
       .then(([linked, available]) => { if (active) { setItems(linked.resources); setAll(available?.resources ?? linked.resources); setLoad("ready"); } })
-      .catch(() => { if (active) setLoad("failed"); });
-    return () => { active = false; };
+      .catch(() => { controller.abort(); if (active) setLoad("failed"); })
+      .finally(() => clearTimeout(timer));
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [path, suffix, version, refresh, target?.kind, target?.id]);
   const retry = () => { setLoad("loading"); setVersion((v) => v + 1); };
   const added = (resource: Resource) => {
