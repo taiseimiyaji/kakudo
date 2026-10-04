@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { documentSchema, type DocumentMetadata } from "../../shared/document";
-import { request } from "../../client/api";
-export function NodeDocuments({ nodeId, workspaceId }: { nodeId: string; workspaceId: string }) {
+import { request, UnknownMutationOutcome } from "../../client/api";
+import { requestCreation } from "../../client/creation-request";
+import { useCreationRecovery } from "../../client/hooks/use-creation-recovery";
+import { CreationRecovery } from "../common/creation-recovery";
+export function NodeDocuments({ nodeId, workspaceId, onCreationProtectionChange }: { nodeId: string; workspaceId: string; onCreationProtectionChange?: (value: boolean) => void }) {
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [status, setStatus] = useState("");
@@ -17,23 +20,26 @@ export function NodeDocuments({ nodeId, workspaceId }: { nodeId: string; workspa
   }
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const navigate = useNavigate(); const scope = `workspaceId=${encodeURIComponent(workspaceId)}`;
+  const recovery = useCreationRecovery(`${workspaceId}:${nodeId}`);
+  useEffect(() => { onCreationProtectionChange?.(recovery.blocked); return () => onCreationProtectionChange?.(false); }, [onCreationProtectionChange, recovery.blocked]);
   return <section className="node-documents"><h2>ノート</h2>{error && <p role="alert">{error}</p>}{status && <p role="status">{status}</p>}
     <NodeDocumentList key={`${workspaceId}:${nodeId}`} nodeId={nodeId} workspaceId={workspaceId} refresh={version} />
     <form onSubmit={(event) => {
-      event.preventDefault(); if (pending.current) return;
+      event.preventDefault(); if (pending.current || recovery.blocked) return;
       const scopeIdentity = activeScope.current;
       const form = event.currentTarget; const title = String(new FormData(form).get("title")); pending.current = scopeIdentity; setBusy(true); setError(""); setStatus("");
-      void request<{ document: DocumentMetadata }>(`/documents?${scope}`, "POST", { title, nodeIds: [nodeId] }).then(({ document }) => {
+      void requestCreation(`/documents?${scope}`, { title, nodeIds: [nodeId] }, z.object({ document: documentSchema }).refine(({ document }) => document.workspaceId === workspaceId && document.title === title.trim())).then(({ document }) => {
         if (!mounted.current || activeScope.current !== scopeIdentity) return;
         form.reset(); setVersion((value) => value + 1); setStatus("ノートを作成しました。");
         return navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId: document.id } });
-      }).catch((e) => { if (mounted.current && activeScope.current === scopeIdentity) setError(e.message); }).finally(() => {
+      }).catch((e) => { if (mounted.current && activeScope.current === scopeIdentity) { if (e instanceof UnknownMutationOutcome) recovery.unknown(title); else setError(e.message); } }).finally(() => {
         if (pending.current === scopeIdentity) pending.current = null;
         if (mounted.current && activeScope.current === scopeIdentity) setBusy(false);
       });
     }}>
-      <label>新しいノート（必須）<input name="title" required maxLength={200} disabled={busy} /></label><button disabled={busy}>ノートを作成</button>
+      <label>新しいノート（必須）<input name="title" required maxLength={200} disabled={busy} /></label><button disabled={busy || recovery.blocked}>ノートを作成</button>
     </form>
+    <CreationRecovery kind="note" workspaceId={workspaceId} recovery={recovery} onRead={() => { void recovery.read(async () => z.object({ documents: z.array(documentSchema) }).parse(await request(`/documents?${scope}&nodeId=${encodeURIComponent(nodeId)}`)).documents); }} />
   </section>;
 }
 

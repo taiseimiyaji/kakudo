@@ -67,13 +67,13 @@ for (const kind of ["note", "map"] as const) {
     let fail = true; let posts = 0; let createdId = ""; let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; }); let held = false;
     await page.route(kind === "note" ? "**/api/documents?*" : "**/api/roadmaps?*", async (route) => {
       if (route.request().method() !== "POST") return route.continue(); posts++;
-      if (fail) return route.fulfill({ status: 500, json: { error: "private-stack" } });
+      if (fail) return route.fulfill({ status: 400, json: { error: "private-stack" } });
       const response = await route.fetch(); const result = await response.json(); createdId = (kind === "note" ? result.document : result.roadmap).id; held = true; await gate; await route.fulfill({ response });
     });
     try {
       await page.goto(fixture ? `/workspaces/default/roadmaps/${fixture.roadmap.id}` : "/workspaces/default/roadmaps"); if (fixture) await card(page, fixture.nodes[0].id).click();
       const field = kind === "note" ? newNote(page) : newMap(page); const title = `自分で作る ${kind}`;
-      await field.fill(title); await page.getByRole("button", { name: kind === "note" ? "ノートを作成" : "マップを作成", exact: true }).click(); await expect(page.getByRole("alert")).toContainText("サーバーで処理できませんでした"); await expect(page.getByRole("alert")).not.toContainText("private-stack"); await expect(field).toHaveValue(title);
+      await field.fill(title); await page.getByRole("button", { name: kind === "note" ? "ノートを作成" : "マップを作成", exact: true }).click(); await expect(page.getByRole("alert")).toContainText("入力内容を確認"); await expect(page.getByRole("alert")).not.toContainText("private-stack"); await expect(field).toHaveValue(title);
       fail = false;
       await field.evaluate((element) => { const form = (element as HTMLInputElement).form!; form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
       await expect.poll(() => held).toBe(true); expect(posts).toBe(2); await expect(field).toBeDisabled(); release();

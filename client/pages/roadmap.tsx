@@ -6,7 +6,10 @@ import { NodeDocuments } from "../../components/editor/node-documents";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { z } from "zod";
-import { request } from "../api";
+import { request, UnknownMutationOutcome } from "../api";
+import { requestCreation } from "../creation-request";
+import { useCreationRecovery } from "../hooks/use-creation-recovery";
+import { CreationRecovery } from "../../components/common/creation-recovery";
 import { roadmapDetailSchema, roadmapSchema, learningNodeSchema, edgeSchema, type RoadmapDetail, type Roadmap, type LearningNode, type RoadmapEdge, type EdgeSide } from "../../shared/roadmap";
 import { MapCanvas } from "../../components/roadmap/map-canvas";
 import { useFormDraft } from "../hooks/use-form-draft";
@@ -32,6 +35,10 @@ function RoadmapSession() {
   const [busy, setBusy] = useState(false);
   const retryDisplay = useRef<(() => Promise<void>) | null>(null);
   const [resourceProtected, setResourceProtected] = useState(false);
+  const [creationProtected, setCreationProtected] = useState(false);
+  const creationProtectedRef = useRef(false);
+  useLayoutEffect(() => { creationProtectedRef.current = creationProtected; }, [creationProtected]);
+  const mapRecovery = useCreationRecovery(workspaceId);
   const resourceProtectedRef = useRef(false);
   useLayoutEffect(() => { resourceProtectedRef.current = resourceProtected; }, [resourceProtected]);
   const mounted = useRef(true);
@@ -66,6 +73,8 @@ function RoadmapSession() {
         retryDisplay.current = recover; setRefreshFailed(!!recover);
         return true;
       }
+      // createMap presents unknown outcomes in its scoped recovery panel.
+      if (e instanceof UnknownMutationOutcome) { setError(""); return false; }
       setError((e as Error).message);
       // Roll back optimistic positions, then reconcile writes whose response was lost.
       setDetail((current) => current ? { ...current } : current);
@@ -78,13 +87,13 @@ function RoadmapSession() {
     finally { if (mounted.current) setBusy(false); }
   }
   async function createMap(form: HTMLFormElement) {
-    if (mapCreationPending.current || busy) return;
+    if (mapCreationPending.current || busy || mapRecovery.blocked) return;
     const title = String(new FormData(form).get("title"));
     mapCreationPending.current = true;
     let createdId: string | undefined;
     try {
       await act(async (markCommitted) => {
-        const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title });
+        const { roadmap } = await requestCreation(`/roadmaps${scope}`, { title }, z.object({ roadmap: roadmapSchema }).refine(({ roadmap }) => roadmap.workspaceId === workspaceId && roadmap.title === title.trim())).catch((e) => { if (mounted.current && e instanceof UnknownMutationOutcome) mapRecovery.unknown(title); throw e; });
         createdId = roadmap.id; markCommitted();
         if (!mounted.current) return;
         setMaps((current) => [...current, roadmap]); form.reset();
@@ -112,12 +121,14 @@ function RoadmapSession() {
   const nodeDraft = useFormDraft(node?.id ?? "", nodeFormValues(node));
   const edge = detail?.edges.find((e) => e.id === selectedEdge);
   const edgeDraft = useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>(edge?.id ?? "", { sourceSide: edge?.sourceSide ?? "bottom", targetSide: edge?.targetSide ?? "top" });
-  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected;
-  const confirmDeparture = () => window.confirm("未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
+  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected || mapRecovery.blocked;
+  const confirmDeparture = () => window.confirm(creationProtected || mapRecovery.blocked
+    ? "ノート・マップの作成結果は不明です。作成された可能性がある操作を再実行すると重複することがあります。このまま移動しますか？"
+    : "未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
   useBlocker({ shouldBlockFn: () => dirty && !confirmDeparture(), enableBeforeUnload: dirty });
   function selectNode(id: string | undefined) {
     if (id === selected || busy) return;
-    if ((nodeDraft.dirty || edgeDraft.dirty || resourceProtected) && !confirmDeparture()) return;
+    if ((nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected) && !confirmDeparture()) return;
     setSelected(id); setSelectedEdge(undefined);
   }
   function selectEdge(id: string | undefined) {
@@ -134,8 +145,9 @@ function RoadmapSession() {
       <aside className="explorer"><h2>マップ一覧</h2>
         <nav>{maps.map((map) => <Link key={map.id} to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: map.id }} activeProps={{ className: "active-map" }}>{map.title}</Link>)}</nav>
         <form onSubmit={(event) => { event.preventDefault(); void createMap(event.currentTarget); }}>
-          <label>新しいマップ（必須）<input name="title" required maxLength={200} disabled={busy} /></label><button disabled={busy}>マップを作成</button>
+          <label>新しいマップ（必須）<input name="title" required maxLength={200} disabled={busy} /></label><button disabled={busy || mapRecovery.blocked}>マップを作成</button>
         </form>
+        <CreationRecovery kind="map" workspaceId={workspaceId} recovery={mapRecovery} onRead={() => { void mapRecovery.read(async () => z.object({ roadmaps: z.array(roadmapSchema) }).parse(await request(`/roadmaps${scope}`)).roadmaps); }} />
         <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>参考資料</Link><Link to="/workspaces/$workspaceId/reviews" params={{ workspaceId }}>レビュー履歴</Link><Link to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>ノート</Link>
       </aside>
       <section className="map-center">
@@ -147,7 +159,7 @@ function RoadmapSession() {
             <button disabled={busy}>マップを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async (markCommitted) => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); markCommitted(); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }, async () => { await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async (markCommitted) => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); markCommitted(); form.reset(); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current) setSelected(node.id); }); }}>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async (markCommitted) => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); markCommitted(); form.reset(); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current && !creationProtectedRef.current) setSelected(node.id); }); }}>
             <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
           </form>
           <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy} selectedEdgeId={selectedEdge} onSelectEdge={selectEdge} edgeDraft={edgeDraft}
@@ -159,7 +171,7 @@ function RoadmapSession() {
       </section>
       <aside className="node-details">{node ? <><NodeDetails key={node.id} node={node} busy={busy} draft={nodeDraft}
         onSave={(data) => act(async (markCommitted) => { const { node: saved } = await request<{ node: LearningNode }>(`/nodes/${node.id}${scope}`, "PATCH", data); markCommitted(); nodeDraft.acknowledge(nodeFormValues(learningNodeSchema.parse({ ...saved, stats: node.stats })), nodeDraft.values); await refresh(); })}
-        onDelete={() => act(async (markCommitted) => { await request(`/nodes/${node.id}${scope}`, "DELETE"); markCommitted(); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
+        onDelete={() => act(async (markCommitted) => { await request(`/nodes/${node.id}${scope}`, "DELETE"); markCommitted(); setSelected(undefined); await refresh(); })} /><NodeDocuments nodeId={node.id} workspaceId={workspaceId} onCreationProtectionChange={setCreationProtected} /><ResourcePanel key={`sources:${node.id}`} workspaceId={workspaceId} target={{ kind: "node", id: node.id }} onDraftProtectionChange={setResourceProtected} onChange={() => { void refresh().catch((e) => setError(e.message)); }} /></> : <p>学習項目を選択すると、学習目標と詳細を編集できます。</p>}</aside>
     </div>
   </main>;
 }
