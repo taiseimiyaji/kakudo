@@ -4,6 +4,7 @@ import { z } from "zod";
 import { request } from "../../client/api";
 import { documentNodeSchema, type DocumentNode } from "../../shared/document";
 import { Feedback } from "../common/feedback";
+import { rebaseAssociationDraft } from "../../modules/editor/association-draft";
 
 export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, onSave, onRefresh, onDraftProtectionChange, onLinkedRemovalConfirmed }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void; onLinkedRemovalConfirmed?: () => void }) {
   const context = useMemo(() => ({ documentId, workspaceId, nodes, confirmationVersion: confirmation.version }), [documentId, workspaceId, nodes, confirmation.version]);
@@ -38,13 +39,15 @@ export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, di
     const freshlyConfirmed = confirmation.version !== seenConfirmationVersion.current;
     seenConfirmationVersion.current = confirmation.version;
     const failed = failedSubmission.current;
-    if (freshlyConfirmed && failed && ids.length === failed.ids.length && ids.every((id) => failed.ids.includes(id)) &&
-      (!sameSavedIds || (failed.baseWriteId !== undefined && confirmation.writeId !== failed.baseWriteId))) {
+    const confirmedSubmission = freshlyConfirmed && failed && ids.length === failed.ids.length && ids.every((id) => failed.ids.includes(id)) &&
+      (!sameSavedIds || (failed.baseWriteId !== undefined && confirmation.writeId !== failed.baseWriteId));
+    if (confirmedSubmission) {
       failedSubmission.current = null;
       setError(""); setStatus("関連の保存結果を確認しました。");
     }
     if (sameSavedIds) return;
-    savedIds.current = new Set(ids); setSelected(ids);
+    const previous = confirmedSubmission ? failed.ids : [...savedIds.current];
+    savedIds.current = new Set(ids); setSelected((current) => rebaseAssociationDraft(previous, current, ids));
   }, [nodes, confirmation]);
   useEffect(() => {
     let active = true;
