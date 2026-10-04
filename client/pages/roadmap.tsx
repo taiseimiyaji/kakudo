@@ -32,6 +32,9 @@ function RoadmapSession() {
   const [resourceProtected, setResourceProtected] = useState(false);
   const resourceProtectedRef = useRef(false);
   resourceProtectedRef.current = resourceProtected;
+  const mounted = useRef(true);
+  const mapCreationPending = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const refreshVersion = useRef(0);
   useEffect(() => {
     let active = true;
@@ -49,6 +52,7 @@ function RoadmapSession() {
   async function act(work: () => Promise<void>) {
     setBusy(true); setError("");
     try { await work(); return true; } catch (e) {
+      if (!mounted.current) return false;
       setError((e as Error).message);
       // Roll back optimistic positions, then reconcile writes whose response was lost.
       setDetail((current) => current ? { ...current } : current);
@@ -58,7 +62,20 @@ function RoadmapSession() {
       }
       return false;
     }
-    finally { setBusy(false); }
+    finally { if (mounted.current) setBusy(false); }
+  }
+  async function createMap(form: HTMLFormElement) {
+    if (mapCreationPending.current || busy) return;
+    const title = String(new FormData(form).get("title"));
+    mapCreationPending.current = true;
+    try {
+      await act(async () => {
+        const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title });
+        if (!mounted.current) return;
+        setMaps((current) => [...current, roadmap]); form.reset();
+        await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } });
+      });
+    } finally { mapCreationPending.current = false; }
   }
   async function refresh() {
     const version = ++refreshVersion.current;
@@ -95,8 +112,8 @@ function RoadmapSession() {
     <div className="map-layout" aria-busy={busy}>
       <aside className="explorer"><h2>マップ一覧</h2>
         <nav>{maps.map((map) => <Link key={map.id} to="/workspaces/$workspaceId/roadmaps/$roadmapId" params={{ workspaceId, roadmapId: map.id }} activeProps={{ className: "active-map" }}>{map.title}</Link>)}</nav>
-        <form onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async () => { const { roadmap } = await request<{ roadmap: Roadmap }>(`/roadmaps${scope}`, "POST", { title }); setMaps((current) => [...current, roadmap]); form.reset(); await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: roadmap.id } }); }); }}>
-          <label>新しいマップ（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>マップを作成</button>
+        <form onSubmit={(event) => { event.preventDefault(); void createMap(event.currentTarget); }}>
+          <label>新しいマップ（必須）<input name="title" required maxLength={200} disabled={busy} /></label><button disabled={busy}>マップを作成</button>
         </form>
         <Link to="/workspaces/$workspaceId/resources" params={{ workspaceId }}>参考資料</Link><Link to="/workspaces/$workspaceId/reviews" params={{ workspaceId }}>レビュー履歴</Link><Link to="/workspaces/$workspaceId/documents" params={{ workspaceId }}>ノート</Link>
       </aside>
