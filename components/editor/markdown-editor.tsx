@@ -1,18 +1,26 @@
 import { reviewHighlightField, setReviewHighlight } from "./highlight-extension";
 import type { HighlightRange } from "../../modules/editor/review-highlight";
 import { pasteAction, type InterceptedPaste } from "../../modules/editor/paste-policy";
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { quoteEdit } from "../../modules/editor/quote-edit";
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, isolateHistory } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 
-export function MarkdownEditor({ initialContent, onChange, onPaste, highlight = null }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; highlight?: HighlightRange | null }) {
+export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void };
+export function MarkdownEditor({ initialContent, onChange, onPaste, highlight = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; highlight?: HighlightRange | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const callback = useRef(onChange);
   const pasteCallback = useRef(onPaste);
+  useImperativeHandle(editorRef, () => ({ applyQuote(paste, after) {
+    const view = viewRef.current;
+    if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");
+    view.dispatch({ ...quoteEdit(paste, after), annotations: isolateHistory.of("full"), userEvent: "input.paste" });
+    view.focus();
+  } }), []);
   useEffect(() => { pasteCallback.current = onPaste; }, [onPaste]);
   useEffect(() => { callback.current = onChange; }, [onChange]);
   useEffect(() => {

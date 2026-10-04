@@ -116,7 +116,7 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         const nodes = links.length ? await db.select().from(learningNodes).where(inArray(learningNodes.id, links.map((link) => link.nodeId))) : [];
         if (nodes.reduce((total, node) => total + node.learningObjectives.length, 0) > 100) throw new DomainError("関連NodeのLearning Objectivesは合計100件以内にしてください。");
         const rs = resourceService(db); const groups = [await rs.list(workspaceId, { kind: "document", id: documentId }), (await Promise.all(nodes.map((node) => rs.list(workspaceId, { kind: "node", id: node.id })))).flat(), await rs.list(workspaceId)];
-        const quoteSnapshot = (await db.select().from(quotes).where(eq(quotes.documentId, documentId))).filter((q) => revision.contentSnapshot.includes(quoteMarkdown(q.text, q.sourceUrl, q.sourceTitle ?? undefined).trim())).map(({ id, text, sourceUrl, sourceTitle }) => ({ id, text, sourceUrl, sourceTitle }));
+        const quoteSnapshot = (await db.select().from(quotes).where(eq(quotes.documentId, documentId))).filter((q) => revision.contentSnapshot.replace(/\r\n/g, "\n").includes(quoteMarkdown(q.text, q.sourceUrl, q.sourceTitle ?? undefined).trim())).map(({ id, text, sourceUrl, sourceTitle }) => ({ id, text, sourceUrl, sourceTitle }));
         const [job] = await db.insert(reviewRuns).values({ id: randomUUID(), documentId, revisionId: data.revisionId, type: data.type, provider: reviewer.name, objectives: nodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text, nodeTitle: node.title }))), quoteSnapshot, resourceSnapshot: groups.map((group) => group.map(({ id, url, title, type }) => ({ id, url, title, type }))) }).returning();
         return job;
       });

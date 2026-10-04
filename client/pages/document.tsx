@@ -3,11 +3,11 @@ import { ReviewPanel } from "../../components/reviews/review-panel";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { PasteDialog } from "../../components/editor/paste-dialog";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { request } from "../api";
 import { documentDetailSchema, type DocumentDetail } from "../../shared/document";
-import { MarkdownEditor } from "../../components/editor/markdown-editor";
+import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
 import { MarkdownPreview } from "../../components/editor/preview";
 
 export default function DocumentPage() {
@@ -30,7 +30,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [revisionId, setRevisionId] = useState(initial.document.currentRevisionId);
   const [resourceVersion, setResourceVersion] = useState(0);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
-  const [editorSeed, setEditorSeed] = useState(initial.content);
+  const editorRef = useRef<MarkdownEditorHandle>(null);
   const [content, setContent] = useState(initial.content); const [title, setTitle] = useState(initial.document.title);
   const [saved, setSaved] = useState({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId });
   const [latest, setLatest] = useState<DocumentDetail | null>(null);
@@ -53,11 +53,12 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy} onClick={() => { setSaved({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId }); setRevisionId(latest.document.currentRevisionId); setLatest(null); setError(""); setStatus("最新の保存内容を確認しました。現在の入力で保存を再試行できます。"); }}>確認した内容を基準に再試行</button></section>}
     <label className="document-title">Document名<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></label>
     <p className="document-path">{initial.document.path}</p><p aria-label="現在のRevision">Revision: {revisionId ?? "未作成（保存すると作成されます）"}</p>
-    <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={editorSeed} onChange={setContent} onPaste={setPaste} highlight={highlight} /></section><section><h2>Preview</h2><MarkdownPreview content={content} /></section></div>
+    <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={setContent} onPaste={setPaste} highlight={highlight} /></section><section><h2>Preview</h2><MarkdownPreview content={content} /></section></div>
     {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await request(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input); setResourceVersion((v) => v + 1); setPaste(null); }} onQuote={async (sourceUrl, sourceTitle) => {
       try {
         const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash, baseWriteId: saved.writeId });
-        setRevisionId(result.document.currentRevisionId); setContent(result.content); setEditorSeed(result.content); setSaved({ title, content: result.content, hash: result.contentHash, writeId: result.document.lastWriteId }); setPaste(null); setStatus("引用を追加して保存しました"); setLatest(null);
+        editorRef.current?.applyQuote(paste, result.content);
+        setRevisionId(result.document.currentRevisionId); setContent(result.content); setSaved({ title, content: result.content, hash: result.contentHash, writeId: result.document.lastWriteId }); setPaste(null); setStatus("引用を追加して保存しました"); setLatest(null);
       } catch (e) { setError((e as Error).message); throw e; }
     }} />}
     <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty} content={content} onSelect={setSelection} initialRunId={initialRunId} />
