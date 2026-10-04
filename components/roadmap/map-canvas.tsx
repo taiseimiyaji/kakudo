@@ -18,7 +18,7 @@ function LearningCard({ data }: NodeProps<MapNode>) {
 const nodeTypes = { learning: LearningCard };
 const edgeRenderers = { parallel: ParallelEdge };
 export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDeleteEdge, onUpdateEdge, selectedEdgeId, onSelectEdge, edgeDraft, busy }: {
-  detail: RoadmapDetail; selected?: string; busy: boolean; onSelect: (id: string) => void;
+  detail: RoadmapDetail; selected?: string; busy: boolean; onSelect: (id: string | undefined) => void;
   onMove: (id: string, x: number, y: number) => Promise<void>;
   onConnect: (source: string, target: string, type: typeof edgeTypes[number], sourceSide: EdgeSide, targetSide: EdgeSide) => Promise<void>;
   onDeleteEdge: (id: string) => Promise<void>;
@@ -59,7 +59,13 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
       <button disabled={busy || nodes.length < 2}>接続を追加</button>
     </form>
     {selectedEdge && <EdgePositionEditor key={selectedEdge.id} edge={selectedEdge} draft={edgeDraft} detail={detail} busy={busy} onSave={onUpdateEdge} onClose={() => onSelectEdge(undefined)} />}
-    <p className="muted">四辺の丸を別の項目へドラッグすると接続できます。線を選ぶと出口・入口の位置を変更できます。</p><div className="flow-canvas" aria-label="学習マップ">
+    <p className="muted">四辺の丸を別の項目へドラッグすると接続できます。線を選ぶと出口・入口の位置を変更できます。</p><div className="flow-canvas" aria-label="学習マップ" onKeyDownCapture={(event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.classList.contains("react-flow__node") || !["Enter", " ", "Escape"].includes(event.key)) return;
+      // The parent owns node/details selection and confirms before changing it.
+      event.preventDefault(); event.stopPropagation();
+      if (!busy) onSelect(event.key === "Escape" ? undefined : target.dataset.id);
+    }}>
       <ReactFlow nodes={nodes.map((n) => ({ ...n, selected: n.id === selected }))} edges={edges.map((e) => ({ ...e, data: e.data ? { ...e.data, busy, select: onSelectEdge } : undefined, selected: e.id === selectedEdgeId }))} edgeTypes={edgeRenderers} onEdgesChange={(changes) => {
         const selection = changes.find((change) => change.type === "select" && change.selected)
           ?? changes.find((change) => change.type === "select" && change.id === selectedEdgeId && !change.selected);
@@ -76,8 +82,16 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
           "node.a11yDescription.ariaLiveMessage": ({ x, y }) => `項目を移動しました。横位置 ${x}、縦位置 ${y}`,
           "edge.a11yDescription.default": "Enterで接続を選択できます。Escapeで選択を解除します。",
           "handle.ariaLabel": "接続点",
-        }} connectionMode={ConnectionMode.Loose} isValidConnection={(c) => c.source !== c.target} nodeTypes={nodeTypes} onNodesChange={onNodesChange} nodesDraggable={!busy} nodesConnectable={!busy} deleteKeyCode={null}
-        onNodeClick={(_e, n) => onSelect(n.id)} onNodeDragStop={(_e, n) => { void onMove(n.id, n.position.x, n.position.y); }}
+        }} connectionMode={ConnectionMode.Loose} isValidConnection={(c) => c.source !== c.target} nodeTypes={nodeTypes} onNodesChange={(changes) => {
+          onNodesChange(changes);
+          // React Flow emits dragging:false for both arrow keys and completed drags.
+          for (const change of changes) {
+            if (change.type !== "position" || change.dragging !== false || !change.position || busy) continue;
+            const stored = detail.nodes.find((node) => node.id === change.id);
+            if (stored && (stored.positionX !== change.position.x || stored.positionY !== change.position.y)) void onMove(change.id, change.position.x, change.position.y);
+          }
+        }} nodesDraggable={!busy} nodesConnectable={!busy} deleteKeyCode={null}
+        onNodeClick={(_e, n) => onSelect(n.id)}
         onConnect={(c) => { if (c.source && c.target) void onConnect(c.source, c.target, type, c.sourceHandle as EdgeSide, c.targetHandle as EdgeSide); }} fitView minZoom={0.2} maxZoom={2}>
         <Background /><Controls />
       </ReactFlow>

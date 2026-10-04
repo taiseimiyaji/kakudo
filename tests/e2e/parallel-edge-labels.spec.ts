@@ -1,8 +1,14 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 
 const relations = { PREREQUISITE: "先に学ぶ", PARENT: "親子関係", RELATED: "関連" };
 const view = (page: Page) => page.locator(".react-flow__viewport").evaluate((element) => (element as HTMLElement).style.transform);
+async function snapshot(request: APIRequestContext, id: string) {
+  const response = await request.get(`/api/roadmaps/${id}`); expect(response).toBeOK();
+  const data = await response.json();
+  const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+  return { ...data, nodes: data.nodes.sort(byId), edges: data.edges.sort(byId) };
+}
 async function labelsAreDistinct(page: Page) {
   await page.locator(".flow-canvas").scrollIntoViewIfNeeded();
   const labels = await page.locator(".parallel-edge-label").evaluateAll((elements) => elements.map((e) => {
@@ -32,7 +38,7 @@ for (const shape of ["horizontal", "vertical", "mixed"] as const) {
           const response = await request.post("/api/edges", { data: { roadmapId: roadmap.id, sourceId: source.id, targetId: target.id, sourceSide, targetSide, type } }); expect(response.status()).toBe(201); edges.push((await response.json()).edge);
         }
       }
-      const saved = await (await request.get(`/api/roadmaps/${roadmap.id}`)).json();
+      const saved = await snapshot(request, roadmap.id);
       await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`); await expect(page.locator(".parallel-edge-label")).toHaveCount(6);
       const report: Record<string, unknown> = {};
       for (const width of [1280, 640, 390]) {
@@ -59,7 +65,7 @@ for (const shape of ["horizontal", "vertical", "mixed"] as const) {
       page.once("dialog", (event) => event.dismiss()); await first.focus(); await first.press("Escape"); await expect(editor.getByLabel("出口の位置")).toHaveValue(alternate);
       const second = page.locator(`[data-edge-label="${edges[1].id}"]`); page.once("dialog", (event) => event.dismiss()); await second.click(); await expect(first).toHaveAttribute("aria-pressed", "true");
       page.once("dialog", (event) => event.accept()); await first.focus(); await first.press("Escape"); await expect(editor).toHaveCount(0);
-      expect(await (await request.get(`/api/roadmaps/${roadmap.id}`)).json()).toEqual(saved);
+      expect(await snapshot(request, roadmap.id)).toEqual(saved);
       await writeFile(testInfo.outputPath(`labels-${shape}-measurements.json`), JSON.stringify(report, null, 2));
     } finally { await request.delete(`/api/roadmaps/${roadmap.id}`); }
   });

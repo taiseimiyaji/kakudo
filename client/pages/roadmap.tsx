@@ -95,7 +95,7 @@ function RoadmapSession() {
   const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected;
   const confirmDeparture = () => window.confirm("未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
   useBlocker({ shouldBlockFn: () => dirty && !confirmDeparture(), enableBeforeUnload: dirty });
-  function selectNode(id: string) {
+  function selectNode(id: string | undefined) {
     if (id === selected || busy) return;
     if ((nodeDraft.dirty || edgeDraft.dirty || resourceProtected) && !confirmDeparture()) return;
     setSelected(id); setSelectedEdge(undefined);
