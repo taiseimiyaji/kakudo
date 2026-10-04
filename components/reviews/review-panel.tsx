@@ -7,13 +7,17 @@ import type { FindingSelection } from "../../modules/editor/review-highlight";
 import { pollReview } from "../../modules/review/polling";
 import { useReviewAdmission } from "../../client/hooks/use-review-admission";
 import { ReviewAdmissionRecovery } from "./admission-recovery";
+import { useFindingDecision } from "../../client/hooks/use-finding-decision";
+import { FindingDecisionRecovery } from "./finding-decision-recovery";
+import type { FindingDecisionTarget, FindingStatus } from "../../client/finding-decision";
 type HistoryItem = { id: string; revisionId: string; type: string; status: string; createdAt: string };
-export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0, onAdmissionProtectionChange }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number; onAdmissionProtectionChange?: (value: boolean) => void }) {
+export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0, onReviewProtectionChange }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number; onReviewProtectionChange?: (value: boolean) => void }) {
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [detail, setDetail] = useState<ReviewDetail | null>(null); const [history, setHistory] = useState<HistoryItem[]>([]); const [historyVersion, setHistoryVersion] = useState(0);
-  const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [findingBusy, setFindingBusy] = useState(false); const [version, setVersion] = useState(0);
-  const admission = useReviewAdmission(documentId, workspaceId); const busy = findingBusy || admission.busy;
-  useEffect(() => { onAdmissionProtectionChange?.(admission.blocked); return () => onAdmissionProtectionChange?.(false); }, [onAdmissionProtectionChange, admission.blocked]);
+  const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [version, setVersion] = useState(0);
+  const admission = useReviewAdmission(documentId, workspaceId); const decision = useFindingDecision(documentId, workspaceId); const busy = decision.busy || admission.busy;
+  const protectedResult = admission.blocked || decision.blocked;
+  useEffect(() => { onReviewProtectionChange?.(protectedResult); return () => onReviewProtectionChange?.(false); }, [onReviewProtectionChange, protectedResult]);
   const [pollError, setPollError] = useState("");
   const [historyError, setHistoryError] = useState(""); const [historyReady, setHistoryReady] = useState(false);
   useEffect(() => {
@@ -38,15 +42,21 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
     if (!revisionId) return;
     await admission.start(revisionId, type, history.map((run) => run.id), { onStart: () => { setError(""); onSelect(null); }, onAccepted: (id) => { setRunId(id); setDetail(null); setHistoryVersion((v) => v + 1); }, onRejected: setError });
   }
-  async function changeStatus(id: string, status: "OPEN" | "RESOLVED" | "DISMISSED") {
-    setFindingBusy(true); setError("");
-    try { await request(`/findings/${id}${suffix}`, "PATCH", { status }); setVersion((v) => v + 1); } catch (e) { setError((e as Error).message); } finally { setFindingBusy(false); }
+  function reflectFindingStatus(target: FindingDecisionTarget, status: FindingStatus) {
+    setDetail((current) => current?.run.id === target.runId && current.run.documentId === target.documentId && current.run.revisionId === target.revisionId ? { ...current, findings: current.findings.map((finding) => finding.id === target.findingId ? { ...finding, status } : finding) } : current);
+    setVersion((v) => v + 1);
+  }
+  async function changeStatus(id: string, status: FindingStatus) {
+    if (!detail) return;
+    const finding = detail.findings.find((value) => value.id === id); if (!finding) return;
+    await decision.change(detail.run.id, detail.run.revisionId, id, status, finding.targetText || finding.explanation, { onStart: () => setError(""), onConfirmed: reflectFindingStatus, onRejected: setError });
   }
   const running = busy || !historyReady || !!runId && !detail || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
   return <section className="review-panel" aria-label="レビュー"><h2>理解を確かめる</h2><p className="muted">AIが問題点や根拠、考えるための問いを提示します。本文の修正は自分で行います。</p><div className="review-actions">
     {([ ["FULL", "全体を確認"], ["FACT_CHECK", "事実を確認"], ["SOURCE", "出典を確認"], ["LOGIC", "論理を確認"], ["COVERAGE", "学習目標を確認"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running || admission.blocked} onClick={() => { void start(type); }}>{label}</button>)}</div>
     <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); setVersion((v) => v + 1); }} />
+    <FindingDecisionRecovery decision={decision} onRead={reflectFindingStatus} />
     {(dirty || !revisionId) && <p>本文を保存してからレビューしてください。</p>}{error && <Feedback error>{error}</Feedback>}
     {historyError && <><Feedback error>{historyError}</Feedback><button onClick={() => setHistoryVersion((v) => v + 1)}>履歴を再取得</button></>}
     {pollError && <><Feedback error>{pollError}</Feedback><button onClick={() => setVersion((v) => v + 1)}>状態を再取得</button></>}
@@ -64,8 +74,8 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
         {finding.targetText && <blockquote>{finding.targetText}</blockquote>}<p>{finding.explanation}</p>{finding.verdict && <small>{label(finding.verdict)}</small>}{finding.guidingQuestion && <p>考えるヒント: {finding.guidingQuestion}</p>}
         <ul>{finding.evidence.map((e) => <li key={e.id}><a href={e.url} target="_blank" rel="noreferrer">{e.title}</a><small> · {label(e.sourceType)} · {new Date(e.accessedAt).toLocaleDateString()}</small>{e.excerpt && <details><summary>取得資料の抜粋</summary><blockquote>{e.excerpt}</blockquote></details>}</li>)}</ul>
         {finding.targetText && <button className="secondary" disabled={stale} onClick={() => onSelect({ revisionId: detail.run.revisionId, snapshot: detail.revision.contentSnapshot, startOffset: finding.startOffset, endOffset: finding.endOffset, targetText: finding.targetText })}>本文で確認</button>}
-        <button disabled={busy || finding.status === "RESOLVED"} onClick={() => { void changeStatus(finding.id, "RESOLVED"); }}>解決済みにする</button><button className="secondary" disabled={busy || finding.status === "DISMISSED"} onClick={() => { void changeStatus(finding.id, "DISMISSED"); }}>見送る</button>
-        {finding.status !== "OPEN" && <button className="secondary" disabled={busy} onClick={() => { void changeStatus(finding.id, "OPEN"); }}>未対応に戻す</button>}
+        <button disabled={busy || decision.blocked || finding.status === "RESOLVED"} onClick={() => { void changeStatus(finding.id, "RESOLVED"); }}>解決済みにする</button><button className="secondary" disabled={busy || decision.blocked || finding.status === "DISMISSED"} onClick={() => { void changeStatus(finding.id, "DISMISSED"); }}>見送る</button>
+        {finding.status !== "OPEN" && <button className="secondary" disabled={busy || decision.blocked} onClick={() => { void changeStatus(finding.id, "OPEN"); }}>未対応に戻す</button>}
       </article>)}
       {detail.run.sourceChecks.map((check) => <p key={check.quoteId}>{label(check.status)}: <a href={check.url} target="_blank" rel="noreferrer">{check.title}</a></p>)}
       {detail.run.notices.length > 0 && <details><summary>確認できなかった情報・探索範囲</summary><ul>{detail.run.notices.map((notice, i) => <li key={i}>{notice}</li>)}</ul></details>}
