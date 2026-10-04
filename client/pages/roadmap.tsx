@@ -39,6 +39,9 @@ function RoadmapSession() {
   const creationProtectedRef = useRef(false);
   useLayoutEffect(() => { creationProtectedRef.current = creationProtected; }, [creationProtected]);
   const mapRecovery = useCreationRecovery(workspaceId);
+  const nodeRecovery = useCreationRecovery(JSON.stringify([workspaceId, roadmapId]));
+  const [newNodeTitle, setNewNodeTitle] = useState("");
+  const nodeCreationPending = useRef(false); const nodeCreationReadPending = useRef(false);
   const resourceProtectedRef = useRef(false);
   useLayoutEffect(() => { resourceProtectedRef.current = resourceProtected; }, [resourceProtected]);
   const mounted = useRef(true);
@@ -73,7 +76,7 @@ function RoadmapSession() {
         retryDisplay.current = recover; setRefreshFailed(!!recover);
         return true;
       }
-      // createMap presents unknown outcomes in its scoped recovery panel.
+      // Creation forms present unknown outcomes in their scoped recovery panels.
       if (e instanceof UnknownMutationOutcome) { setError(""); return false; }
       setError((e as Error).message);
       // Roll back optimistic positions, then reconcile writes whose response was lost.
@@ -101,6 +104,39 @@ function RoadmapSession() {
       }, async () => { if (createdId) await navigate({ to: "/workspaces/$workspaceId/roadmaps/$roadmapId", params: { workspaceId, roadmapId: createdId } }); });
     } finally { mapCreationPending.current = false; }
   }
+  async function createNode() {
+    if (nodeCreationPending.current || busy || nodeRecovery.blocked || !roadmapId || !detail) return;
+    const title = newNodeTitle; nodeCreationPending.current = true;
+    try {
+      await act(async (markCommitted) => {
+        const { node } = await requestCreation(`/nodes${scope}`, { roadmapId, title, ...nextNodePosition(detail.nodes) }, z.object({ node: z.object({ id: z.string().min(1), roadmapId: z.literal(roadmapId), title: z.literal(title.trim()) }) })).catch((e) => { if (mounted.current && e instanceof UnknownMutationOutcome) nodeRecovery.unknown(title); throw e; });
+        markCommitted();
+        if (!mounted.current) return;
+        // Only acknowledge the submitted input; a later human input is a new draft.
+        setNewNodeTitle((current) => current === title ? "" : current);
+        await refresh();
+        if (!nodeDraft.dirty && !resourceProtectedRef.current && !creationProtectedRef.current) setSelected(node.id);
+      });
+    } finally { nodeCreationPending.current = false; }
+  }
+  async function readCreatedNodes() {
+    if (nodeCreationReadPending.current || !roadmapId) return;
+    nodeCreationReadPending.current = true;
+    try {
+      await nodeRecovery.read(async () => {
+        const version = ++refreshVersion.current;
+        const result = roadmapDetailSchema.parse(await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`));
+        if (!mounted.current || version !== refreshVersion.current || result.roadmap.id !== roadmapId || result.roadmap.workspaceId !== workspaceId) throw new Error("Creation context changed");
+        setDetail(result);
+        mapDraft.reconcile({ title: result.roadmap.title, description: result.roadmap.description });
+        const refreshedNode = result.nodes.find((item) => item.id === selected);
+        if (refreshedNode) nodeDraft.reconcile(nodeFormValues(refreshedNode));
+        const refreshedEdge = result.edges.find((item) => item.id === selectedEdge);
+        if (refreshedEdge) edgeDraft.reconcile({ sourceSide: refreshedEdge.sourceSide, targetSide: refreshedEdge.targetSide });
+        return result.nodes;
+      });
+    } finally { nodeCreationReadPending.current = false; }
+  }
   async function refresh() {
     const version = ++refreshVersion.current;
     const [payload, listPayload] = await Promise.all([
@@ -121,9 +157,9 @@ function RoadmapSession() {
   const nodeDraft = useFormDraft(node?.id ?? "", nodeFormValues(node));
   const edge = detail?.edges.find((e) => e.id === selectedEdge);
   const edgeDraft = useFormDraft<{ sourceSide: EdgeSide; targetSide: EdgeSide }>(edge?.id ?? "", { sourceSide: edge?.sourceSide ?? "bottom", targetSide: edge?.targetSide ?? "top" });
-  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected || mapRecovery.blocked;
-  const confirmDeparture = () => window.confirm(creationProtected || mapRecovery.blocked
-    ? "ノート・マップの作成結果は不明です。作成された可能性がある操作を再実行すると重複することがあります。このまま移動しますか？"
+  const dirty = mapDraft.dirty || nodeDraft.dirty || edgeDraft.dirty || resourceProtected || creationProtected || mapRecovery.blocked || nodeRecovery.blocked || !!newNodeTitle.trim();
+  const confirmDeparture = () => window.confirm(creationProtected || mapRecovery.blocked || nodeRecovery.blocked
+    ? "ノート・マップ・学習項目の作成結果は不明です。作成された可能性がある操作を再実行すると重複することがあります。このまま移動しますか？"
     : "未保存の変更、または未登録・登録結果を確認中の資料があります。このまま移動しますか？");
   useBlocker({ shouldBlockFn: () => dirty && !confirmDeparture(), enableBeforeUnload: dirty });
   function selectNode(id: string | undefined) {
@@ -159,9 +195,10 @@ function RoadmapSession() {
             <button disabled={busy}>マップを保存</button>
             <button type="button" disabled={busy} className="danger" onClick={() => { if (confirm("このマップと学習項目・接続を削除しますか？")) void act(async (markCommitted) => { await request(`/roadmaps/${encodeURIComponent(roadmapId)}${scope}`, "DELETE"); markCommitted(); await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }, async () => { await navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); }); }}>マップを削除</button>
           </form>
-          <form className="node-create" onSubmit={(event) => { event.preventDefault(); const form = event.currentTarget; const title = String(new FormData(form).get("title")); void act(async (markCommitted) => { const { node } = await request<{ node: { id: string } }>(`/nodes${scope}`, "POST", { roadmapId, title, ...nextNodePosition(detail.nodes) }); markCommitted(); form.reset(); await refresh(); if (!nodeDraft.dirty && !resourceProtectedRef.current && !creationProtectedRef.current) setSelected(node.id); }); }}>
-            <label>新しい学習項目（必須）<input name="title" required maxLength={200} /></label><button disabled={busy}>学習項目を追加</button>
+          <form className="node-create" onSubmit={(event) => { event.preventDefault(); void createNode(); }}>
+            <label>新しい学習項目（必須）<input name="title" value={newNodeTitle} onChange={(event) => setNewNodeTitle(event.target.value)} required maxLength={200} /></label><button disabled={busy || nodeRecovery.blocked}>学習項目を追加</button>
           </form>
+          <CreationRecovery kind="node" workspaceId={workspaceId} recovery={nodeRecovery} onRead={() => { void readCreatedNodes(); }} />
           <MapCanvas key={`map:${detail.roadmap.id}`} detail={detail} selected={selected} onSelect={selectNode} busy={busy} selectedEdgeId={selectedEdge} onSelectEdge={selectEdge} edgeDraft={edgeDraft}
             onMove={async (id, x, y) => { await act(async (markCommitted) => { const { node: saved } = await request<{ node: LearningNode }>(`/nodes/${id}${scope}`, "PATCH", { positionX: x, positionY: y }); markCommitted(); if (node?.id === id) { const result = learningNodeSchema.parse({ ...saved, stats: node.stats }); nodeDraft.acknowledge({ x: String(result.positionX), y: String(result.positionY) }); } await refresh(); }); }}
             onConnect={async (sourceId, targetId, type, sourceSide, targetSide) => { await act(async (markCommitted) => { await request(`/edges${scope}`, "POST", { roadmapId, sourceId, targetId, type, sourceSide, targetSide }); markCommitted(); await refresh(); }); }}
