@@ -23,7 +23,7 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   useEffect(() => {
     setHistoryReady(false); setHistoryError("");
     return pollReview({
-      load: () => request<{ reviews: HistoryItem[] }>(`/documents/${documentId}/reviews${suffix}`),
+      load: (signal) => request<{ reviews: HistoryItem[] }>(`/documents/${documentId}/reviews${suffix}`, "GET", undefined, { signal }),
       onData: (data) => { setHistory(data.reviews); setHistoryReady(true); setHistoryError(""); setRunId((current) => current ?? (data.reviews.some((r) => r.id === initialRunId) ? initialRunId! : data.reviews[0]?.id ?? null)); },
       onError: (e) => setHistoryError(`レビュー履歴を取得できませんでした。${(e as Error).message} 自動で再試行します。`),
       pending: () => false,
@@ -32,7 +32,7 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   useEffect(() => {
     setPollError("");
     if (!runId) return;
-    return pollReview({ load: () => request<ReviewDetail>(`/reviews/${runId}${suffix}`),
+    return pollReview({ load: (signal) => request<ReviewDetail>(`/reviews/${runId}${suffix}`, "GET", undefined, { signal }),
       onData: (data) => { setDetail(data); setPollError(""); },
       onError: (e) => setPollError(`レビュー状態を取得できませんでした。${(e as Error).message} 自動で再試行します。`),
       pending: (data) => ["QUEUED", "RUNNING"].includes(data.run.status),
@@ -58,6 +58,8 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
     <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); setVersion((v) => v + 1); }} />
     <FindingDecisionRecovery decision={decision} onRead={reflectFindingStatus} />
     {(dirty || !revisionId) && <p>本文を保存してからレビューしてください。</p>}{error && <Feedback error>{error}</Feedback>}
+    {!historyReady && !historyError && <p role="status">レビュー履歴を読み込んでいます…</p>}
+    {!!runId && !detail && !pollError && <p role="status">レビューの状態を確認しています…</p>}
     {historyError && <><Feedback error>{historyError}</Feedback><button onClick={() => setHistoryVersion((v) => v + 1)}>履歴を再取得</button></>}
     {pollError && <><Feedback error>{pollError}</Feedback><button onClick={() => setVersion((v) => v + 1)}>状態を再取得</button></>}
     {history.length > 0 && <label>レビュー履歴<select value={runId ?? ""} onChange={(e) => { onSelect(null); setDetail(null); setRunId(e.target.value); }}>{history.map((run) => <option key={run.id} value={run.id}>{new Date(run.createdAt).toLocaleString()} · {label(run.type)} · {run.revisionId.slice(0, 8)}</option>)}</select></label>}
