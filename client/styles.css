@@ -152,3 +152,17 @@ dialog > .secondary { margin-top: 15px; }
   .map-layout { display: block; }
   .flow-canvas { height: 420px; }
 }
+
+.document-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 20px; }
+.document-toolbar p { margin: 0; }
+.mode-switch { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; }
+.mode-switch button { min-width: 76px; }
+.mode-switch button[aria-pressed="true"] { background: var(--green); color: white; }
+.document-toolbar > button[aria-pressed="true"] { border: 1px solid #8ca98e; }
+.editor-split[hidden] { display: none; }
+.editor-only { grid-template-columns: minmax(0, 1fr); }
+.note-reading { max-width: 920px; margin: 24px auto 32px; }
+.note-reading .markdown-preview { min-height: 240px; padding: 32px; }
+.note-reading-title { font-size: 26px; margin: 28px 0 12px; }
+.save-state { font-size: 13px; color: var(--muted); }
+.save-message { min-height: 1.7em; font-size: 13px; color: var(--green); margin: 10px 0; }

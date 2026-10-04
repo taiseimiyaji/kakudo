@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 test("native paste requires attribution, cancel preserves prose, URLs open resources and code stays literal", async ({ page, context, request }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { document } = await (await request.post("/api/documents", { data: { title: "Paste browser", content: "My words\n\n```ts\n\n```" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toContainText("My words");
     await editor.click(); await editor.press("ControlOrMeta+Home");

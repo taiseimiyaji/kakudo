@@ -1,11 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 
 test("a stale tab preserves its title and text and can review the latest save before retrying", async ({ page, context, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "Old", content: "A" } })).json();
   const other = await context.newPage();
   try {
     const url = `/workspaces/default/documents/${document.id}`;
-    await page.goto(url); await other.goto(url);
+    await page.goto(url); await editNote(page); await other.goto(url); await editNote(other);
     await expect(page.getByLabel("ノート名（必須）")).toHaveValue("Old");
     await expect(other.getByLabel("ノート名（必須）")).toHaveValue("Old");
     await page.getByLabel("ノート名（必須）").fill("New");
@@ -25,9 +25,9 @@ test("a stale tab preserves its title and text and can review the latest save be
     await expect(latest).toContainText("New"); await expect(latest.locator("pre")).toHaveText("A");
     await expect(editor).toContainText("A my draft");
     await other.getByRole("button", { name: "確認した内容を基準に再試行" }).click();
-    await other.getByRole("button", { name: "保存", exact: true }).click();
+    await other.getByRole("button", { name: "保存を再試行", exact: true }).click();
     await expect(other.getByRole("status")).toHaveText("保存しました");
-    await other.reload();
+    await other.reload(); await editNote(other);
     await expect(editor).toContainText("A my draft");
     await expect(other.getByLabel("ノート名（必須）")).toHaveValue("My draft title");
   } finally {

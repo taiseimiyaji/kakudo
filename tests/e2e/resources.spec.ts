@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 test("register a node source, associate it with a document, paste a URL and show unavailable fetch", async ({ page, context, request }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: `Sources ${Date.now()}` } })).json();
@@ -13,7 +13,7 @@ test("register a node source, associate it with a document, paste a URL and show
     await expect(panel.getByRole("link", { name: "My reference" })).toHaveAttribute("href", url);
     const all = await (await request.get("/api/resources")).json(); resourceIds.push(all.resources.find((r: { url: string }) => r.url === url).id);
     await panel.getByRole("button", { name: "取得を確認" }).click(); await expect(panel.getByRole("alert")).toContainText("UNAVAILABLE");
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     await panel.getByLabel("登録済み資料").selectOption(resourceIds[0]); await panel.getByRole("button", { name: "資料を関連付け" }).click();
     await expect(panel.getByRole("link", { name: "My reference" })).toBeVisible();
     const pasted = `https://example.com/source-${Date.now()}`;

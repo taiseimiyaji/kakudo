@@ -10,11 +10,13 @@ import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 
 export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void };
-export function MarkdownEditor({ initialContent, onChange, onPaste, highlight = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; highlight?: HighlightRange | null; editorRef?: Ref<MarkdownEditorHandle> }) {
+export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const callback = useRef(onChange);
   const pasteCallback = useRef(onPaste);
+  const compositionCallback = useRef(onCompositionChange);
+  useEffect(() => { compositionCallback.current = onCompositionChange; }, [onCompositionChange]);
   useImperativeHandle(editorRef, () => ({ applyQuote(paste, after) {
     const view = viewRef.current;
     if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");
@@ -28,7 +30,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, highlight = 
       reviewHighlightField, lineNumbers(), history(), drawSelection(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), syntaxHighlighting(defaultHighlightStyle),
       EditorState.lineSeparator.of(initialContent.includes("\r\n") ? "\r\n" : "\n"), EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": "Markdown本文", role: "textbox", "aria-multiline": "true" }),
-      EditorView.domEventHandlers({ paste(event, view) {
+      EditorView.domEventHandlers({ compositionstart() { compositionCallback.current?.(true); }, compositionend() { compositionCallback.current?.(false); }, paste(event, view) {
         const text = event.clipboardData?.getData("text/plain") ?? "";
         const kind = pasteAction(view.state, text);
         if (kind === "allow") return false;

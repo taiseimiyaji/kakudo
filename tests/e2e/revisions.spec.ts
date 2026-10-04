@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 test("save, save unchanged, edit and reload preserve the right revision", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "Revision browser" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     await page.getByText("保存情報", { exact: true }).click(); const revision = page.getByLabel("現在の保存版"); await expect(revision).toContainText(document.currentRevisionId);
     await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByRole("status")).toHaveText("保存しました");
     const revisions = async () => (await (await request.get(`/api/documents/${document.id}/revisions`)).json()).revisions;
@@ -11,7 +11,7 @@ test("save, save unchanged, edit and reload preserve the right revision", async 
     await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
     const current = (await (await request.get(`/api/documents/${document.id}`)).json()).document.currentRevisionId;
     expect(current).not.toBe(document.currentRevisionId); expect(await revisions()).toHaveLength(2);
-    await page.reload(); await expect(revision).toContainText(current); await expect(editor).toContainText("My own explanation.");
+    await page.reload(); await editNote(page); await expect(revision).toContainText(current); await expect(editor).toContainText("My own explanation.");
     const old = await (await request.get(`/api/documents/${document.id}/revisions/${document.currentRevisionId}`)).json(); expect(old.revision.contentSnapshot).toBe("");
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });

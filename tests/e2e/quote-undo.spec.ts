@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 
 test("quotes preserve earlier typing, undo, redo and saved revision/source-check consistency", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "Quote undo", content: "Original" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toContainText("Original");
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" my words");
@@ -32,6 +32,6 @@ test("quotes preserve earlier typing, undo, redo and saved revision/source-check
     const { reviews } = await (await request.get(`/api/documents/${document.id}/reviews`)).json();
     const review = await (await request.get(`/api/reviews/${reviews[0].id}`)).json();
     expect(review.run.sourceChecks).toEqual([]); expect(review.revision.contentSnapshot).toBe("Original");
-    await page.reload(); await expect(editor).toHaveText("Original");
+    await page.reload(); await editNote(page); await expect(editor).toHaveText("Original");
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });
