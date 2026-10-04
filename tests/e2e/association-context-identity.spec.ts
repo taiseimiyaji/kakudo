@@ -39,9 +39,33 @@ test("a committed relation with a lost response adopts changed saved IDs after e
   try {
     await open(page, f.document.id); const b = region(page).getByRole("checkbox", { name: `${f.roadmap.title} / 認可`, exact: true }); await b.check(); await region(page).getByRole("button", { name: "関連を保存", exact: true }).click();
     await expect(region(page).getByRole("alert")).toBeVisible(); await expect(b).toBeChecked(); expect(patches).toBe(1); let current = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(current.nodeIds.sort()).toEqual([f.nodes[0].id, f.nodes[1].id].sort());
-    await confirm(page); await expect(b).toBeChecked(); await expect(region(page)).toContainText("認可の目的を説明する");
-    await page.getByRole("button", { name: "保存を再試行", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible(); expect(patches).toBe(1);
+    await confirm(page); await expect(b).toBeChecked(); await expect(region(page)).toContainText("認可の目的を説明する"); await expect(region(page).getByRole("alert")).toHaveCount(0); await expect(region(page).getByRole("status")).toContainText("関連の保存結果を確認しました。");
+    await page.getByRole("button", { name: "保存を再試行", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible(); await expect(region(page).getByRole("alert")).toHaveCount(0); expect(patches).toBe(1);
     current = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(current.content).toBe("保存済みの本文。"); expect(current.nodeIds.sort()).toEqual([f.nodes[0].id, f.nodes[1].id].sort());
     await page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true }).click(); await expect(page).toHaveURL(/\/workspaces\/default$/);
+  } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
+});
+
+test("an uncommitted failed relation retains its error and pending choices after latest-content confirmation", async ({ page, request }) => {
+  const f = await setup(request, "未確定関連の応答失敗"); let fail = true; let patches = 0;
+  await page.route(`**/api/documents/${f.document.id}/nodes?*`, async (route) => { if (route.request().method() !== "PATCH") return route.continue(); patches++; if (fail) await route.fulfill({ status: 500, json: { error: "関連の保存は未確定です" } }); else await route.continue(); });
+  try {
+    await open(page, f.document.id); const b = region(page).getByRole("checkbox", { name: `${f.roadmap.title} / 認可`, exact: true }); await b.check(); await region(page).getByRole("button", { name: "関連を保存", exact: true }).click();
+    await expect(region(page).getByRole("alert")).toContainText("サーバーで処理できませんでした"); await region(page).getByRole("button", { name: "学習項目と目標を再取得", exact: true }).click(); await expect(region(page).getByRole("alert")).toContainText("サーバーで処理できませんでした"); await confirm(page);
+    await expect(region(page).getByRole("alert")).toContainText("サーバーで処理できませんでした"); await expect(region(page).getByText('関連の変更は未保存です。「関連を保存」で確定してください。')).toBeVisible(); await expect(b).toBeChecked(); expect(patches).toBe(1);
+    fail = false; await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page).getByRole("alert")).toHaveCount(0); await expect(region(page).getByRole("status")).toContainText("関連を更新しました。"); expect(patches).toBe(2);
+    const saved = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(saved.nodeIds.sort()).toEqual([f.nodes[0].id, f.nodes[1].id].sort()); expect(saved.content).toBe("保存済みの本文。");
+  } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
+});
+
+test("confirmation clears only the failed relation alert while a separate options refresh error remains", async ({ page, request }) => {
+  const f = await setup(request, "関連と選択肢の別エラー"); let patches = 0;
+  await page.route(`**/api/documents/${f.document.id}/nodes?*`, async (route) => { if (route.request().method() !== "PATCH") return route.continue(); patches++; await route.fetch(); await route.abort(); });
+  try {
+    await open(page, f.document.id); const b = region(page).getByRole("checkbox", { name: `${f.roadmap.title} / 認可`, exact: true }); await b.check(); await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page).getByRole("alert")).toContainText("通信できませんでした");
+    await page.route(`**/api/documents/${f.document.id}/node-options?*`, async (route) => { await route.fulfill({ status: 500, json: { error: "選択肢を取得できませんでした" } }); });
+    await region(page).getByRole("button", { name: "学習項目と目標を再取得", exact: true }).click(); await expect(region(page).getByRole("alert")).toHaveCount(2);
+    await confirm(page); await expect(region(page).getByRole("alert")).toHaveCount(1); await expect(region(page).getByRole("alert")).toContainText("サーバーで処理できませんでした"); await expect(region(page).getByRole("status")).toContainText("関連の保存結果を確認しました。"); await expect(b).toBeChecked(); expect(patches).toBe(1);
+    await page.unroute(`**/api/documents/${f.document.id}/node-options?*`); await region(page).getByRole("button", { name: "学習項目と目標を再取得", exact: true }).click(); await expect(region(page).getByRole("alert")).toHaveCount(0);
   } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
 });
