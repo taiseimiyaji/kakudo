@@ -1,3 +1,4 @@
+import { NoteSession, type NoteSaveResult } from "../../modules/editor/note-session";
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
 import { DocumentNodes } from "../../components/editor/document-nodes";
 import { findingHighlight, type FindingSelection } from "../../modules/editor/review-highlight";
@@ -5,7 +6,7 @@ import { ReviewPanel } from "../../components/reviews/review-panel";
 import { ResourcePanel } from "../../components/resources/resource-panel";
 import { PasteDialog } from "../../components/editor/paste-dialog";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { request } from "../api";
 import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "../../shared/document";
@@ -30,51 +31,66 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const navigate = useNavigate();
   const { reviewId: initialRunId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
   const [selection, setSelection] = useState<FindingSelection | null>(null);
-  const [revisionId, setRevisionId] = useState(initial.document.currentRevisionId);
   const [nodes, setNodes] = useState(initial.nodes);
   const [contextVersion, setContextVersion] = useState(0);
   const [resourceVersion, setResourceVersion] = useState(0);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
-  const [content, setContent] = useState(initial.content); const [title, setTitle] = useState(initial.document.title);
-  const [saved, setSaved] = useState({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId });
+  const [session] = useState(() => new NoteSession({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId, revisionId: initial.document.currentRevisionId },
+    (draft) => request<NoteSaveResult>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", draft)));
+  const { content, title, revisionId, dirty, saving, retryRequired, error, status } = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  const [mode, setMode] = useState<"read" | "edit">(initial.content ? "read" : "edit");
+  const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") !== "hidden"; } catch { return true; } });
+  const pasteRef = useRef<InterceptedPaste | null>(null);
+  useEffect(() => { const timer = setInterval(() => session.tick(), 1000); return () => clearInterval(timer); }, [session]);
+  function openPaste(value: InterceptedPaste) { pasteRef.current = value; session.setPaused(true); setPaste(value); }
+  function closePaste(expected = pasteRef.current) {
+    if (pasteRef.current !== expected) return;
+    pasteRef.current = null; setPaste(null); session.setPaused(false);
+  }
+  function togglePreview() {
+    const next = !showPreview; setShowPreview(next);
+    try { localStorage.setItem("kakudo:note-preview", next ? "visible" : "hidden"); } catch { /* Only a display preference. */ }
+  }
   const [latest, setLatest] = useState<DocumentDetail | null>(null);
-  const [status, setStatus] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const [recoveryError, setRecoveryError] = useState(""); const [recovering, setRecovering] = useState(false);
+  const busy = saving || recovering;
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
-  const dirty = content !== saved.content || title !== saved.title;
-  useBlocker({ shouldBlockFn: () => dirty && !window.confirm("未保存の変更を破棄して移動しますか？"), enableBeforeUnload: dirty });
+  useBlocker({ shouldBlockFn: () => (dirty || busy) && !window.confirm("未保存または保存中の変更があります。このまま移動しますか？"), enableBeforeUnload: dirty || busy });
   async function save() {
-    setBusy(true); setError(""); setStatus("");
-    const snapshot = { content, title };
-    try {
-      const result = await request<{ contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", { ...snapshot, baseHash: saved.hash, baseWriteId: saved.writeId });
-      setSaved({ ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }); setRevisionId(result.document.currentRevisionId); setStatus("保存しました"); setLatest(null);
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    if (await session.save(true)) { setLatest(null); setRecoveryError(""); }
   }
   return <main className="document-workspace">
-    <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><span>{dirty ? "未保存の変更" : "保存済み"}</span><button disabled={busy || !title.trim()} onClick={() => { void save(); }}>保存</button></header><WorkspaceNav workspaceId={workspaceId} />
-    {error && <p role="alert" className="error">{error}（再読み込みする前に未保存の本文を確認してください）</p>}{status && <p role="status">{status}</p>}
-    {error && <button disabled={busy} onClick={() => { setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => setLatest(documentDetailSchema.parse(payload))).catch((e) => setError(e.message)).finally(() => setBusy(false)); }}>最新の保存内容を確認</button>}
-    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy} onClick={() => { setSaved({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId }); setRevisionId(latest.document.currentRevisionId); setNodes(latest.nodes); setContextVersion((v) => v + 1); setLatest(null); setError(""); setStatus("最新の保存内容を確認しました。現在の入力で保存を再試行できます。"); }}>確認した内容を基準に再試行</button></section>}
-    <label className="document-title">ノート名（必須）<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} required /></label>
+    <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><span className="save-state">{recovering ? "確認中…" : saving ? "保存中…" : error ? "保存できませんでした" : dirty ? "未保存の変更" : "保存済み"}</span><button className="secondary" disabled={busy || !!paste || !title.trim()} onClick={() => { void save(); }}>{retryRequired ? "保存を再試行" : "保存"}</button></header><WorkspaceNav workspaceId={workspaceId} />
+    {error && <p role="alert" className="error">{error}。自動保存を停止しています。入力内容はこの画面に残っています。再読み込みする前に本文と名前を確認してください。</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}<p className="save-message" role="status">{status}</p>
+    {retryRequired && <button disabled={busy || !!paste} onClick={() => { setRecovering(true); setRecoveryError(""); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => setLatest(documentDetailSchema.parse(payload))).catch((e) => setRecoveryError(e.message)).finally(() => setRecovering(false)); }}>最新の保存内容を確認</button>}
+    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy || !!paste} onClick={() => { session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setContextVersion((v) => v + 1); setLatest(null); }}>確認した内容を基準に再試行</button></section>}
+    <div className="document-toolbar">
+      <div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => setMode("read")}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={() => setMode("edit")}>編集</button></div>
+      {mode === "edit" && <button className="secondary" aria-pressed={showPreview} disabled={!!paste} onClick={togglePreview}>{showPreview ? "プレビューを非表示" : "プレビューを表示"}</button>}
+      <p className="muted">変更があれば1秒ごとに自動保存します。</p>
+    </div>
+    {mode === "edit" ? <label className="document-title">ノート名（必須）<input value={title} onChange={(e) => session.edit({ title: e.target.value })} onCompositionStart={() => session.setComposing(true)} onCompositionEnd={() => session.setComposing(false)} maxLength={200} required /></label> : <h2 className="note-reading-title">{title}</h2>}
+    {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
     <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} disabled={busy || !!paste} onRefresh={() => setContextVersion((value) => value + 1)} onSave={async (nodeIds) => {
-      setBusy(true); setError("");
-      try {
-        const result = documentLinksSchema.parse(await request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId: saved.writeId }));
-        setNodes(result.nodes); setSaved((current) => ({ ...current, writeId: result.document.lastWriteId })); setContextVersion((v) => v + 1);
-      } catch (e) { setError((e as Error).message); throw e; } finally { setBusy(false); }
+      const result = await session.updateContext((baseWriteId) => request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId }).then((payload) => documentLinksSchema.parse(payload)));
+      setNodes(result.nodes); setContextVersion((v) => v + 1);
     }} />
-    <div className="editor-split"><section><h2>Markdown</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={setContent} onPaste={setPaste} highlight={highlight} /></section><section><h2>プレビュー</h2><MarkdownPreview content={content} /></section></div>
-    {paste && <PasteDialog paste={paste} onClose={() => setPaste(null)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); setPaste((current) => current === paste ? null : current); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); setPaste((current) => current === paste ? null : current); }} onQuote={async (sourceUrl, sourceTitle) => {
-      try {
-        const result = await request<{ content: string; contentHash: string; document: { currentRevisionId: string | null; lastWriteId: string | null } }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, content: paste.content, title, baseHash: saved.hash, baseWriteId: saved.writeId });
-        editorRef.current?.applyQuote(paste, result.content);
-        setRevisionId(result.document.currentRevisionId); setContent(result.content); setSaved({ title, content: result.content, hash: result.contentHash, writeId: result.document.lastWriteId }); setPaste(null); setStatus("引用を追加して保存しました"); setLatest(null);
-      } catch (e) { setError((e as Error).message); throw e; }
+    <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={(content) => session.edit({ content })} onPaste={openPaste} onCompositionChange={(composing) => session.setComposing(composing)} highlight={highlight} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
+    {mode === "read" && <section className="note-reading" aria-label="閲覧モード">{content ? <MarkdownPreview content={content} label="ノート本文" /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
+    {paste && <PasteDialog paste={paste} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
+      await session.addQuote(paste.content, (draft) => request<NoteSaveResult & { content: string }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
+        if (!editorRef.current) throw new Error("ノートを閉じています");
+        editorRef.current.applyQuote(paste, content);
+      });
+      setLatest(null); closePaste(paste);
     }} />}
-    <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty} content={content} onSelect={setSelection} initialRunId={initialRunId} contextVersion={contextVersion} />
+    <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty || busy || retryRequired} content={content} onSelect={(finding) => { setSelection(finding); if (finding) setMode("edit"); }} initialRunId={initialRunId} contextVersion={contextVersion} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} />
-    <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy} onClick={() => { if (!confirm("このノートとMarkdownファイルを削除しますか？")) return; setBusy(true); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE").then(() => navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true })).catch((e) => { setError(e.message); setBusy(false); }); }}>ノートを削除</button></footer>
+    <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy || !!paste} onClick={() => {
+      if (!confirm("このノートとMarkdownファイルを削除しますか？")) return;
+      void session.remove(() => request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE")).then((removed) => { if (removed) void navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); });
+    }}>ノートを削除</button></footer>
   </main>;
 }

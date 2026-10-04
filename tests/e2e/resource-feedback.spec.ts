@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 
 test("resource loading distinguishes failure, retry and empty results", async ({ page }) => {
   let release!: () => void;
@@ -40,7 +40,7 @@ test("resource operations retain input and block duplicates while pending, then 
   let fetchCount = 0;
   await page.route("**/api/resources/feedback-source/fetch?*", async (route) => { fetchCount++; await gate; if (fail) await route.abort(); else await route.fulfill({ json: { status: "AVAILABLE" } }); });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     const panel = page.getByRole("region", { name: "参考資料", exact: true });
     await expect(panel.getByText("登録された資料はありません。", { exact: true })).toBeVisible();
     await panel.getByLabel("資料URL").fill("ftp://example.com");

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, editNote } from "./manual-note-fixture";
 test("human objectives drive coverage, logic asks a question, and manual edits make the review stale", async ({ page, request }) => {
   const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: "Coverage browser" } })).json();
   await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title: "OAuth" } }); let documentId: string | undefined;
@@ -7,7 +7,7 @@ test("human objectives drive coverage, logic asks a question, and manual edits m
     await page.getByLabel("学習目標（任意・1行1項目）").fill("OAuthとAuthenticationの違いを説明できる\nAuthorization Code Flowを説明できる\nAccess Tokenの役割を説明できる\nPKCEの目的を説明できる");
     await page.getByRole("button", { name: "学習項目を保存" }).click();
     await page.getByLabel("新しいノート（必須）").fill("My reasoning"); await page.getByRole("button", { name: "ノートを作成" }).click();
-    await expect(page.getByLabel("ノート名（必須）")).toHaveValue("My reasoning"); documentId = new URL(page.url()).pathname.split("/").at(-1);
+    await editNote(page); await expect(page.getByLabel("ノート名（必須）")).toHaveValue("My reasoning"); documentId = new URL(page.url()).pathname.split("/").at(-1);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.pressSequentially("Cookieを使うのでSession認証は安全である。");
     await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
     const panel = page.getByRole("region", { name: "レビュー", exact: true });

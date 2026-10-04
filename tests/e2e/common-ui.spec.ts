@@ -27,6 +27,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 640, height: 450 }
         await page.screenshot({ path: testInfo.outputPath(`page-${index}-${viewport.width}.png`), fullPage: true });
       }
       await page.goto(`/workspaces/default/documents/${document.id}`);
+      await page.getByRole("button", { name: "編集", exact: true }).click();
       await expect(page.getByLabel("ノート名（必須）")).toHaveValue(title);
       await expect(page.getByLabel("ノートのプレビュー")).toContainText("English words stay unchanged.");
       const panel = page.getByRole("region", { name: "参考資料", exact: true });
