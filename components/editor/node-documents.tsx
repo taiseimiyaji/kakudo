@@ -6,6 +6,7 @@ import { request, UnknownMutationOutcome } from "../../client/api";
 import { requestCreation } from "../../client/creation-request";
 import { useCreationRecovery } from "../../client/hooks/use-creation-recovery";
 import { CreationRecovery } from "../common/creation-recovery";
+import { readNote } from "../../modules/document/reading";
 export function NodeDocuments({ nodeId, workspaceId, onCreationProtectionChange }: { nodeId: string; workspaceId: string; onCreationProtectionChange?: (value: boolean) => void }) {
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
@@ -49,17 +50,11 @@ function NodeDocumentList({ nodeId, workspaceId, refresh }: { nodeId: string; wo
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
   const scope = `workspaceId=${encodeURIComponent(workspaceId)}`;
-  useEffect(() => {
-    let active = true;
-    request(`/documents?${scope}&nodeId=${encodeURIComponent(nodeId)}`)
-      .then((data) => {
-        if (!active) return;
-        setDocuments(z.object({ documents: z.array(documentSchema) }).parse(data).documents);
-        setLoad("ready");
-      })
-      .catch((e) => { if (active) { setError(e.message); setLoad("failed"); } });
-    return () => { active = false; };
-  }, [nodeId, scope, version, refresh]);
+  useEffect(() => readNote({
+    load: async (signal) => z.object({ documents: z.array(documentSchema) }).refine(({ documents }) => documents.every((doc) => doc.workspaceId === workspaceId)).parse(await request(`/documents?${scope}&nodeId=${encodeURIComponent(nodeId)}`, "GET", undefined, { signal })).documents,
+    onData: (documents) => { setDocuments(documents); setLoad("ready"); setError(""); },
+    onError: (e) => { setError(e.message); setLoad("failed"); },
+  }), [nodeId, scope, version, refresh, workspaceId]);
   return <div aria-busy={load === "loading"}>
     {load === "loading" && <p role="status">ノート一覧を読み込んでいます…</p>}
     {load === "failed" && <><p role="alert">{error}</p><button className="secondary" onClick={() => { setLoad("loading"); setVersion((value) => value + 1); }}>ノート一覧を再読み込み</button></>}

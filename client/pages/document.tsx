@@ -13,18 +13,22 @@ import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "
 import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
 import { MarkdownPreview } from "../../components/editor/preview";
 import { checkResourceRegistration, registerResource } from "../resource-registration";
+import { readNote } from "../../modules/document/reading";
 
 export default function DocumentPage() {
   const { workspaceId = "default", documentId = "" } = useParams({ strict: false });
+  return <DocumentRead key={`${workspaceId}:${documentId}`} workspaceId={workspaceId} documentId={documentId} />;
+}
+function DocumentRead({ workspaceId, documentId }: { workspaceId: string; documentId: string }) {
   const [data, setData] = useState<DocumentDetail | null>(null); const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    request(`/documents/${encodeURIComponent(documentId)}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => { if (active) setData(documentDetailSchema.parse(payload)); }).catch((e) => { if (active) setError(e.message); });
-    return () => { active = false; };
-  }, [documentId, workspaceId]);
-  if (error) return <main className="workspace"><h1>ノートを開けません</h1><p role="alert">{error}</p><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ戻る</Link></main>;
-  if (!data || data.document.id !== documentId) return <main className="workspace">読み込み中…</main>;
-  return <DocumentSession key={documentId} initial={data} />;
+  const [version, setVersion] = useState(0);
+  useEffect(() => readNote({
+    load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === documentId && document.workspaceId === workspaceId).parse(await request(`/documents/${encodeURIComponent(documentId)}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })),
+    onData: setData, onError: (e) => setError(e.message),
+  }), [documentId, workspaceId, version]);
+  if (error) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><h1>ノートを開けません</h1><p role="alert">{error}</p><button onClick={() => { setError(""); setVersion((value) => value + 1); }}>ノートを再取得</button><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ戻る</Link></main>;
+  if (!data) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><p role="status">読み込み中…</p></main>;
+  return <DocumentSession initial={data} />;
 }
 function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const { id, workspaceId } = initial.document;
