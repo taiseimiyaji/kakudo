@@ -1,7 +1,9 @@
+import { edgeLabelSlots } from "../../modules/roadmap/edge-labels";
+import { ParallelEdge, type ParallelFlowEdge } from "./parallel-edge";
 import { label } from "../../client/labels";
 import type { useFormDraft } from "../../client/hooks/use-form-draft";
 import { useState } from "react";
-import { ReactFlow, Background, Controls, Handle, Position, ConnectionMode, MarkerType, useNodesState, useEdgesState, type NodeProps, type Node, type Edge } from "@xyflow/react";
+import { ReactFlow, Background, Controls, Handle, Position, ConnectionMode, MarkerType, useNodesState, useEdgesState, type NodeProps, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { edgeTypes, edgeSides, type EdgeSide, type RoadmapEdge, type RoadmapDetail } from "../../shared/roadmap";
 
@@ -14,6 +16,7 @@ function LearningCard({ data }: NodeProps<MapNode>) {
   return <div className="learning-card">{edgeSides.map((side) => <Handle key={side} id={side} type="source" position={positions[side]} className="connection-handle" title={`${sideLabels[side]}の接続点`} aria-label={`${data.title}：${sideLabels[side]}の接続点`} />)}<strong>{data.title}</strong><span>{label(data.status)}</span><small>ノート {data.stats.documents} · 資料 {data.stats.sources}</small><small>未対応の指摘 {data.stats.openFindings}{data.stats.outdatedReviews > 0 ? ` · 更新前 ${data.stats.outdatedReviews}` : ""}</small></div>;
 }
 const nodeTypes = { learning: LearningCard };
+const edgeRenderers = { parallel: ParallelEdge };
 export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDeleteEdge, onUpdateEdge, selectedEdgeId, onSelectEdge, edgeDraft, busy }: {
   detail: RoadmapDetail; selected?: string; busy: boolean; onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number) => Promise<void>;
@@ -25,7 +28,16 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
 }) {
   const [type, setType] = useState<typeof edgeTypes[number]>("PREREQUISITE");
   const mapNodes = (detail: RoadmapDetail): MapNode[] => detail.nodes.map((n) => ({ id: n.id, type: "learning", data: { title: n.title, status: n.status, stats: n.stats }, position: { x: n.positionX, y: n.positionY } }));
-  const mapEdges = (detail: RoadmapDetail): Edge[] => detail.edges.map((e) => ({ id: e.id, source: e.sourceId, target: e.targetId, sourceHandle: e.sourceSide, targetHandle: e.targetSide, label: label(e.type), markerEnd: e.type === "RELATED" ? undefined : { type: MarkerType.ArrowClosed }, style: e.type === "RELATED" ? { strokeDasharray: "5 5" } : {} }));
+  const mapEdges = (detail: RoadmapDetail): ParallelFlowEdge[] => {
+    const slots = edgeLabelSlots(detail.edges); const titles = new Map(detail.nodes.map((node) => [node.id, node.title]));
+    return detail.edges.map((edge) => {
+      const slot = slots.get(edge.id)!; const relation = label(edge.type); const route = `${titles.get(edge.sourceId)} → ${titles.get(edge.targetId)}`;
+      return { id: edge.id, source: edge.sourceId, target: edge.targetId, sourceHandle: edge.sourceSide, targetHandle: edge.targetSide,
+        type: slot.count > 1 ? "parallel" : "default", className: slot.count > 1 ? "parallel-connection" : undefined,
+        label: relation, data: { ...slot, route, relation, busy, select: onSelectEdge }, ariaLabel: `${route}（${relation}）`,
+        markerEnd: edge.type === "RELATED" ? undefined : { type: MarkerType.ArrowClosed }, style: edge.type === "RELATED" ? { strokeDasharray: "5 5" } : {} };
+    });
+  };
   const [nodes, setNodes, onNodesChange] = useNodesState<MapNode>(mapNodes(detail));
   const [edges, setEdges, onEdgesChange] = useEdgesState(mapEdges(detail));
   const [previousDetail, setPreviousDetail] = useState(detail);
@@ -48,7 +60,7 @@ export function MapCanvas({ detail, selected, onSelect, onMove, onConnect, onDel
     </form>
     {selectedEdge && <EdgePositionEditor key={selectedEdge.id} edge={selectedEdge} draft={edgeDraft} detail={detail} busy={busy} onSave={onUpdateEdge} onClose={() => onSelectEdge(undefined)} />}
     <p className="muted">四辺の丸を別の項目へドラッグすると接続できます。線を選ぶと出口・入口の位置を変更できます。</p><div className="flow-canvas" aria-label="学習マップ">
-      <ReactFlow nodes={nodes.map((n) => ({ ...n, selected: n.id === selected }))} edges={edges.map((e) => ({ ...e, selected: e.id === selectedEdgeId }))} onEdgesChange={(changes) => {
+      <ReactFlow nodes={nodes.map((n) => ({ ...n, selected: n.id === selected }))} edges={edges.map((e) => ({ ...e, data: e.data ? { ...e.data, busy, select: onSelectEdge } : undefined, selected: e.id === selectedEdgeId }))} edgeTypes={edgeRenderers} onEdgesChange={(changes) => {
         const selection = changes.find((change) => change.type === "select" && change.selected)
           ?? changes.find((change) => change.type === "select" && change.id === selectedEdgeId && !change.selected);
         if (selection?.type === "select" && !onSelectEdge(selection.selected ? selection.id : undefined)) {
