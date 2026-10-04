@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { request } from "../../client/api";
@@ -8,13 +8,18 @@ import { Feedback } from "../common/feedback";
 export function DocumentNodes({ documentId, workspaceId, nodes, disabled, onSave, onRefresh, onDraftProtectionChange }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; disabled: boolean; onSave: (ids: string[]) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
   const [options, setOptions] = useState<DocumentNode[] | null>(null);
   const [selected, setSelected] = useState(nodes.map((node) => node.id));
+  const savedIds = useRef(new Set(nodes.map((node) => node.id)));
   const [version, setVersion] = useState(0); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [status, setStatus] = useState("");
   const linkedIds = new Set(nodes.map((node) => node.id));
   const dirty = selected.length !== nodes.length || selected.some((id) => !linkedIds.has(id));
   const protectedDraft = dirty || busy;
   useEffect(() => { onDraftProtectionChange?.(protectedDraft); }, [onDraftProtectionChange, protectedDraft]);
   useEffect(() => () => { onDraftProtectionChange?.(false); }, [onDraftProtectionChange]);
-  useEffect(() => { setSelected(nodes.map((node) => node.id)); }, [nodes]);
+  useEffect(() => {
+    const ids = nodes.map((node) => node.id);
+    if (ids.length === savedIds.current.size && ids.every((id) => savedIds.current.has(id))) return;
+    savedIds.current = new Set(ids); setSelected(ids);
+  }, [nodes]);
   useEffect(() => {
     let active = true;
     request(`/documents/${documentId}/node-options?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => {
