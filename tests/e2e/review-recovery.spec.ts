@@ -48,16 +48,17 @@ test("switching review history ignores an old delayed response", async ({ page, 
     await page.route(`**/api/reviews/${old}?*`, async (route) => {
       const response = await route.fetch(); const detail = await response.json(); oldRequested = true;
       detail.run.status = "FAILED"; detail.run.error = "古い応答を表示してはいけません";
-      await gate; await route.fulfill({ response, json: detail });
+      await gate; await route.fulfill({ response, json: detail }).catch(() => {});
     });
     await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");
     await page.getByLabel("レビュー履歴").selectOption(old);
     await expect.poll(() => oldRequested).toBe(true);
+    const canceled = page.waitForEvent("requestfailed", { predicate: (req) => req.url().includes(`/reviews/${old}`) });
     await page.getByLabel("レビュー履歴").selectOption(current);
+    expect((await canceled).failure()?.errorText).toMatch(/abort|cancel/i);
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");
-    const received = page.waitForResponse((response) => response.url().includes(`/reviews/${old}`));
-    release(); await received;
+    release(); await page.unrouteAll({ behavior: "wait" });
     await expect(page.getByLabel("レビュー履歴")).toHaveValue(current);
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");
     await expect(page.locator(".review-panel")).not.toContainText("古い応答");
