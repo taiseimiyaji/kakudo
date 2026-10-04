@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request as httpRequest, type IncomingMessage, type RequestOptions } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { MIMEType } from "node:util";
 import ipaddr from "ipaddr.js";
 import sanitizeHtml from "sanitize-html";
 import { convert } from "html-to-text";
@@ -65,12 +66,17 @@ export function createResourceFetcher({ resolve = (host: string) => lookup(host,
           url = checkedUrl(new URL(location, url).toString()); continue;
         }
         if (response.statusCode !== 200) throw new ResourceUnavailable("資料サーバーが正常な応答を返しませんでした。");
-        const type = (response.headers["content-type"] ?? "").split(";")[0].trim();
+        const contentType = new MIMEType(response.headers["content-type"] ?? "");
+        const type = contentType.essence;
         if (!["text/html", "application/xhtml+xml", "text/plain", "text/markdown"].includes(type)) throw new ResourceUnavailable("この資料形式は取得に対応していません。");
         if (response.headers["content-encoding"] && response.headers["content-encoding"] !== "identity") throw new ResourceUnavailable("圧縮応答には対応していません。");
         if (Number(response.headers["content-length"]) > maxBytes) throw new ResourceUnavailable("資料サイズが上限を超えています。");
         const stream = response;
-        const body = await abortable((async () => { const chunks: Buffer[] = []; let size = 0; for await (const chunk of stream) { const bytes = Buffer.from(chunk); size += bytes.length; if (size > maxBytes) throw new ResourceUnavailable("資料サイズが上限を超えています。"); chunks.push(bytes); } return Buffer.concat(chunks).toString("utf8"); })(), signal);
+        const bytes = await abortable((async () => { const chunks: Buffer[] = []; let size = 0; for await (const chunk of stream) { const bytes = Buffer.from(chunk); size += bytes.length; if (size > maxBytes) throw new ResourceUnavailable("資料サイズが上限を超えています。"); chunks.push(bytes); } return Buffer.concat(chunks); })(), signal);
+        // Decode only after enforcing byte limits, and never accept replacement decoding.
+        const decoder = new TextDecoder(contentType.params.get("charset") ?? "utf-8", { fatal: true });
+        if (!decoder.fatal) throw new ResourceUnavailable();
+        const body = decoder.decode(bytes);
         const parsed = type.includes("html") ? htmlText(body) : { title: "", text: body };
         return { url: url.toString(), ...parsed, accessedAt: new Date().toISOString() };
       }
