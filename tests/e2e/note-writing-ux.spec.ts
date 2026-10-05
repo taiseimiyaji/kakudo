@@ -216,3 +216,31 @@ test('read/edit preserves a selected span and typing replaces that span with nat
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(original);
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });
+
+test('clicking the active edit control keeps the current long-writing scroll', async ({ page, request }) => {
+  const { document } = await (await request.post('/api/documents', { data: { title: '現在の編集位置', content: ownWords } })).json();
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.getByRole('button', { name: '編集', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Markdown本文' }); await editor.press('ControlOrMeta+Home');
+    const identity = await editor.elementHandle();
+    await page.getByRole('button', { name: '閲覧', exact: true }).click(); await page.getByRole('button', { name: '編集', exact: true }).click();
+    await editor.press('ControlOrMeta+End'); await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(500);
+    const current = await page.evaluate(() => scrollY);
+    await page.getByRole('button', { name: '編集', exact: true }).click(); await expect(editor).toBeFocused();
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(current);
+    expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(ownWords);
+    const resources = page.locator('[data-note-panel=resources]');
+    await resources.locator(':scope > summary').click(); await resources.locator(':scope > summary').click();
+    await editor.press('ControlOrMeta+End'); await editor.pressSequentially(' 人間が長文の末尾に書き足した考察。'); await editor.press('ControlOrMeta+s');
+    await expect(page.locator('.save-state')).toHaveText('保存済み');
+    const writingScroll = await page.evaluate(() => scrollY); expect(writingScroll).toBeGreaterThan(500);
+    await page.getByRole('button', { name: '閲覧', exact: true }).click(); await page.evaluate(() => scrollTo(0, 0));
+    await page.getByRole('button', { name: '編集', exact: true }).click(); await expect(editor).toBeFocused();
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(writingScroll);
+    await page.getByRole('button', { name: '編集', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(writingScroll);
+    expect(await editor.evaluate((element, old) => element === old, identity)).toBe(true);
+    expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(ownWords + ' 人間が長文の末尾に書き足した考察。');
+  } finally { await request.delete(`/api/documents/${document.id}`); }
+});

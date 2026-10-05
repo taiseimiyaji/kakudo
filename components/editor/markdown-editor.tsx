@@ -24,8 +24,10 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
   }, restoreFocus() {
     const view = viewRef.current;
     if (!view) return;
+    const remembered = position.current;
+    position.current = null;
     view.focus();
-    if (position.current) { view.scrollDOM.scrollTop = position.current.editorY; window.scrollTo({ top: position.current.pageY, behavior: "instant" }); }
+    if (remembered) { view.scrollDOM.scrollTop = remembered.editorY; window.scrollTo({ top: remembered.pageY, behavior: "instant" }); }
   }, applyQuote(paste, after) {
     const view = viewRef.current;
     if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");
