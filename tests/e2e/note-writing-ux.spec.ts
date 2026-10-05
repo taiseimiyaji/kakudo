@@ -197,3 +197,22 @@ test('200% note text scaling keeps writing and save controls within the viewport
     const stored = await (await request.get(`/api/documents/${document.id}`)).json(); expect(stored.content).toBe(ownWords + ' 人間が最後に書いた考察。');
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });
+
+test('read/edit preserves a selected span and typing replaces that span with native Undo', async ({ page, request }) => {
+  const original = 'alpha\nmiddle words\nomega';
+  const { document } = await (await request.post('/api/documents', { data: { title: '選択と編集位置', content: original } })).json();
+  try {
+    await page.clock.install(); await page.clock.pauseAt(new Date());
+    await page.goto(`/workspaces/default/documents/${document.id}`); await page.getByRole('button', { name: '編集', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Markdown本文' });
+    await editor.press('ControlOrMeta+Home'); await editor.press('ArrowDown');
+    for (let i = 0; i < 3; i++) await editor.press('ArrowRight');
+    for (let i = 0; i < 3; i++) await editor.press('Shift+ArrowRight');
+    expect(await page.evaluate(() => getSelection()?.toString())).toBe('dle');
+    await page.getByRole('button', { name: '閲覧', exact: true }).click(); await page.getByRole('button', { name: '編集', exact: true }).click();
+    await expect(editor).toBeFocused(); expect(await page.evaluate(() => getSelection()?.toString())).toBe('dle');
+    await editor.pressSequentially('自分'); await expect.poll(() => editor.innerText()).toBe('alpha\nmid自分 words\nomega');
+    await editor.press('ControlOrMeta+z'); await expect.poll(() => editor.innerText()).toBe(original);
+    expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(original);
+  } finally { await request.delete(`/api/documents/${document.id}`); }
+});
