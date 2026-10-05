@@ -1,9 +1,20 @@
 {
   "baseline": "aaf324e1e4b7e182349055d78ef2a37498c17746",
-  "source_commit": "14cd40409acb8dd3f69c447f352a6cd8742e8301",
+  "source_commit": "0005b4dcce8b47e2a3af8c8ec0d01e98c5687dea",
   "fixture": "tests/e2e/note-writing-ux.spec.ts",
   "conditions": "Mock/owned database/temp Markdown; controlled clock and held actual PUT acknowledgment. Captures after editor drawing settles.",
   "viewports": [
+    {
+      "width": 390,
+      "initial_body_top_px": 306.78125,
+      "initial_first_line_top_px": 1730.09375,
+      "default_body_width_px": 358,
+      "font_size": "17px",
+      "line_height": "30.6px",
+      "long_scroll_save_indicator_y": 10,
+      "paragraph_characters": 2116,
+      "identity_focus_and_scroll_passed": true
+    },
     {
       "width": 768,
       "initial_body_top_px": 238.78125,
@@ -12,17 +23,6 @@
       "font_size": "18px",
       "line_height": "32.4px",
       "long_scroll_save_indicator_y": 12,
-      "paragraph_characters": 2116,
-      "identity_focus_and_scroll_passed": true
-    },
-    {
-      "width": 390,
-      "initial_body_top_px": 306.78125,
-      "initial_first_line_top_px": 322.78125,
-      "default_body_width_px": 358,
-      "font_size": "17px",
-      "line_height": "30.6px",
-      "long_scroll_save_indicator_y": 10,
       "paragraph_characters": 2116,
       "identity_focus_and_scroll_passed": true
     },
@@ -42,5 +42,35 @@
     "Native Japanese Mac IME and OS/browser zoom unverified. Synthetic composition and CSS200% text scale plus640px reflow verified.",
     "No durable client draft persistence.",
     "Long-writing review uses Mock LOGIC within existing FULL review20-claim limit."
-  ]
+  ],
+  "source_blobs": {
+    "client/pages/document.tsx": "829576571819c3b6b01d327289bf13ebbc97b847",
+    "client/styles.css": "104af53bbe62b71f369194a12b9aff87743443fa",
+    "components/editor/markdown-editor.tsx": "6464daaf6b57328685bfd1ae1c609d7260861ea5",
+    "modules/editor/note-presentation.ts": "3f903fea22b12aaac8e2421b7d3b2e5ff3555af5"
+  },
+  "after_capture_verification": "Re-captured all 10 after images with the scroll fix and full current fixture; each PNG SHA256 exactly matches the committed comparison image. The two before images remain the original baseline.",
+  "image_sha256": {
+    "after-1440.png": "b7c0743aaeeb09884a3633abf327b6752c5c463aac1099ca3e617df78627fed2",
+    "after-390.png": "f586a69cef22fbd136d117c1409ec7e64554ad9a503c40f945c885d8dacd2da1",
+    "after-768.png": "85dfa95f19e8c2b73f1db51fd47031babcf51284a1df32d78e5f59fba9929ca3",
+    "before-1440.png": "7dd8d9eded1a42a2b91128faccbe6b51fb07dd64634804c40df12a55adfaa422",
+    "before-390.png": "ae8ca1bb8f4ca94deeeaefd25ffcde6b597bf936afac09071e4b7abb8cb2255b",
+    "long-writing-1440.png": "fac4304c7580a1de01caa387951daa9e1ef531bd0ea03e9ff9deb4cd0cfafe80",
+    "long-writing-390.png": "badf1f0474357fe4c81425b261fa15231756de4fb86940e1eca34a9ca83474fc",
+    "pending-390.png": "b1340f2f756a232c42a35f98931c4121db4c611474a2f6ec3ed3a02af8c4dc5f",
+    "resume-wait-390.png": "a300e43f9ce2839000cc1ddd1d99876c9f124883bba0967e4a24d39682eeddf0",
+    "stopped-390.png": "33efc9229f5df1c334c08bcf5659c654861d16f0184f133131c920e145f35e1d",
+    "text-200-percent.png": "a53f5dcc5797d30cfb9e516a64f320bf827d18883d1c61d64a1aa36e726266f9",
+    "unknown-390.png": "a4e3a23476986c27e61632ce6691ce4c3329821fad4ad4d139bbc946d01a87ca"
+  },
+  "validation": {
+    "full_unit": 244,
+    "full_integration": 60,
+    "full_browser": 242,
+    "focused_writing": 7,
+    "dev_strictmode": 3,
+    "active_edit_before": "Failed: expected scroll1946, actual0",
+    "active_edit_after": "Passed with native clock: re-click, panel toggle, appended human text, read/edit and same editor DOM"
+  }
 }
