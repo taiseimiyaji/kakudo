@@ -57,7 +57,23 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   function compositionChange(value: boolean) { session.setComposing(value); setComposing(value); }
   const [mode, setMode] = useState<"read" | "edit">(initial.content ? "read" : "edit");
   const focusRequested = useRef(false);
-  useLayoutEffect(() => { const input = titleRef.current; if (input) { input.style.height = "auto"; input.style.height = `${input.scrollHeight + 1}px`; } }, [title, mode]);
+  useLayoutEffect(() => {
+    const input = titleRef.current; if (!input) return;
+    let dimensions = ""; let frame = 0;
+    const resize = () => {
+      const style = getComputedStyle(input);
+      const next = [input.clientWidth, style.font, style.lineHeight, style.letterSpacing].join("|");
+      if (next === dimensions) return;
+      dimensions = next;
+      input.style.height = "auto"; input.style.height = `${input.scrollHeight + 1}px`;
+    };
+    resize();
+    const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(resize); });
+    observer.observe(input);
+    // The accessible label measures inherited type even when textarea height is fixed.
+    const label = input.previousElementSibling; if (label) observer.observe(label);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [title, mode]);
   useLayoutEffect(() => { if (mode === "edit" && focusRequested.current) { focusRequested.current = false; editorRef.current?.restoreFocus(); } }, [mode]);
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") === "visible"; } catch { return false; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);

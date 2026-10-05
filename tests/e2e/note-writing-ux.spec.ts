@@ -244,3 +244,36 @@ test('clicking the active edit control keeps the current long-writing scroll', a
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(ownWords + ' 人間が長文の末尾に書き足した考察。');
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });
+
+test('an open long title stays fully visible after width and typography changes', async ({ page, request }, info) => {
+  const title = '認証と認可の違いを具体例から自分の言葉で考え直す。'.repeat(5);
+  const { document } = await (await request.post('/api/documents', { data: { title, content: '人間が書いた本文。' } })).json();
+  let mutations = 0;
+  page.on('request', r => { if (r.method() !== 'GET' && new URL(r.url()).pathname.startsWith(`/api/documents/${document.id}`)) mutations++; });
+  const snapshots: Record<string, { clientHeight: number; scrollHeight: number; fontSize: string; lineHeight: string }> = {};
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/workspaces/default/documents/${document.id}`); await page.getByRole('button', { name: '編集', exact: true }).click();
+    const input = page.getByLabel('ノート名（必須）'); const identity = await input.elementHandle();
+    await input.press('ControlOrMeta+Home'); for (let i = 0; i < 5; i++) await input.press('Shift+ArrowRight');
+    async function captureTitle(name: string) {
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      snapshots[name] = await input.evaluate(e => ({ clientHeight: e.clientHeight, scrollHeight: e.scrollHeight, fontSize: getComputedStyle(e).fontSize, lineHeight: getComputedStyle(e).lineHeight }));
+      await page.screenshot({ path: info.outputPath(`${name}.png`), fullPage: true });
+      await expect(input).toBeFocused(); expect(await input.evaluate(e => [(e as HTMLTextAreaElement).selectionStart, (e as HTMLTextAreaElement).selectionEnd])).toEqual([0, 5]);
+    }
+    await captureTitle('title-wide');
+    await page.setViewportSize({ width: 390, height: 844 }); await captureTitle('title-narrow');
+    // Enlarge the open title's actual type without changing the viewport width.
+    const largerType = await page.addStyleTag({ content: '.document-title, .document-title textarea { font-size: 48px; line-height: 1.8; }' });
+    await captureTitle('title-larger-type'); expect(snapshots['title-larger-type'].fontSize).toBe('48px');
+    await largerType.evaluate(e => (e as HTMLStyleElement).remove());
+    await page.setViewportSize({ width: 1440, height: 900 }); await captureTitle('title-wide-again');
+    await writeFile(info.outputPath('title-measurements.json'), JSON.stringify(snapshots, null, 2));
+    for (const [name, measurement] of Object.entries(snapshots)) expect(measurement.scrollHeight, name).toBeLessThanOrEqual(measurement.clientHeight + 1);
+    expect(await input.evaluate((element, old) => element === old, identity)).toBe(true);
+    await expect(input).toHaveValue(title); expect(mutations).toBe(0); expect(errors).toEqual([]);
+    const stored = await (await request.get(`/api/documents/${document.id}`)).json(); expect(stored.document.title).toBe(title); expect(stored.content).toBe('人間が書いた本文。');
+  } finally { await request.delete(`/api/documents/${document.id}`); }
+});
