@@ -90,7 +90,7 @@ test("a delayed autosave preserves newer typing and uses the latest hash for the
   } finally { release(); await request.delete(path); }
 });
 
-test("failed autosave keeps the draft, pauses automatic retries and allows explicit retry", async ({ page, request }) => {
+test("unknown 503 autosave keeps the draft and requires GET plus deliberate confirmation before explicit retry", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "保存失敗" } })).json();
   const path = `/api/documents/${document.id}`;
   let writes = 0;
@@ -107,6 +107,13 @@ test("failed autosave keeps the draft, pauses automatic retries and allows expli
     await editor.click(); await editor.pressSequentially("Do not lose my words.");
     await page.clock.runFor(1000); await expect(page.getByRole("alert")).toContainText("自動保存を停止");
     await expect(editor).toContainText("Do not lose my words.");
+    await page.clock.runFor(5000); expect(writes).toBe(1);
+    await expect(page.getByText("保存結果は不明です", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "保存を再試行" })).toBeDisabled();
+    await page.getByRole("button", { name: "最新の保存内容を確認", exact: true }).click();
+    await expect(page.getByRole("region", { name: "最新の保存内容" })).toBeVisible();
+    page.once("dialog", dialog => dialog.accept());
+    await page.getByRole("button", { name: "確認した内容を基準に再試行", exact: true }).click();
     await page.clock.runFor(5000); expect(writes).toBe(1);
     await page.getByRole("button", { name: "保存を再試行" }).click();
     await expect(page.getByText("保存済み", { exact: true })).toBeVisible();

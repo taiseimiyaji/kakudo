@@ -6,7 +6,7 @@ import { documentNodeSchema, type DocumentNode } from "../../shared/document";
 import { Feedback } from "../common/feedback";
 import { rebaseAssociationDraft } from "../../modules/editor/association-draft";
 
-export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, onSave, onRefresh, onDraftProtectionChange, onLinkedRemovalConfirmed }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void; onLinkedRemovalConfirmed?: () => void }) {
+export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, disabled, writeBlocked = false, onSave, onRefresh, onDraftProtectionChange, onLinkedRemovalConfirmed }: { documentId: string; workspaceId: string; nodes: DocumentNode[]; confirmation: { version: number; writeId: string | null }; disabled: boolean; writeBlocked?: boolean; onSave: (ids: string[], onWrite: (baseWriteId: string | null) => void) => Promise<void>; onRefresh: () => void; onDraftProtectionChange?: (protectedDraft: boolean) => void; onLinkedRemovalConfirmed?: () => void }) {
   const context = useMemo(() => ({ documentId, workspaceId, nodes, confirmationVersion: confirmation.version }), [documentId, workspaceId, nodes, confirmation.version]);
   const contextRef = useRef(context);
   const removalCallback = useRef(onLinkedRemovalConfirmed);
@@ -66,10 +66,10 @@ export function DocumentNodes({ documentId, workspaceId, nodes, confirmation, di
       {node.learningObjectives.length ? <ul>{node.learningObjectives.map((objective, index) => <li key={index}>{objective}</li>)}</ul> : <p>学習目標は未設定です。</p>}
     </article>)}
     <details><summary>学習項目の関連を変更</summary><p>関連だけを更新します。編集中の本文と名前は保持します。</p>
-      {availableOptions === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); const submitted = [...selected]; let baseWriteId: string | null | undefined; failedSubmission.current = null; setBusy(true); setError(""); setStatus(""); void onSave(submitted, (id) => { baseWriteId = id; }).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => { failedSubmission.current = { ids: submitted, baseWriteId }; setError(e.message); }).finally(() => setBusy(false)); }}>
+      {availableOptions === null ? <p>学習項目を読み込み中…</p> : <form onSubmit={(event) => { event.preventDefault(); if (disabled || busy || writeBlocked) return; const submitted = [...selected]; let baseWriteId: string | null | undefined; failedSubmission.current = null; setBusy(true); setError(""); setStatus(""); void onSave(submitted, (id) => { baseWriteId = id; }).then(() => setStatus("関連を更新しました。本文は保持されています。")).catch((e) => { failedSubmission.current = { ids: submitted, baseWriteId }; setError(e.message); }).finally(() => setBusy(false)); }}>
         <fieldset disabled={disabled || busy}><legend>関連する学習項目</legend>{availableOptions.map((node) => <label className="node-link-option" key={node.id}><input type="checkbox" checked={selected.includes(node.id)} onChange={(e) => { setSelected((ids) => e.target.checked ? [...ids, node.id] : ids.filter((id) => id !== node.id)); setStatus(""); }} />{node.roadmapTitle} / {node.title}</label>)}</fieldset>
         {dirty && <Feedback>関連の変更は未保存です。「関連を保存」で確定してください。</Feedback>}
-        <button disabled={disabled || busy}>関連を保存</button><button type="button" className="secondary" disabled={disabled || busy} onClick={() => { setSelected([]); setStatus(""); }}>関連をすべて解除</button>
+        <button disabled={disabled || busy || writeBlocked}>関連を保存</button><button type="button" className="secondary" disabled={disabled || busy} onClick={() => { setSelected([]); setStatus(""); }}>関連をすべて解除</button>
       </form>}
       <button className="secondary" disabled={disabled || busy} onClick={() => { setVersion((value) => value + 1); onRefresh(); }}>学習項目と目標を再取得</button>
     </details>{optionsError && <Feedback error>{optionsError}</Feedback>}{error && <Feedback error>{error}</Feedback>}{status && <Feedback>{status}</Feedback>}

@@ -27,6 +27,7 @@ for (const external of ['add', 'delete'] as const) for (const edit of ['add', 'r
     }
     await page.getByRole('button', { name: '保存', exact: true }).click(); await expect(page.getByRole('alert')).toBeVisible();
     await page.getByRole('button', { name: '最新の保存内容を確認', exact: true }).click(); await expect(page.getByRole('region', { name: '最新の保存内容', exact: true })).toBeVisible();
+    if (external === 'delete') page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '確認した内容を基準に再試行', exact: true }).click();
     await expect(region.getByRole('article')).toHaveCount(external === 'add' ? 2 : 1);
     await expect(checkbox(edit === 'add' ? 2 : 0)).toBeChecked({ checked: edit === 'add' }); await expect(pending).toBeVisible();

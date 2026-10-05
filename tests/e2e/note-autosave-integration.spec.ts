@@ -102,6 +102,8 @@ test("lost save response pauses timers; GET confirmation retains draft and requi
     await expect(page.getByRole("alert")).toContainText("自動保存を停止"); const committed = await (await request.get(path)).json(); expect(committed.content).toBe("Retained human words.");
     await page.clock.runFor(5000); expect(writes).toBe(1);
     await page.getByRole("button", { name: "最新の保存内容を確認" }).click(); await expect(page.getByRole("region", { name: "最新の保存内容" })).toContainText("Retained title");
+    await expect(page.getByRole("button", { name: "保存を再試行", exact: true })).toBeDisabled();
+    page.once("dialog", dialog => dialog.accept());
     await page.getByRole("button", { name: "確認した内容を基準に再試行" }).click(); await page.clock.runFor(5000); expect(writes).toBe(1);
     await expect(editor).toContainText("Retained human words."); await expect(page.getByLabel("ノート名（必須）")).toHaveValue("Retained title");
     await page.getByRole("button", { name: "保存を再試行", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible();

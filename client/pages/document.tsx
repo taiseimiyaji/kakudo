@@ -1,4 +1,4 @@
-import { NoteSession, type NoteSaveResult } from "../../modules/editor/note-session";
+import { NoteSession } from "../../modules/editor/note-session";
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
 import { DocumentNodes } from "../../components/editor/document-nodes";
 import { findingHighlight, type FindingSelection } from "../../modules/editor/review-highlight";
@@ -14,6 +14,7 @@ import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/edit
 import { MarkdownPreview } from "../../components/editor/preview";
 import { checkResourceRegistration, registerResource } from "../resource-registration";
 import { readNote } from "../../modules/document/reading";
+import { NoteWriter } from "../note-write";
 
 export default function DocumentPage() {
   const { workspaceId = "default", documentId = "" } = useParams({ strict: false });
@@ -44,9 +45,11 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [reviewProtected, setReviewProtected] = useState(false);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
+  const [writer] = useState(() => new NoteWriter(workspaceId, id));
+  useEffect(() => { writer.activate(); return () => writer.close(); }, [writer]);
   const [session] = useState(() => new NoteSession({ content: initial.content, title: initial.document.title, hash: initial.contentHash, writeId: initial.document.lastWriteId, revisionId: initial.document.currentRevisionId },
-    (draft) => request<NoteSaveResult>(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", draft)));
-  const { content, title, revisionId, dirty, saving, retryRequired, error, status } = useSyncExternalStore(session.subscribe, session.getSnapshot);
+    (draft) => writer.save(draft)));
+  const { content, title, revisionId, dirty, saving, retryRequired, outcomeUnknown, error, status } = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [mode, setMode] = useState<"read" | "edit">(initial.content ? "read" : "edit");
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") !== "hidden"; } catch { return true; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);
@@ -63,18 +66,20 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [latest, setLatest] = useState<DocumentDetail | null>(null);
   const [recoveryError, setRecoveryError] = useState(""); const [recovering, setRecovering] = useState(false);
   const latestReadVersion = useRef(0);
-  function invalidateLatest() { latestReadVersion.current++; setLatest(null); setRecovering(false); }
+  const latestReadStop = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => () => { latestReadStop.current?.(); }, []);
+  function invalidateLatest() { latestReadVersion.current++; latestReadStop.current?.(); setLatest(null); setRecovering(false); }
   const busy = saving || recovering;
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
-  useBlocker({ shouldBlockFn: () => (dirty || busy || resourceProtected || associationProtected || reviewProtected) && !window.confirm("未保存・保存中の変更、未登録・登録結果を確認中の資料、または受付・指摘更新の結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || resourceProtected || associationProtected || reviewProtected });
+  useBlocker({ shouldBlockFn: () => (dirty || busy || outcomeUnknown || resourceProtected || associationProtected || reviewProtected) && !window.confirm("未保存・保存中・保存結果不明の変更、未登録・登録結果を確認中の資料、または受付・指摘更新の結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || outcomeUnknown || resourceProtected || associationProtected || reviewProtected });
   async function save() {
     if (await session.save(true)) { invalidateLatest(); setRecoveryError(""); }
   }
   return <main className="document-workspace">
-    <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><span className="save-state">{recovering ? "確認中…" : saving ? "保存中…" : error ? "保存できませんでした" : dirty ? "未保存の変更" : "保存済み"}</span><button className="secondary" disabled={busy || !!paste || !title.trim()} onClick={() => { void save(); }}>{retryRequired ? "保存を再試行" : "保存"}</button></header><WorkspaceNav workspaceId={workspaceId} />
-    {error && <p role="alert" className="error">{error}。自動保存を停止しています。入力内容はこの画面に残っています。再読み込みする前に本文と名前を確認してください。</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}<p className="save-message" role="status">{status}</p>
-    {retryRequired && <button disabled={busy || !!paste} onClick={() => { const version = ++latestReadVersion.current; setRecovering(true); setRecoveryError(""); void request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`).then((payload) => { if (version === latestReadVersion.current) setLatest(documentDetailSchema.parse(payload)); }).catch((e) => { if (version === latestReadVersion.current) setRecoveryError(e.message); }).finally(() => { if (version === latestReadVersion.current) setRecovering(false); }); }}>最新の保存内容を確認</button>}
-    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。確認後、現在の入力を保存する場合は再試行してください。</p><button disabled={busy || !!paste} onClick={() => { session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
+    <header className="app-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><span className="save-state">{recovering ? "確認中…" : saving ? "保存中…" : outcomeUnknown ? "保存結果は不明です" : error ? "保存できませんでした" : dirty ? "未保存の変更" : "保存済み"}</span><button className="secondary" disabled={busy || outcomeUnknown || !!paste || !title.trim()} onClick={() => { void save(); }}>{retryRequired ? "保存を再試行" : "保存"}</button></header><WorkspaceNav workspaceId={workspaceId} />
+    {error && <p role="alert" className="error">{error} 自動保存を停止しています。入力内容はこの画面に残っています。{outcomeUnknown ? "最新の保存内容を確認し、現在の入力で置き換える場合だけ保存を再開してください。" : "再読み込みする前に本文と名前を確認してください。"}</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}<p className="save-message" role="status">{status}</p>
+    {retryRequired && <button disabled={busy || !!paste} onClick={() => { const version = ++latestReadVersion.current; latestReadStop.current?.(); setLatest(null); setRecovering(true); setRecoveryError(""); latestReadStop.current = readNote({ load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === id && document.workspaceId === workspaceId).parse(await request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })), onData: (data) => { if (version === latestReadVersion.current) { setLatest(data); setRecovering(false); } }, onError: (e) => { if (version === latestReadVersion.current) { setRecoveryError(e.message); setRecovering(false); } } }); }}>最新の保存内容を確認</button>}
+    {latest && <section className="latest-document" aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。{outcomeUnknown ? "この取得結果だけでは直前の保存・引用の成功・失敗は確定しません。現在の入力を保存すると、確認した本文と名前を置き換えます。" : "確認後、現在の入力を保存する場合は再試行してください。"}</p><button disabled={busy || !!paste} onClick={() => { if (outcomeUnknown && !window.confirm("直前の保存・引用の結果は不明です。確認した保存内容を基準に、現在の本文と名前で置き換えるために保存を再開しますか？確認だけでは書き込みません。")) return; session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
     <div className="document-toolbar">
       <div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => setMode("read")}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={() => setMode("edit")}>編集</button></div>
       {mode === "edit" && <button className="secondary" aria-pressed={showPreview} disabled={!!paste} onClick={togglePreview}>{showPreview ? "プレビューを非表示" : "プレビューを表示"}</button>}
@@ -83,15 +88,15 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {mode === "edit" ? <label className="document-title">ノート名（必須）<input value={title} onChange={(e) => session.edit({ title: e.target.value })} onCompositionStart={() => session.setComposing(true)} onCompositionEnd={() => session.setComposing(false)} maxLength={200} required /></label> : <h2 className="note-reading-title">{title}</h2>}
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
-    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onLinkedRemovalConfirmed={() => { if (latest || recovering) setRecoveryError("項目の再取得で関連の状態が変わりました。最新の保存内容をもう一度確認してください。本文と名前は保持しています。"); invalidateLatest(); }} onSave={async (nodeIds, onWrite) => {
+    <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} writeBlocked={outcomeUnknown} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onLinkedRemovalConfirmed={() => { if (latest || recovering) setRecoveryError("項目の再取得で関連の状態が変わりました。最新の保存内容をもう一度確認してください。本文と名前は保持しています。"); invalidateLatest(); }} onSave={async (nodeIds, onWrite) => {
       invalidateLatest();
       const result = await session.updateContext((baseWriteId) => { onWrite(baseWriteId); return request(`/documents/${id}/nodes?workspaceId=${encodeURIComponent(workspaceId)}`, "PATCH", { nodeIds, baseWriteId }).then((payload) => documentLinksSchema.parse(payload)); });
       setNodes(result.nodes); setContextVersion((v) => v + 1);
     }} />
     <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={(content) => session.edit({ content })} onPaste={openPaste} onCompositionChange={(composing) => session.setComposing(composing)} highlight={highlight} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
     {mode === "read" && <section className="note-reading" aria-label="閲覧モード">{content ? <MarkdownPreview content={content} label="ノート本文" /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
-    {paste && <PasteDialog paste={paste} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
-      await session.addQuote(paste.content, (draft) => request<NoteSaveResult & { content: string }>(`/documents/${id}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", { text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
+    {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
+      await session.addQuote(paste.content, (draft) => writer.quote({ text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
         if (!editorRef.current) throw new Error("ノートを閉じています");
         editorRef.current.applyQuote(paste, content);
       });
@@ -99,7 +104,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     }} />}
     <ReviewPanel documentId={id} workspaceId={workspaceId} revisionId={revisionId} dirty={dirty || busy || retryRequired} content={content} onSelect={(finding) => { setSelection(finding); if (finding) setMode("edit"); }} initialRunId={initialRunId} contextVersion={contextVersion} onReviewProtectionChange={setReviewProtected} />
     <ResourcePanel workspaceId={workspaceId} target={{ kind: "document", id }} refresh={resourceVersion} onDraftProtectionChange={setResourceProtected} />
-    <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy || !!paste} onClick={() => {
+    <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy || outcomeUnknown || !!paste} onClick={() => {
       if (!confirm("このノートとMarkdownファイルを削除しますか？")) return;
       void session.remove(() => request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE")).then((removed) => { if (removed) void navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); });
     }}>ノートを削除</button></footer>
