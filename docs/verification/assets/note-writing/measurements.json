@@ -1,6 +1,6 @@
 {
   "baseline": "aaf324e1e4b7e182349055d78ef2a37498c17746",
-  "source_commit": "0005b4dcce8b47e2a3af8c8ec0d01e98c5687dea",
+  "source_commit": "92620f71cf21a0b59959358253b64a32555e3da9",
   "fixture": "tests/e2e/note-writing-ux.spec.ts",
   "conditions": "Mock/owned database/temp Markdown; controlled clock and held actual PUT acknowledgment. Captures after editor drawing settles.",
   "viewports": [
@@ -44,12 +44,12 @@
     "Long-writing review uses Mock LOGIC within existing FULL review20-claim limit."
   ],
   "source_blobs": {
-    "client/pages/document.tsx": "829576571819c3b6b01d327289bf13ebbc97b847",
-    "client/styles.css": "104af53bbe62b71f369194a12b9aff87743443fa",
+    "client/pages/document.tsx": "923efc42c78c2fe6c2ab1026c4fad0c6f43fbd1a",
+    "client/styles.css": "f98579f3bc90dc9d42a79e4616044ac7b55fbd09",
     "components/editor/markdown-editor.tsx": "6464daaf6b57328685bfd1ae1c609d7260861ea5",
     "modules/editor/note-presentation.ts": "3f903fea22b12aaac8e2421b7d3b2e5ff3555af5"
   },
-  "after_capture_verification": "Re-captured all 10 after images with the scroll fix and full current fixture; each PNG SHA256 exactly matches the committed comparison image. The two before images remain the original baseline.",
+  "after_capture_verification": "All 10 standard after images refreshed from the full successful final-product browser suite; each committed PNG matches its capture. Original two main-baseline images retained. Four title-resize before/after images added.",
   "image_sha256": {
     "after-1440.png": "b7c0743aaeeb09884a3633abf327b6752c5c463aac1099ca3e617df78627fed2",
     "after-390.png": "f586a69cef22fbd136d117c1409ec7e64554ad9a503c40f945c885d8dacd2da1",
@@ -59,18 +59,87 @@
     "long-writing-1440.png": "fac4304c7580a1de01caa387951daa9e1ef531bd0ea03e9ff9deb4cd0cfafe80",
     "long-writing-390.png": "badf1f0474357fe4c81425b261fa15231756de4fb86940e1eca34a9ca83474fc",
     "pending-390.png": "b1340f2f756a232c42a35f98931c4121db4c611474a2f6ec3ed3a02af8c4dc5f",
-    "resume-wait-390.png": "a300e43f9ce2839000cc1ddd1d99876c9f124883bba0967e4a24d39682eeddf0",
+    "resume-wait-390.png": "6614f53a41382ddd3b626aa0c79417e1f2da1965e530ee95e4edeab7e129c973",
     "stopped-390.png": "33efc9229f5df1c334c08bcf5659c654861d16f0184f133131c920e145f35e1d",
     "text-200-percent.png": "a53f5dcc5797d30cfb9e516a64f320bf827d18883d1c61d64a1aa36e726266f9",
+    "title-resize-after-390.png": "16a732eb4a8d67fbac441e528484542403f3dfc37a416a192912ae49284aba02",
+    "title-resize-after-48px.png": "205ea551f035acf1247cdaf08023253d7c21943c6e1f9bcec485e592899f306b",
+    "title-resize-before-390.png": "6a8c8fe4ccec8bf2f966c1292d490f4a3b5822c06f27e5a5493f2e919242dff6",
+    "title-resize-before-48px.png": "886da1d8d4190f3958061c55162f823854d1b89337c119cd0ed23a2e4509106e",
     "unknown-390.png": "a4e3a23476986c27e61632ce6691ce4c3329821fad4ad4d139bbc946d01a87ca"
   },
   "validation": {
     "full_unit": 244,
     "full_integration": 60,
-    "full_browser": 242,
-    "focused_writing": 7,
-    "dev_strictmode": 3,
+    "full_browser": 243,
+    "focused_writing": 8,
+    "dev_strictmode": 4,
     "active_edit_before": "Failed: expected scroll1946, actual0",
     "active_edit_after": "Passed with native clock: re-click, panel toggle, appended human text, read/edit and same editor DOM"
+  },
+  "title_resize": {
+    "baseline_source_commit": "25b6549513d4efd0c34b5563504114443d83b9e7",
+    "after_source_commit": "92620f71cf21a0b59959358253b64a32555e3da9",
+    "characters": 125,
+    "before": {
+      "title-wide": {
+        "clientHeight": 300,
+        "scrollHeight": 300,
+        "fontSize": "32px",
+        "lineHeight": "48px"
+      },
+      "title-narrow": {
+        "clientHeight": 300,
+        "scrollHeight": 336,
+        "fontSize": "24px",
+        "lineHeight": "36px"
+      },
+      "title-larger-type": {
+        "clientHeight": 300,
+        "scrollHeight": 1567,
+        "fontSize": "48px",
+        "lineHeight": "86.4px"
+      },
+      "title-wide-again": {
+        "clientHeight": 300,
+        "scrollHeight": 300,
+        "fontSize": "32px",
+        "lineHeight": "48px"
+      }
+    },
+    "after": {
+      "title-wide": {
+        "clientHeight": 300,
+        "scrollHeight": 300,
+        "fontSize": "32px",
+        "lineHeight": "48px"
+      },
+      "title-narrow": {
+        "clientHeight": 336,
+        "scrollHeight": 336,
+        "fontSize": "24px",
+        "lineHeight": "36px"
+      },
+      "title-larger-type": {
+        "clientHeight": 1567,
+        "scrollHeight": 1567,
+        "fontSize": "48px",
+        "lineHeight": "86.4px"
+      },
+      "title-wide-again": {
+        "clientHeight": 300,
+        "scrollHeight": 300,
+        "fontSize": "32px",
+        "lineHeight": "48px"
+      }
+    },
+    "native_title_selection_retained": [
+      0,
+      5
+    ],
+    "same_textarea_and_focus": true,
+    "document_mutations": 0,
+    "browser_page_errors": 0,
+    "limits": "48px/1.8 type is a controlled CSS change at fixed viewport, not native OS/browser text zoom. Before screenshot focus is body; after focus/selection is title."
   }
 }
