@@ -50,14 +50,15 @@ test("node documents hide the previous scope while loading, recover errors and i
     await expect(panel.getByRole("status")).toHaveCount(0);
     await page.route("**/api/documents?*", async (route) => {
       if (new URL(route.request().url()).searchParams.get("nodeId") !== b.id) return route.continue();
-      pending = true; const response = await route.fetch(); await late; await route.fulfill({ response });
+      pending = true; const response = await route.fetch(); await late; await route.fulfill({ response }).catch(() => {});
     });
     await page.locator(`.react-flow__node[data-id="${b.id}"]`).click();
     await expect.poll(() => pending).toBe(true);
+    const canceled = page.waitForEvent("requestfailed", { predicate: (req) => new URL(req.url()).searchParams.get("nodeId") === b.id });
     await page.locator(`.react-flow__node[data-id="${a.id}"]`).click();
     await expect(panel.getByRole("link", { name: docA.title })).toBeVisible();
-    const delivered = page.waitForResponse((response) => new URL(response.url()).searchParams.get("nodeId") === b.id);
-    release!(); await delivered;
+    expect((await canceled).failure()?.errorText).toMatch(/abort|cancel/i);
+    release!(); await page.unrouteAll({ behavior: "wait" });
     await expect(panel.getByRole("link", { name: docB.title })).toHaveCount(0);
     await expect(panel.getByRole("link", { name: docA.title })).toBeVisible();
   } finally {
