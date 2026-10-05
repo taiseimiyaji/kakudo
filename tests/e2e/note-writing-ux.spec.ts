@@ -5,7 +5,7 @@ const paragraph = '認証は「誰が利用しているか」を確かめる手�
 const ownWords = `# 認証と認可を、自分の言葉で考える\n\n${paragraph}\n\n## 具体例から理解する\n\n${paragraph}\n\n${paragraph}\n\n## まだ確かめたいこと\n\n${paragraph}\n\n${paragraph}\n\n${Array.from({ length: 10 }, () => paragraph).join("\n\n")}`;
 
 async function capture(page: Page, info: TestInfo, name: string, top = true) {
-  if (top) { await page.locator(".save-state").click(); await page.mouse.move(0, 0); await page.evaluate(() => scrollTo(0, 0)); }
+  if (top) { await page.clock.runFor(32); await page.locator(".cm-content").evaluate(element => (element as HTMLElement).blur()); await page.locator(".save-state").click(); await page.mouse.move(0, 0); await page.evaluate(() => scrollTo(0, 0)); }
   const measurements = await page.evaluate(() => {
     const box = (selector: string) => {
       const element = document.querySelector(selector); if (!element) return null;

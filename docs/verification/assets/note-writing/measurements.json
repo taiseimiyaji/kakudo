@@ -1,0 +1,46 @@
+{
+  "baseline": "aaf324e1e4b7e182349055d78ef2a37498c17746",
+  "source_commit": "14cd40409acb8dd3f69c447f352a6cd8742e8301",
+  "fixture": "tests/e2e/note-writing-ux.spec.ts",
+  "conditions": "Mock/owned database/temp Markdown; controlled clock and held actual PUT acknowledgment. Captures after editor drawing settles.",
+  "viewports": [
+    {
+      "width": 768,
+      "initial_body_top_px": 238.78125,
+      "initial_first_line_top_px": 254.78125,
+      "default_body_width_px": 689.75,
+      "font_size": "18px",
+      "line_height": "32.4px",
+      "long_scroll_save_indicator_y": 12,
+      "paragraph_characters": 2116,
+      "identity_focus_and_scroll_passed": true
+    },
+    {
+      "width": 390,
+      "initial_body_top_px": 306.78125,
+      "initial_first_line_top_px": 322.78125,
+      "default_body_width_px": 358,
+      "font_size": "17px",
+      "line_height": "30.6px",
+      "long_scroll_save_indicator_y": 10,
+      "paragraph_characters": 2116,
+      "identity_focus_and_scroll_passed": true
+    },
+    {
+      "width": 1440,
+      "initial_body_top_px": 286.78125,
+      "initial_first_line_top_px": 302.78125,
+      "default_body_width_px": 689.75,
+      "font_size": "18px",
+      "line_height": "32.4px",
+      "long_scroll_save_indicator_y": 12,
+      "paragraph_characters": 2116,
+      "identity_focus_and_scroll_passed": true
+    }
+  ],
+  "limits": [
+    "Native Japanese Mac IME and OS/browser zoom unverified. Synthetic composition and CSS200% text scale plus640px reflow verified.",
+    "No durable client draft persistence.",
+    "Long-writing review uses Mock LOGIC within existing FULL review20-claim limit."
+  ]
+}
