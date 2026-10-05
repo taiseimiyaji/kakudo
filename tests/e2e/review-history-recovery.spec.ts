@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 
 test("review history recovers after a lost initial GET while preserving the unsaved note", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "History recovery", content: "My words." } })).json();
@@ -11,7 +11,7 @@ test("review history recovers after a lost initial GET while preserving the unsa
       if (route.request().method() !== "GET") { await route.continue(); return; }
       if (++reads === 1) await route.abort("failed"); else await route.continue();
     });
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("通信できませんでした");
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" My draft.");

@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 
 test("a surviving note can relink nodes, show objectives, keep drafts and return to the selected map node", async ({ page, request }, testInfo) => {
   const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: `Node context ${Date.now()}` } })).json();
@@ -7,7 +7,7 @@ test("a surviving note can relink nodes, show objectives, keep drafts and return
   const { document } = await (await request.post("/api/documents", { data: { title: "Surviving note", content: "My words.", nodeIds: [old.id] } })).json();
   await request.delete(`/api/nodes/${old.id}`);
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const panel = page.getByRole("region", { name: "関連する学習項目と目標" });
     await expect(panel).toContainText("関連する学習項目はありません");
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
@@ -44,7 +44,7 @@ test("a surviving note can relink nodes, show objectives, keep drafts and return
     await returnLink.click();
     await expect(page.getByLabel("学習項目名（必須）", { exact: true })).toHaveValue("OAuth");
     await expect(page.locator(`.react-flow__node[data-id="${a.id}"]`)).toHaveClass(/selected/);
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await panel.getByText("学習項目の関連を変更", { exact: true }).click();
     await panel.getByRole("button", { name: "関連をすべて解除", exact: true }).click();
     await panel.getByRole("button", { name: "関連を保存", exact: true }).click();

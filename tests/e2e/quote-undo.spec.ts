@@ -1,9 +1,10 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test, editNote } from "./manual-note-fixture";
 
 test("quotes preserve earlier typing, undo, redo and saved revision/source-check consistency", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "Quote undo", content: "Original" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toContainText("Original");
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" my words");
@@ -11,7 +12,7 @@ test("quotes preserve earlier typing, undo, redo and saved revision/source-check
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("出典URL").fill("https://example.com/source");
     await dialog.getByRole("button", { name: "引用を追加" }).click();
-    await expect(page.getByRole("status")).toHaveText("引用を追加して保存しました");
+    await expect(page.locator(".save-state")).toHaveText("保存済み");
     await expect(editor).toContainText("> Reference");
     const quoted = await (await request.get(`/api/documents/${document.id}`)).json();
     await editor.press("ControlOrMeta+Z");
@@ -24,7 +25,7 @@ test("quotes preserve earlier typing, undo, redo and saved revision/source-check
     await editor.press("ControlOrMeta+Z"); await editor.press("ControlOrMeta+Z");
     await expect(editor).toHaveText("Original");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("保存しました");
+    await expect(page.locator(".save-state")).toHaveText("保存済み");
     const current = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(current.content).toBe("Original"); expect(current.document.currentRevisionId).not.toBe(quoted.document.currentRevisionId);
     await page.getByRole("button", { name: "出典を確認", exact: true }).click();

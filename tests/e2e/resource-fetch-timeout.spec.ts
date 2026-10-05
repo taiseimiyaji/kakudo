@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test } from "@playwright/test";
 import { RESOURCE_FETCH_TIMEOUT_MS } from "../../components/resources/resource-panel";
 
@@ -70,10 +71,10 @@ test("an old fetch response cannot change the same resource row in another docum
     else await route.fulfill({ json: { status: "AVAILABLE" } });
   });
   try {
-    await page.goto(`/workspaces/default/documents/${first.id}`);
+    await page.goto(`/workspaces/default/documents/${first.id}`); await openNotePanels(page);
     const row = page.getByRole("region", { name: "参考資料", exact: true }).getByRole("listitem").filter({ hasText: "両ノートの資料" });
     await row.getByRole("button", { name: "取得を確認" }).click(); await expect.poll(() => attempts).toBe(1);
-    await page.goto(`/workspaces/default/documents/${second.id}`);
+    await page.goto(`/workspaces/default/documents/${second.id}`); await openNotePanels(page);
     await expect(row.getByRole("button", { name: "取得を確認" })).toBeEnabled();
     await row.getByRole("button", { name: "取得を確認" }).click(); await expect.poll(() => attempts).toBe(2);
     await expect(row.getByText("資料を取得できました。内容の正確性を判定する操作ではありません。")).toBeVisible();

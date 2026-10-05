@@ -1,4 +1,4 @@
-import { expect, test } from "./manual-note-fixture";
+import { expect, test, openNotePanels } from "./manual-note-fixture";
 import type { APIRequestContext, Page } from "@playwright/test";
 
 async function setup(request: APIRequestContext, name: string, multiple = false) {
@@ -8,7 +8,7 @@ async function setup(request: APIRequestContext, name: string, multiple = false)
   return { roadmap, nodes, document, cleanup: async () => { await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/roadmaps/${roadmap.id}`); } };
 }
 const region = (page: Page) => page.getByRole("region", { name: "関連する学習項目と目標" });
-async function open(page: Page, id: string) { await page.goto(`/workspaces/default/documents/${id}`); await page.getByRole("button", { name: "編集", exact: true }).click(); await region(page).getByText("学習項目の関連を変更", { exact: true }).click(); }
+async function open(page: Page, id: string) { await page.goto(`/workspaces/default/documents/${id}`); await openNotePanels(page); await page.getByRole("button", { name: "編集", exact: true }).click(); await region(page).getByText("学習項目の関連を変更", { exact: true }).click(); }
 async function confirm(page: Page) { await page.getByRole("button", { name: "最新の保存内容を確認", exact: true }).click(); await expect(page.getByRole("region", { name: "最新の保存内容" })).toBeVisible(); await page.getByRole("button", { name: "確認した内容を基準に再試行", exact: true }).click(); }
 
 for (const multiple of [false, true]) test(`unchanged association IDs keep pending choices and human drafts across baseline confirmation${multiple ? " with reordered metadata" : ""}`, async ({ page, request }) => {
@@ -29,7 +29,7 @@ for (const multiple of [false, true]) test(`unchanged association IDs keep pendi
     await page.getByRole("button", { name: "保存を再試行", exact: true }).click(); await expect(page.getByText("保存済み", { exact: true })).toBeVisible(); await expect(b).toBeChecked();
     let saved = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(saved.content).toBe("保存済みの本文。保持する手書きの追記。"); expect(saved.document.title).toBe("保持する手書きの名前"); expect(saved.nodeIds.sort()).toEqual(original.nodeIds.sort());
     await region(page).getByRole("button", { name: "関連を保存", exact: true }).click(); await expect(region(page)).toContainText("関連を更新しました。"); saved = await (await request.get(`/api/documents/${f.document.id}`)).json(); expect(saved.nodeIds.sort()).toEqual([...original.nodeIds, f.nodes[1].id].sort()); expect(saved.content).toBe("保存済みの本文。保持する手書きの追記。");
-    await page.reload(); await expect(region(page)).toContainText("認可の目的を説明する"); await expect(page.getByRole("region", { name: "閲覧モード" })).toContainText("保持する手書きの追記。");
+    await page.reload(); await openNotePanels(page); await expect(region(page)).toContainText("認可の目的を説明する"); await expect(page.getByRole("region", { name: "閲覧モード" })).toContainText("保持する手書きの追記。");
   } finally { await page.unrouteAll({ behavior: "wait" }); await f.cleanup(); }
 });
 

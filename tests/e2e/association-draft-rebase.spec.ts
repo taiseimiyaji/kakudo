@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { test, expect } from './manual-note-fixture';
 
 for (const external of ['add', 'delete'] as const) for (const edit of ['add', 'remove'] as const) test(`confirmed ${external} retains pending association ${edit}`, async ({ page, context, request }) => {
@@ -9,7 +10,7 @@ for (const external of ['add', 'delete'] as const) for (const edit of ['add', 'r
     for (const [i, name] of ['保存済みA', '別画面で変更するB', '人間が未保存で選ぶC'].entries()) nodes.push((await (await request.post('/api/nodes', { data: { roadmapId: mapId, title: name, positionX: i * 320 } })).json()).node);
     const originalIds = external === 'add' ? [nodes[0].id] : [nodes[0].id, nodes[1].id];
     const { document } = await (await request.post('/api/documents', { data: { title: '元の保存名', content: '保存済み本文。', nodeIds: originalIds } })).json(); documentId = document.id;
-    await page.goto(`/workspaces/default/documents/${documentId}`); await page.getByRole('button', { name: '編集', exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page); await page.getByRole('button', { name: '編集', exact: true }).click();
     const region = page.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await region.getByText('学習項目の関連を変更', { exact: true }).click();
     const checkbox = (i: number) => region.getByRole('checkbox', { name: `${roadmap.title} / ${nodes[i].title}`, exact: true });
     if (edit === 'add') await checkbox(2).check(); else await checkbox(0).uncheck();
@@ -18,7 +19,7 @@ for (const external of ['add', 'delete'] as const) for (const edit of ['add', 'r
     await page.getByLabel('資料URL（必須）').fill('https://example.com/rebase-unregistered');
     other = await context.newPage();
     if (external === 'add') {
-      await other.goto(`/workspaces/default/documents/${documentId}`); const links = other.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await links.getByText('学習項目の関連を変更', { exact: true }).click();
+      await other.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(other); const links = other.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await links.getByText('学習項目の関連を変更', { exact: true }).click();
       await links.getByRole('checkbox', { name: `${roadmap.title} / ${nodes[1].title}`, exact: true }).check(); await links.getByRole('button', { name: '関連を保存', exact: true }).click(); await expect(links.getByRole('status')).toContainText('関連を更新しました。');
     } else {
       await other.goto(`/workspaces/default/roadmaps/${mapId}?nodeId=${nodes[1].id}`); await expect(other.getByLabel('学習項目名（必須）', { exact: true })).toHaveValue(nodes[1].title);
@@ -53,7 +54,7 @@ for (const submission of ['add', 'remove'] as const) test(`confirmed lost ${subm
     const initialIds = submission === 'add' ? [nodes[0].id] : [nodes[0].id, nodes[1].id];
     const { document } = await (await request.post('/api/documents', { data: { title: '送信後の選択を保持', content: '人間の本文。', nodeIds: initialIds } })).json(); documentId = document.id;
     await page.route(`**/api/documents/${documentId}/nodes?*`, async (route) => { if (route.request().method() !== 'PATCH') return route.continue(); writes++; await route.fetch(); await route.abort(); });
-    await page.goto(`/workspaces/default/documents/${documentId}`); const region = page.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await region.getByText('学習項目の関連を変更', { exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page); const region = page.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await region.getByText('学習項目の関連を変更', { exact: true }).click();
     const b = region.getByRole('checkbox', { name: `${roadmap.title} / B`, exact: true }); const c = region.getByRole('checkbox', { name: `${roadmap.title} / C`, exact: true });
     await b.setChecked(submission === 'add'); await region.getByRole('button', { name: '関連を保存', exact: true }).click(); await expect(region.getByRole('alert')).toContainText('通信できませんでした');
     await b.setChecked(submission !== 'add'); await c.check();

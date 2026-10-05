@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 
 for (const terminal of ["COMPLETED", "FAILED"] as const) {
   test(`review status recovers after one lost GET to ${terminal} and keeps the learner draft`, async ({ page, request }) => {
@@ -17,7 +17,7 @@ for (const terminal of ["COMPLETED", "FAILED"] as const) {
       await route.fulfill({ response, json: detail });
     });
     try {
-      await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+      await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
       await page.getByRole("button", { name: "論理を確認", exact: true }).click();
       await expect(page.getByLabel("レビューの状態")).toContainText("確認中");
       const editor = page.getByRole("textbox", { name: "Markdown本文" });
@@ -50,7 +50,7 @@ test("switching review history ignores an old delayed response", async ({ page, 
       detail.run.status = "FAILED"; detail.run.error = "古い応答を表示してはいけません";
       await gate; await route.fulfill({ response, json: detail }).catch(() => {});
     });
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");
     await page.getByLabel("レビュー履歴").selectOption(old);
     await expect.poll(() => oldRequested).toBe(true);

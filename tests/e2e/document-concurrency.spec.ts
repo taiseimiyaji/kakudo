@@ -10,7 +10,7 @@ test("a stale tab preserves its title and text and can review the latest save be
     await expect(other.getByLabel("ノート名（必須）")).toHaveValue("Old");
     await page.getByLabel("ノート名（必須）").fill("New");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("保存しました");
+    await expect(page.locator(".save-state")).toHaveText("保存済み");
     const editor = other.getByRole("textbox", { name: "Markdown本文" });
     await editor.click(); await editor.press("End"); await editor.pressSequentially(" my draft");
     await other.getByLabel("ノート名（必須）").fill("My draft title");
@@ -26,7 +26,7 @@ test("a stale tab preserves its title and text and can review the latest save be
     await expect(editor).toContainText("A my draft");
     await other.getByRole("button", { name: "確認した内容を基準に再試行" }).click();
     await other.getByRole("button", { name: "保存を再試行", exact: true }).click();
-    await expect(other.getByRole("status")).toHaveText("保存しました");
+    await expect(other.locator(".save-state")).toHaveText("保存済み");
     await other.reload(); await editNote(other);
     await expect(editor).toContainText("A my draft");
     await expect(other.getByLabel("ノート名（必須）")).toHaveValue("My draft title");

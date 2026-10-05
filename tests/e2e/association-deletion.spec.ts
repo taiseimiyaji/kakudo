@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test, type Page } from "@playwright/test";
 
 for (const removal of ["node", "map"] as const) for (const humanDraft of [false, true]) {
@@ -16,7 +17,7 @@ for (const removal of ["node", "map"] as const) for (const humanDraft of [false,
       const { document } = await (await request.post("/api/documents", { data: { title: `人間のノート ${suffix}`, content, nodeIds: [nodes[0].id] } })).json(); documentId = document.id;
       page.on("request", (req) => { if (req.method() === "PATCH" && req.url().includes(`/documents/${documentId}/nodes?`)) patches++; });
       await page.route(`**/api/documents/${documentId}/node-options?*`, (route) => failOptions ? route.fulfill({ status: 503, json: {} }) : route.continue());
-      await page.goto(`/workspaces/default/documents/${documentId}`);
+      await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page);
       const region = page.getByRole("region", { name: "関連する学習項目と目標", exact: true });
       const pending = region.getByText("関連の変更は未保存です。「関連を保存」で確定してください。", { exact: true });
       await region.getByText("学習項目の関連を変更", { exact: true }).click();

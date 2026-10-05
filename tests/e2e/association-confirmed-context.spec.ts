@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { test, expect } from './manual-note-fixture';
 import type { Page } from '@playwright/test';
 
@@ -19,14 +20,14 @@ for (const lateOldRead of [false, true]) test(`fresh confirmed links survive cac
       if (holdNew) { newHeld = true; await newGate; }
       await route.fulfill({ response });
     });
-    await page.goto(`/workspaces/default/documents/${documentId}`); const region = page.getByRole('region', { name: '関連する学習項目と目標', exact: true });
+    await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page); const region = page.getByRole('region', { name: '関連する学習項目と目標', exact: true });
     await region.getByText('学習項目の関連を変更', { exact: true }).click(); if (lateOldRead) await expect.poll(() => oldHeld).toBe(true); else await expect(region.getByRole('checkbox', { name: `${roadmap.title} / ${first.title}`, exact: true })).toBeChecked();
     await page.getByRole('button', { name: '編集', exact: true }).click(); await page.getByLabel('ノート名（必須）').fill(draftTitle);
     const editor = page.getByRole('textbox', { name: 'Markdown本文' }); await editor.click(); await editor.press('ControlOrMeta+End'); await editor.pressSequentially(draft);
     secondary = await context.newPage(); await secondary.goto(`/workspaces/default/roadmaps/${mapId}`); await secondary.getByLabel('新しい学習項目（必須）').fill('後で作る項目B'); await secondary.getByRole('button', { name: '学習項目を追加', exact: true }).click();
     await expect(secondary.getByLabel('学習項目名（必須）', { exact: true })).toHaveValue('後で作る項目B');
     const detail = await (await request.get(`/api/roadmaps/${mapId}`)).json(); const second = detail.nodes.find((node: { title: string }) => node.title === '後で作る項目B'); expect(second).toBeTruthy();
-    await secondary.goto(`/workspaces/default/documents/${documentId}`); const otherRegion = secondary.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await otherRegion.getByText('学習項目の関連を変更', { exact: true }).click();
+    await secondary.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(secondary); const otherRegion = secondary.getByRole('region', { name: '関連する学習項目と目標', exact: true }); await otherRegion.getByText('学習項目の関連を変更', { exact: true }).click();
     await otherRegion.getByRole('checkbox', { name: `${roadmap.title} / ${second.title}`, exact: true }).check(); await otherRegion.getByRole('button', { name: '関連を保存', exact: true }).click(); await expect(otherRegion.getByText('関連を更新しました。本文は保持されています。', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '保存', exact: true }).click(); await expect(page.getByRole('alert').filter({ hasText: '別の変更と競合しました' })).toBeVisible();
     await page.getByRole('button', { name: '最新の保存内容を確認', exact: true }).click(); await expect(page.getByRole('region', { name: '最新の保存内容', exact: true })).toBeVisible();

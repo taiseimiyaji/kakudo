@@ -1,9 +1,9 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 test("native paste requires attribution, cancel preserves prose, URLs open resources and code stays literal", async ({ page, context, request }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { document } = await (await request.post("/api/documents", { data: { title: "Paste browser", content: "My words\n\n```ts\n\n```" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toContainText("My words");
     await editor.click(); await editor.press("ControlOrMeta+Home");
@@ -21,7 +21,7 @@ test("native paste requires attribution, cancel preserves prose, URLs open resou
     await dialog.getByLabel("出典URL").fill("https://example.com/source");
     await dialog.getByLabel("出典名").fill("Primary source");
     await dialog.getByRole("button", { name: "引用を追加" }).click();
-    await expect(page.getByRole("status")).toHaveText("引用を追加して保存しました");
+    await expect(page.locator(".save-state")).toHaveText("保存済み");
     const quoted = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(quoted.content).toContain("> Copied claim\n> Another line");
     expect(quoted.content).toContain("[Primary source](<https://example.com/source>)");
@@ -33,7 +33,7 @@ test("native paste requires attribution, cancel preserves prose, URLs open resou
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.press("ArrowUp"); await editor.press("Home");
     await page.evaluate(() => navigator.clipboard.writeText("const exact = 42;")); await editor.press("ControlOrMeta+V");
     await expect(dialog).toHaveCount(0); await expect(editor).toContainText("const exact = 42;");
-    await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByRole("status")).toHaveText("保存しました");
+    await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.locator(".save-state")).toHaveText("保存済み");
     const saved = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(saved.content).toContain("```ts\nconst exact = 42;\n```");
   } finally { await request.delete(`/api/documents/${document.id}`); }

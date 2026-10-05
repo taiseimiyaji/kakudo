@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test as base } from '@playwright/test';
 type Note = {
     id: string;
@@ -28,7 +29,7 @@ test('known input rejection retains direct explicit retry without uncertain-outc
         if (puts === 1) return route.fulfill({ status: 400, json: { error: 'private validation detail' } });
         return route.continue();
     });
-    await page.goto(`/workspaces/default/documents/${note.id}`);
+    await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
     await page.getByRole('button', { name: '編集', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Markdown本文' });
     await editor.click(); await editor.press('ControlOrMeta+End'); await editor.pressSequentially(' 人間の保存待ちの考察。');
@@ -59,7 +60,7 @@ for (const operation of ['save', 'quote'] as const)
             quotePosts++; const response = await route.fetch(); expect(response.status()).toBe(save ? 200 : 201); if (operation === 'save' && puts > 1 || operation === 'quote' && save)
             return route.fulfill({ response }); held = true; await gate; await route.fulfill({ response }).catch(() => { }); });
         try {
-            await page.goto(`/workspaces/default/documents/${note.id}`);
+            await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
             await page.getByRole('button', { name: '編集', exact: true }).click();
             const editor = page.getByRole('textbox', { name: 'Markdown本文' });
             await editor.click();
@@ -147,7 +148,7 @@ test('a lost forced save stays protected even when the human draft is clean and 
     let puts = 0;
     await page.route(`**/api/documents/${note.id}?*`, async (route) => { if (route.request().method() !== 'PUT')
         return route.continue(); puts++; const response = await route.fetch(); expect(response.status()).toBe(200); return route.abort(); });
-    await page.goto(`/workspaces/default/documents/${note.id}`);
+    await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
     await page.getByRole('button', { name: '保存', exact: true }).click();
     await expect(page.getByText('保存結果は不明です', { exact: true })).toBeVisible();
     let warned = false;
@@ -168,7 +169,7 @@ test('malformed quote success never applies replacement prose, retains source in
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     let posts = 0;
     await page.route(`**/api/documents/${note.id}/quotes?*`, async (route) => { posts++; const response = await route.fetch(); expect(response.status()).toBe(201); const payload = await response.json(); payload.content = 'private wrong replacement'; return route.fulfill({ response, json: payload }); });
-    await page.goto(`/workspaces/default/documents/${note.id}`);
+    await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
     await page.getByRole('button', { name: '編集', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Markdown本文' });
     await editor.click();
@@ -220,7 +221,7 @@ test('latest GET timeout and late snapshot cannot unlock or replace newer baseli
         return route.continue(); reads++; const response = await route.fetch(); if (reads !== 1)
         return route.fulfill({ response }); held = true; await gate; await route.fulfill({ response }).catch(() => { }); });
     try {
-        await page.goto(`/workspaces/default/documents/${note.id}`);
+        await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
         await page.getByRole('button', { name: '編集', exact: true }).click();
         const editor = page.getByRole('textbox', { name: 'Markdown本文' });
         await editor.click();
@@ -262,7 +263,7 @@ test('a newer external write after comparison is not overwritten by the explicit
     await page.route(`**/api/documents/${note.id}?*`, async (route) => { if (route.request().method() !== 'PUT')
         return route.continue(); puts++; if (puts > 1)
         return route.continue(); await route.fetch(); return route.abort(); });
-    await page.goto(`/workspaces/default/documents/${note.id}`);
+    await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
     await page.getByRole('button', { name: '編集', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Markdown本文' });
     await editor.click();
@@ -297,7 +298,7 @@ test('leaving a held write cancels its response work and cannot mutate a later d
     await page.route(`**/api/documents/${note.id}?*`, async (route) => { if (route.request().method() !== 'PUT')
         return route.continue(); puts++; const response = await route.fetch(); held = true; await gate; await route.fulfill({ response }).catch(() => { }); });
     try {
-        await page.goto(`/workspaces/default/documents/${note.id}`);
+        await page.goto(`/workspaces/default/documents/${note.id}`); await openNotePanels(page);
         await page.getByRole('button', { name: '編集', exact: true }).click();
         const editor = page.getByRole('textbox', { name: 'Markdown本文' });
         await editor.click();

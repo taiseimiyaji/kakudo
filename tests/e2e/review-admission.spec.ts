@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -16,7 +16,7 @@ for (const reason of ["content", "objectives"] as const) {
     const content = reason === "content" ? "あ".repeat(60001) : "My understanding.";
     const { document } = await (await request.post("/api/documents", { data: { title: `Limit ${reason}`, content, nodeIds: nodes.map((node) => node.id) } })).json();
     try {
-      await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+      await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
       const response = page.waitForResponse((res) => res.url().includes(`/documents/${document.id}/reviews`) && res.request().method() === "POST");
       await page.getByRole("button", { name: "論理を確認", exact: true }).click();
       expect((await response).status()).toBe(400);
@@ -29,7 +29,7 @@ for (const reason of ["content", "objectives"] as const) {
         const editor = page.getByRole("textbox", { name: "Markdown本文" });
         await editor.click(); await editor.press("ControlOrMeta+A"); await editor.pressSequentially("Short human note.");
         await page.getByRole("button", { name: "保存", exact: true }).click();
-        await expect(page.getByText("保存しました", { exact: true })).toBeVisible();
+        await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
       } else {
         const related = page.getByRole("region", { name: "関連する学習項目と目標" });
         await related.getByText("学習項目の関連を変更", { exact: true }).click();
@@ -47,7 +47,7 @@ for (const reason of ["content", "objectives"] as const) {
 test("external Markdown change explains safe reload and save before Review", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "External change", content: "Original human note." } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await expect(page.getByRole("button", { name: "論理を確認", exact: true })).toBeEnabled();
     // This is the E2E runner's temporary storage, never a user's Markdown directory.
     await writeFile(join(process.env.CONTENT_STORAGE_ROOT!, document.path), "External human edit.");
@@ -55,9 +55,9 @@ test("external Markdown change explains safe reload and save before Review", asy
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("外部で変更");
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("退避");
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe("External human edit.");
-    await page.reload(); await editNote(page); await expect(page.getByRole("textbox", { name: "Markdown本文" })).toContainText("External human edit.");
+    await page.reload(); await openNotePanels(page); await editNote(page); await expect(page.getByRole("textbox", { name: "Markdown本文" })).toContainText("External human edit.");
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(page.getByText("保存しました", { exact: true })).toBeVisible();
+    await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "論理を確認", exact: true }).click();
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");
   } finally { await request.delete(`/api/documents/${document.id}`); }
@@ -68,7 +68,7 @@ test("duplicate admission directs the learner to the existing run without creati
   const { document } = await (await request.post("/api/documents", { data: { title: "Duplicate", content: "Human note." } })).json();
   const id = randomUUID();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await expect(page.getByRole("button", { name: "論理を確認", exact: true })).toBeEnabled();
     // A different tab/process admits a run after this tab loaded its empty history.
     await db.insert(reviewRuns).values({ id, documentId: document.id, revisionId: document.currentRevisionId, type: "LOGIC", provider: "mock" });
@@ -76,7 +76,7 @@ test("duplicate admission directs the learner to the existing run without creati
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("同じRevision・種類");
     await expect(page.locator(".review-panel").getByRole("alert")).toContainText("履歴");
     expect((await (await request.get(`/api/documents/${document.id}/reviews`)).json()).reviews).toHaveLength(1);
-    await page.reload(); await editNote(page); await expect(page.getByLabel("レビューの状態")).toContainText("順番待ち");
+    await page.reload(); await openNotePanels(page); await editNote(page); await expect(page.getByLabel("レビューの状態")).toContainText("順番待ち");
     await expect(page.getByRole("button", { name: "論理を確認", exact: true })).toBeDisabled();
     await db.update(reviewRuns).set({ status: "COMPLETED", stage: "COMPLETED" }).where(eq(reviewRuns.id, id));
     await expect(page.getByLabel("レビューの状態")).toContainText("完了");

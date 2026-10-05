@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 async function setup(request: APIRequestContext, name: string) {
@@ -11,7 +12,7 @@ const region = (page: Page) => page.getByRole("region", { name: "関連する学
 const home = (page: Page) => page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true });
 const pending = (page: Page) => region(page).getByText('関連の変更は未保存です。「関連を保存」で確定してください。', { exact: true });
 async function open(page: Page, id: string) {
-  await page.goto(`/workspaces/default/documents/${id}`); await region(page).getByText("学習項目の関連を変更", { exact: true }).click();
+  await page.goto(`/workspaces/default/documents/${id}`); await openNotePanels(page); await region(page).getByText("学習項目の関連を変更", { exact: true }).click();
 }
 
 test("association draft guards links, history and reload; revert and accepted departure clear it", async ({ page, request }) => {

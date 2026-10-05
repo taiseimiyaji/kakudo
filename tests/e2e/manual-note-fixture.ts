@@ -13,6 +13,19 @@ export const test = base.extend({
   },
 });
 export { expect };
+export async function openNotePanels(page: Page) {
+  // Legacy manual-save regressions exercise the complete set of note tools.
+  // New writing-layout specs use the base fixture and keep the default closed.
+  if (!/\/documents\/[^/]+$/.test(new URL(page.url()).pathname)) return;
+  await page.locator("[data-note-panel=goals]").waitFor({ state: "attached" });
+  const menu = page.locator(".note-navigation");
+  if (await menu.getAttribute("open") === null) await menu.locator(":scope > summary").click();
+  for (const name of ["goals", "review", "resources"]) {
+    const panel = page.locator(`details[data-note-panel="${name}"]`);
+    if (await panel.count() && await panel.getAttribute("open") === null) await panel.locator(":scope > summary").click();
+  }
+}
 export async function editNote(page: Page) {
   await page.getByRole("button", { name: "編集", exact: true }).click();
+  await openNotePanels(page);
 }

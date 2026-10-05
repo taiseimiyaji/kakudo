@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test } from "@playwright/test";
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 640, height: 450 }, { width: 1280, height: 900 }]) {
@@ -11,7 +12,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 640, height: 450 }
     try {
       const routes = ["/workspaces/default", `/workspaces/default/roadmaps/${roadmap.id}`, "/workspaces/default/documents", `/workspaces/default/documents/${document.id}`, "/workspaces/default/resources", "/workspaces/default/reviews"];
       for (const [index, route] of routes.entries()) {
-        await page.goto(route);
+        await page.goto(route); await openNotePanels(page);
         const menu = page.getByRole("navigation", { name: "メインメニュー" });
         await expect(menu).toBeVisible();
         await expect(menu.locator('[aria-current="page"]')).toHaveCount(1);
@@ -26,10 +27,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 640, height: 450 }
         expect(outside).toEqual([]);
         await page.screenshot({ path: testInfo.outputPath(`page-${index}-${viewport.width}.png`), fullPage: true });
       }
-      await page.goto(`/workspaces/default/documents/${document.id}`);
+      await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
       await page.getByRole("button", { name: "編集", exact: true }).click();
       await expect(page.getByLabel("ノート名（必須）")).toHaveValue(title);
-      await expect(page.getByLabel("ノートのプレビュー")).toContainText("English words stay unchanged.");
+      if (viewport.width >= 1000) {
+        await page.getByRole("button", { name: "プレビューを表示", exact: true }).click();
+        await expect(page.getByLabel("ノートのプレビュー")).toContainText("English words stay unchanged.");
+      } else {
+        await page.getByRole("button", { name: "閲覧", exact: true }).click();
+        await expect(page.getByRole("region", { name: "閲覧モード" })).toContainText("English words stay unchanged.");
+        await page.getByRole("button", { name: "編集", exact: true }).click();
+      }
       const panel = page.getByRole("region", { name: "参考資料", exact: true });
       const url = panel.getByLabel("資料URL（必須）");
       await url.focus(); await url.press("Tab");
