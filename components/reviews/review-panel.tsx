@@ -10,10 +10,12 @@ import { ReviewAdmissionRecovery } from "./admission-recovery";
 import { useFindingDecision } from "../../client/hooks/use-finding-decision";
 import { FindingDecisionRecovery } from "./finding-decision-recovery";
 import type { FindingDecisionTarget, FindingStatus } from "../../client/finding-decision";
+import { useReviewResume } from "../../client/hooks/use-review-resume";
 type HistoryItem = { id: string; revisionId: string; type: string; status: string; createdAt: string };
 export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, content, onSelect, initialRunId, contextVersion = 0, onReviewProtectionChange }: { documentId: string; workspaceId: string; revisionId: string | null; dirty: boolean; content: string; onSelect: (finding: FindingSelection | null) => void; initialRunId?: string; contextVersion?: number; onReviewProtectionChange?: (value: boolean) => void }) {
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
   const [detail, setDetail] = useState<ReviewDetail | null>(null); const [history, setHistory] = useState<HistoryItem[]>([]); const [historyVersion, setHistoryVersion] = useState(0);
+  const heading = useReviewResume(initialRunId, detail?.run.documentId === documentId ? detail.run.id : undefined);
   const [runId, setRunId] = useState<string | null>(null); const [error, setError] = useState(""); const [version, setVersion] = useState(0);
   const admission = useReviewAdmission(documentId, workspaceId); const decision = useFindingDecision(documentId, workspaceId); const busy = decision.busy || admission.busy;
   const protectedResult = admission.blocked || decision.blocked;
@@ -53,7 +55,8 @@ export function ReviewPanel({ documentId, workspaceId, revisionId, dirty, conten
   }
   const running = busy || !historyReady || !!runId && !detail || !!detail && ["QUEUED", "RUNNING"].includes(detail.run.status);
   const stale = !!detail && (detail.stale || detail.run.revisionId !== revisionId || detail.revision.contentSnapshot !== content);
-  return <section className="review-panel" aria-label="レビュー"><h2>理解を確かめる</h2><p className="muted">AIが問題点や根拠、考えるための問いを提示します。本文の修正は自分で行います。</p><div className="review-actions">
+  return <section className="review-panel" aria-label="レビュー"><h2 ref={heading} tabIndex={-1}>理解を確かめる</h2><p className="muted">AIが問題点や根拠、考えるための問いを提示します。本文の修正は自分で行います。</p>
+    <p className="muted review-scope">本文は全種類60,000文字まで。事実・全体は抽出主張20件までです。出典は引用の照合、論理は説明のつながり、学習目標は自分で設定した目標との対応を確認します（未設定なら評価なし）。</p><div className="review-actions">
     {([ ["FULL", "全体を確認"], ["FACT_CHECK", "事実を確認"], ["SOURCE", "出典を確認"], ["LOGIC", "論理を確認"], ["COVERAGE", "学習目標を確認"] ] as const).map(([type, label]) => <button key={type} disabled={dirty || !revisionId || running || admission.blocked} onClick={() => { void start(type); }}>{label}</button>)}</div>
     <ReviewAdmissionRecovery admission={admission} onOpen={(id, rows) => { onSelect(null); setHistory(rows); setRunId(id); setDetail(null); setError(""); setHistoryVersion((v) => v + 1); setVersion((v) => v + 1); }} />
     <FindingDecisionRecovery decision={decision} onRead={reflectFindingStatus} />
