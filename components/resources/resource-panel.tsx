@@ -69,7 +69,8 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
       event.preventDefault(); if (linkPending.current || !selected || load !== "ready") return;
       linkPending.current = true; setLinkBusy(true); setLinkMessage({ text: "", error: false });
       const name = all.find((r) => r.id === selected)?.title || all.find((r) => r.id === selected)?.url || "資料";
-      void request<{ resource: Resource }>(path + suffix, "POST", { resourceId: selected }).then(({ resource }) => {
+      void request<{ resource?: unknown }>(path + suffix, "POST", { resourceId: selected }).then((payload) => {
+        const [resource] = readResourceList({ resources: [payload?.resource] }, workspaceId);
         added(resource); setSelected(""); setLinkMessage({ text: `「${name}」を関連付けました。`, error: false });
       }).catch(() => setLinkMessage({ text: `「${name}」を関連付けられませんでした。接続を確認して再試行してください。`, error: true })).finally(() => { linkPending.current = false; setLinkBusy(false); });
     }}>
