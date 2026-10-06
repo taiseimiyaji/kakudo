@@ -1,0 +1,6 @@
+.export-trial-panel { position: fixed; z-index: 50; right: 12px; bottom: 12px; width: min(420px, calc(100vw - 24px)); max-height: 70vh; overflow: auto; padding: 12px; background: #fff; color: #243038; border: 1px solid #91a4ae; border-radius: 8px; box-shadow: 0 4px 20px #0002; font: 13px/1.5 Arial, sans-serif; }
+.export-trial-panel nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.export-trial-panel nav button { padding: 6px; border: 1px solid #91a4ae; background: #f5f8fa; color: #243038; min-height: 36px; }
+.export-trial-panel > p { margin: 8px 0; }
+.export-trial-panel > label { display: flex; gap: 8px; }
+.export-trial-panel iframe { display: block; width: 100%; height: 390px; border: 0; margin-top: 8px; }
