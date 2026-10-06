@@ -5,6 +5,7 @@ import type { Resource, ResourceTarget } from "../../shared/resource";
 import { Feedback } from "../common/feedback";
 import { ResourceForm } from "./resource-form";
 import { checkResourceRegistration, registerResource } from "../../client/resource-registration";
+import { readResourceList } from "../../client/resource-list";
 
 type Props = { workspaceId: string; target?: ResourceTarget; refresh?: number; onChange?: () => void; showHeading?: boolean; onDraftProtectionChange?: (protectedDraft: boolean) => void };
 export const RESOURCE_LIST_TIMEOUT_MS = 20_000;
@@ -31,12 +32,17 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
     setRefreshFailed(false);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), RESOURCE_LIST_TIMEOUT_MS);
-    Promise.all([request<{ resources: Resource[] }>(path + suffix, "GET", undefined, { signal: controller.signal }), target ? request<{ resources: Resource[] }>("/resources" + suffix, "GET", undefined, { signal: controller.signal }) : Promise.resolve(null)])
-      .then(([linked, available]) => { if (active) { hasKnownList.current = true; setItems(linked.resources); setAll(available?.resources ?? linked.resources); setLoad("ready"); } })
+    Promise.all([request(path + suffix, "GET", undefined, { signal: controller.signal }), target ? request("/resources" + suffix, "GET", undefined, { signal: controller.signal }) : Promise.resolve(null)])
+      .then(([linked, available]) => {
+        if (!active) return;
+        const linkedItems = readResourceList(linked, workspaceId);
+        const availableItems = target ? readResourceList(available, workspaceId) : linkedItems;
+        hasKnownList.current = true; setItems(linkedItems); setAll(availableItems); setLoad("ready");
+      })
       .catch(() => { controller.abort(); if (active) { if (hasKnownList.current) { setLoad("ready"); setRefreshFailed(true); } else setLoad("failed"); } })
       .finally(() => clearTimeout(timer));
     return () => { active = false; clearTimeout(timer); controller.abort(); };
-  }, [path, suffix, version, refresh, target?.kind, target?.id]);
+  }, [path, suffix, version, refresh, workspaceId, target?.kind, target?.id]);
   const retry = () => { if (!hasKnownList.current) setLoad("loading"); setRefreshFailed(false); setVersion((v) => v + 1); };
   const added = (resource: Resource) => {
     hasKnownList.current = true;
