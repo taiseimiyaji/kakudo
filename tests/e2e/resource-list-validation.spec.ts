@@ -46,6 +46,11 @@ for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linke
       }
       await editor.press('ControlOrMeta+End'); await editor.pressSequentially(draft);
       await page.getByLabel('ノート名（必須）').fill('人間の未保存の名前');
+      if (phase === 'initial') {
+        await disclosure.locator(':scope > summary').click();
+        await panel.getByLabel('資料名（任意）').fill('人間がまだ登録しない資料名');
+        await disclosure.locator(':scope > summary').click();
+      }
       await expect.poll(() => held).toBe(true); release();
       await disclosure.locator(':scope > summary').click();
       await expect(panel.getByText('資料を読み込めませんでした。接続を確認して再試行してください。', { exact: true })).toBeVisible();
@@ -54,22 +59,24 @@ for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linke
       await expect(editor).toContainText(body + draft);
       await expect(page.getByLabel('ノート名（必須）')).toHaveValue('人間の未保存の名前');
       expect(await editor.evaluate((element, old) => element === old, identity)).toBe(true);
+      await expect(panel.getByLabel('資料名（任意）')).toHaveValue('人間がまだ登録しない資料名');
       if (phase === 'refresh') {
         await expect(panel.getByRole('listitem').filter({ hasText: known.title })).toBeVisible();
         await expect(panel.getByRole('listitem').filter({ hasText: '人間が登録した次の資料' })).toBeVisible();
-        await expect(panel.getByLabel('資料名（任意）')).toHaveValue('人間がまだ登録しない資料名');
         await expect(panel.getByLabel('登録済み資料').locator(`option[value="${available.id}"]`)).toHaveCount(1);
       }
       const beforeSave = await (await request.get(`/api/documents/${document.id}`)).json();
       expect(beforeSave.content).toBe(body); expect(beforeSave.document.title).toBe('人間のノート');
-      expect(writes).toBe(0); expect(invalidGets).toBe(1);
+      // Development StrictMode starts and cancels one additional mount GET.
+      const mountGets = phase === 'initial' && process.env.E2E_DEV === '1' ? 2 : 1;
+      expect(writes).toBe(0); expect(invalidGets).toBe(mountGets);
       await editor.press('ControlOrMeta+z'); await expect.poll(() => editor.innerText()).toBe(body);
       await editor.press('ControlOrMeta+Shift+z'); await expect.poll(() => editor.innerText()).toBe(body + draft);
       fault = false; await panel.getByRole('button', { name: '資料を再読み込み', exact: true }).click();
       await expect(panel.getByRole('listitem').filter({ hasText: known.title })).toBeVisible();
       await expect(panel.getByRole('button', { name: '資料を再読み込み', exact: true })).toHaveCount(0);
       await expect(panel.getByLabel('登録済み資料').locator(`option[value="${available.id}"]`)).toHaveCount(1);
-      expect(invalidGets).toBe(1); expect(writes).toBe(0);
+      expect(invalidGets).toBe(mountGets); expect(writes).toBe(0);
       await page.getByRole('button', { name: '保存', exact: true }).click();
       await expect(page.locator('.save-state')).toHaveText('保存済み');
       const saved = await (await request.get(`/api/documents/${document.id}`)).json();
