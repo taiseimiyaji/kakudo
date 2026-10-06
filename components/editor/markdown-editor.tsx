@@ -1,5 +1,5 @@
 import { reviewHighlightField, setReviewHighlight } from "./highlight-extension";
-import type { HighlightRange } from "../../modules/editor/review-highlight";
+import type { FindingSelection, HighlightRange } from "../../modules/editor/review-highlight";
 import { pasteAction, type InterceptedPaste } from "../../modules/editor/paste-policy";
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { quoteEdit } from "../../modules/editor/quote-edit";
@@ -10,8 +10,9 @@ import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 
 export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void; rememberPosition: () => void; restoreFocus: () => void };
-export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; editorRef?: Ref<MarkdownEditorHandle> }) {
+export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
+  const lastHighlightRequest = useRef<FindingSelection | null>(null);
   const position = useRef<{ pageY: number; editorY: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const callback = useRef(onChange);
@@ -55,6 +56,16 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
     return () => { viewRef.current = null; view.destroy(); };
     // A document session owns its initial content; parent keys remount it on reload.
   }, [initialContent]);
-  useEffect(() => { const view = viewRef.current; if (!view) return; view.dispatch({ effects: highlight ? [setReviewHighlight.of(highlight), EditorView.scrollIntoView(highlight.from, { y: "center" })] : setReviewHighlight.of(null) }); if (highlight) view.focus(); }, [highlight, initialContent]);
+  useEffect(() => {
+    const view = viewRef.current; if (!view) return;
+    // Revalidating a decoration after Undo must preserve Undo's restored caret.
+    const navigate = highlight && highlightRequest && highlightRequest !== lastHighlightRequest.current;
+    lastHighlightRequest.current = highlightRequest;
+    view.dispatch({
+      effects: highlight ? [setReviewHighlight.of(highlight), EditorView.scrollIntoView(highlight.from, { y: "center" })] : setReviewHighlight.of(null),
+      ...(navigate ? { selection: { anchor: highlight.from } } : {}),
+    });
+    if (highlight) view.focus();
+  }, [highlight, highlightRequest, initialContent]);
   return <div className="markdown-editor" ref={host} />;
 }
