@@ -23,6 +23,10 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
   const [version, setVersion] = useState(0);
   const [selected, setSelected] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
+  const [formProtected, setFormProtected] = useState(false);
+  const protectedDraft = formProtected || !!selected || linkBusy;
+  useEffect(() => { onDraftProtectionChange?.(protectedDraft); }, [onDraftProtectionChange, protectedDraft]);
+  useEffect(() => () => { onDraftProtectionChange?.(false); }, [onDraftProtectionChange]);
   const [linkMessage, setLinkMessage] = useState({ text: "", error: false });
   const linkPending = useRef(false);
   const suffix = `?workspaceId=${encodeURIComponent(workspaceId)}`;
@@ -38,6 +42,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
         const linkedItems = readResourceList(linked, workspaceId);
         const availableItems = target ? readResourceList(available, workspaceId) : linkedItems;
         hasKnownList.current = true; setItems(linkedItems); setAll(availableItems); setLoad("ready");
+        setSelected((current) => linkedItems.some((resource) => resource.id === current) ? "" : current);
       })
       .catch(() => { controller.abort(); if (active) { if (hasKnownList.current) { setLoad("ready"); setRefreshFailed(true); } else setLoad("failed"); } })
       .finally(() => clearTimeout(timer));
@@ -48,6 +53,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
     hasKnownList.current = true;
     setItems((current) => [...current.filter((item) => item.id !== resource.id), resource]);
     setAll((current) => [...current.filter((item) => item.id !== resource.id), resource]);
+    setSelected((current) => current === resource.id ? "" : current);
     setLoad("ready"); setRefreshFailed(false); setVersion((v) => v + 1);
     onChange?.();
   };
@@ -58,7 +64,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
       <ul>{items.map((item) => <ResourceRow key={item.id} item={item} suffix={suffix} unlinkPath={target ? `${path}/${encodeURIComponent(item.id)}${suffix}` : undefined} onUnlink={() => { setItems((current) => current.filter((r) => r.id !== item.id)); setRefreshFailed(false); setVersion((v) => v + 1); setLinkMessage({ text: `「${item.title || item.url}」の関連を外しました。資料は登録済み一覧に残っています。`, error: false }); onChange?.(); }} />)}</ul>
       {!items.length && !refreshFailed && <p className="muted">登録された資料はありません。</p>}
     </>}
-    <ResourceForm onDraftProtectionChange={onDraftProtectionChange} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={added} />
+    <ResourceForm onDraftProtectionChange={setFormProtected} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={added} />
     {target && <form aria-busy={linkBusy} onSubmit={(event) => {
       event.preventDefault(); if (linkPending.current || !selected || load !== "ready") return;
       linkPending.current = true; setLinkBusy(true); setLinkMessage({ text: "", error: false });
