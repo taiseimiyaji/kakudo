@@ -8,5 +8,7 @@ export function readResourceList(payload: unknown, workspaceId: string): Resourc
   if (resources.some((resource) => resource.workspaceId !== workspaceId)) {
     throw new Error("資料の応答を確認できませんでした。");
   }
+  // Rows encode IDs into URLs; malformed UTF-16 must fail before state changes.
+  for (const resource of resources) encodeURIComponent(resource.id);
   return resources;
 }

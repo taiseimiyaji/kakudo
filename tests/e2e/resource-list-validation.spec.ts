@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linked', 'available'] as const)
+for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linked', 'available', 'unencodable-id'] as const)
   test(`${phase} malformed ${scope} list preserves drafts and known resources until explicit retry`, async ({ page, request }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.clock.install(); await page.clock.pauseAt(new Date());
@@ -15,13 +15,13 @@ for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linke
     let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
     let fault = phase === 'initial'; let held = false; let invalidGets = 0; let writes = 0;
     const pageErrors: string[] = []; page.on('pageerror', error => pageErrors.push(error.message));
-    const faultPath = scope === 'linked' ? `/api/documents/${document.id}/resources` : '/api/resources';
+    const faultPath = scope === 'available' ? '/api/resources' : `/api/documents/${document.id}/resources`;
     await page.route('**/api/**', async route => {
       const url = new URL(route.request().url()); const method = route.request().method();
       if (url.pathname === `/api/documents/${document.id}` && method === 'PUT') writes++;
       if (!fault || method !== 'GET' || url.pathname !== faultPath) return route.continue();
       invalidGets++; held = true; await gate;
-      const resources = scope === 'linked' ? {} : [{ ...available, workspaceId: 'foreign-workspace' }];
+      const resources = scope === 'linked' ? {} : scope === 'available' ? [{ ...available, workspaceId: 'foreign-workspace' }] : [{ ...known, id: '\uD800' }];
       await route.fulfill({ status: 200, json: { resources, privateDiagnostic: 'must not reach UI' } }).catch(() => {});
     });
     try {
@@ -52,6 +52,7 @@ for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linke
         await disclosure.locator(':scope > summary').click();
       }
       await expect.poll(() => held).toBe(true); release();
+      await expect(disclosure.getByText('資料を読み込めませんでした。接続を確認して再試行してください。', { exact: true })).toHaveCount(1);
       await disclosure.locator(':scope > summary').click();
       await expect(panel.getByText('資料を読み込めませんでした。接続を確認して再試行してください。', { exact: true })).toBeVisible();
       await expect(panel).not.toContainText('must not reach UI');
@@ -67,9 +68,11 @@ for (const phase of ['initial', 'refresh'] as const) for (const scope of ['linke
       }
       const beforeSave = await (await request.get(`/api/documents/${document.id}`)).json();
       expect(beforeSave.content).toBe(body); expect(beforeSave.document.title).toBe('人間のノート');
-      // Development StrictMode starts and cancels one additional mount GET.
-      const mountGets = phase === 'initial' && process.env.E2E_DEV === '1' ? 2 : 1;
-      expect(writes).toBe(0); expect(invalidGets).toBe(mountGets);
+      // The canceled StrictMode mount GET may stop before interception.
+      if (phase === 'initial' && process.env.E2E_DEV === '1') {
+        expect(invalidGets).toBeGreaterThanOrEqual(1); expect(invalidGets).toBeLessThanOrEqual(2);
+      } else expect(invalidGets).toBe(1);
+      const mountGets = invalidGets; expect(writes).toBe(0);
       await editor.press('ControlOrMeta+z'); await expect.poll(() => editor.innerText()).toBe(body);
       await editor.press('ControlOrMeta+Shift+z'); await expect.poll(() => editor.innerText()).toBe(body + draft);
       fault = false; await panel.getByRole('button', { name: '資料を再読み込み', exact: true }).click();
