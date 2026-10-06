@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test, editNote } from "./manual-note-fixture";
 
 for (const kind of ["quote", "resource"] as const) {
@@ -6,7 +7,7 @@ for (const kind of ["quote", "resource"] as const) {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const { document } = await (await request.post("/api/documents", { data: { title: `Keyboard ${kind}`, content: "Human prose." } })).json();
     try {
-      await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+      await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
       const editor = page.getByRole("textbox", { name: "Markdown本文" });
       await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Draft.");
       await page.evaluate((text) => navigator.clipboard.writeText(text), kind === "quote" ? "Quote fixture." : "https://example.com/keyboard");
@@ -41,7 +42,7 @@ test("resource registration stays modal during a delayed response so Escape cann
       posts++; const response = await route.fetch(); committed = true;
       await gate; await route.fulfill({ response });
     });
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Draft.");
     await page.evaluate(() => navigator.clipboard.writeText("https://example.com/pending-keyboard"));
@@ -71,7 +72,7 @@ test("a failed resource registration keeps its fields and allows Escape back to 
   const { document } = await (await request.post("/api/documents", { data: { title: "Failed dialog", content: "Human prose." } })).json();
   try {
     await page.route(`**/api/documents/${document.id}/resources?*`, (route) => route.request().method() === "POST" ? route.fulfill({ status: 500, json: { error: "secret-token stack" } }) : route.continue());
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click();
     await page.evaluate(() => navigator.clipboard.writeText("https://example.com/failed-keyboard")); await editor.press("ControlOrMeta+V");
     const dialog = page.getByRole("dialog");
@@ -90,7 +91,7 @@ test("Enter submits an attributed quote and restores typing without resetting th
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { document } = await (await request.post("/api/documents", { data: { title: "Quote finish", content: "Human prose." } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Draft.");
     await page.evaluate(() => navigator.clipboard.writeText("Quote fixture.")); await editor.press("ControlOrMeta+V");

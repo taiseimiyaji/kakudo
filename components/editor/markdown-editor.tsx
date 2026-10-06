@@ -9,15 +9,26 @@ import { defaultKeymap, history, historyKeymap, isolateHistory } from "@codemirr
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 
-export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void };
+export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void; rememberPosition: () => void; restoreFocus: () => void };
 export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
+  const position = useRef<{ pageY: number; editorY: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const callback = useRef(onChange);
   const pasteCallback = useRef(onPaste);
   const compositionCallback = useRef(onCompositionChange);
   useEffect(() => { compositionCallback.current = onCompositionChange; }, [onCompositionChange]);
-  useImperativeHandle(editorRef, () => ({ applyQuote(paste, after) {
+  useImperativeHandle(editorRef, () => ({ rememberPosition() {
+    const view = viewRef.current;
+    if (view) position.current = { pageY: window.scrollY, editorY: view.scrollDOM.scrollTop };
+  }, restoreFocus() {
+    const view = viewRef.current;
+    if (!view) return;
+    const remembered = position.current;
+    position.current = null;
+    view.focus();
+    if (remembered) { view.scrollDOM.scrollTop = remembered.editorY; window.scrollTo({ top: remembered.pageY, behavior: "instant" }); }
+  }, applyQuote(paste, after) {
     const view = viewRef.current;
     if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");
     view.dispatch({ ...quoteEdit(paste, after), annotations: isolateHistory.of("full"), userEvent: "input.paste" });

@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 
 for (const placement of ["dialog", "inline"] as const) {
   for (const lostResponse of ["abort", "invalid JSON"] as const) {
@@ -12,7 +12,7 @@ for (const placement of ["dialog", "inline"] as const) {
         if (lostResponse === "abort") await route.abort(); else await route.fulfill({ status: 201, contentType: "application/json", body: "secret-invalid-json" });
       });
       try {
-        await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+        await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
         const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" Keep my draft.");
         const panel = page.getByRole("region", { name: "参考資料", exact: true });
         if (placement === "dialog") { await page.evaluate((text) => navigator.clipboard.writeText(text), url); await editor.press("ControlOrMeta+V"); }
@@ -46,7 +46,7 @@ test("failed GET and absent match keep the result uncertain and inputs intact wi
     return route.continue();
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click();
     await page.evaluate(() => navigator.clipboard.writeText("https://example.com/absent-result")); await editor.press("ControlOrMeta+V");
     const modal = page.getByRole("dialog"); await modal.getByLabel("資料名（任意）").fill("Retained title"); await modal.getByRole("button", { name: "資料を登録", exact: true }).click();
@@ -70,7 +70,7 @@ test("a late GET after cancellation cannot close the next quote or clear its att
     const response = await route.fetch(); held = true; await gate; await route.fulfill({ response }); delivered = true;
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click();
     await page.evaluate(() => navigator.clipboard.writeText("https://example.com/late-confirmation")); await editor.press("ControlOrMeta+V");
     const modal = page.getByRole("dialog"); await modal.getByRole("button", { name: "資料を登録", exact: true }).click(); await expect(modal.getByRole("alert")).toContainText("結果は不明");

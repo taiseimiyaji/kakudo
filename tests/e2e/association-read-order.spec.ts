@@ -1,4 +1,4 @@
-import { test, expect } from "./manual-note-fixture";
+import { test, expect, openNotePanels } from "./manual-note-fixture";
 import type { Page } from "@playwright/test";
 
 for (const inFlight of [false, true]) test(`a newer deletion proof invalidates older document confirmation ${inFlight}`, async ({ page, context, request }) => {
@@ -23,7 +23,7 @@ for (const inFlight of [false, true]) test(`a newer deletion proof invalidates o
       if (failOptions) return route.fulfill({ status: 503, json: {} });
       await route.continue();
     });
-    await page.goto(`/workspaces/default/documents/${documentId}`); await page.getByRole("button", { name: "編集", exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page); await page.getByRole("button", { name: "編集", exact: true }).click();
     const region = page.getByRole("region", { name: "関連する学習項目と目標", exact: true }); await region.getByText("学習項目の関連を変更", { exact: true }).click();
     const b = region.getByRole("checkbox", { name: `${roadmap.title} / ${nodes[1].title}`, exact: true }); await expect(b).toBeChecked();
     await page.getByLabel("ノート名（必須）").fill(draftTitle); const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially("人間が追記した本文。");

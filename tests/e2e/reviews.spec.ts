@@ -1,10 +1,11 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test, editNote } from "./manual-note-fixture";
 test("run an explicit Mock fact check with evidence while keeping Markdown unchanged", async ({ page, request }) => {
   const content = "OAuthは認証プロトコルである。";
   const { document } = await (await request.post("/api/documents", { data: { title: "Review browser", content } })).json();
   await request.post(`/api/documents/${document.id}/resources`, { data: { url: "https://www.rfc-editor.org/rfc/rfc6749", title: "RFC 6749", type: "RFC" } });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const reviews = page.getByRole("region", { name: "レビュー", exact: true });
     await reviews.getByRole("button", { name: "事実を確認", exact: true }).click();
     await expect(reviews.getByLabel("レビューの状態")).toContainText("完了", { timeout: 15000 });
@@ -20,7 +21,7 @@ test("highlight, resolve, dismiss, edit to stale and review a new revision with 
   const { document } = await (await request.post("/api/documents", { data: { title: "Review decisions", content } })).json();
   await request.post(`/api/documents/${document.id}/resources`, { data: { url: "https://www.rfc-editor.org/rfc/rfc6749", title: "RFC 6749", type: "RFC" } });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     const panel = page.getByRole("region", { name: "レビュー", exact: true });
     await panel.getByRole("button", { name: "事実を確認", exact: true }).click(); await expect(panel.getByLabel("レビューの状態")).toContainText("完了", { timeout: 15000 });
     await panel.getByRole("button", { name: "本文で確認" }).click(); await expect(page.locator(".review-highlight")).toHaveText(content);

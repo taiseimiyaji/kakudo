@@ -1,4 +1,4 @@
-import { expect, test, editNote } from "./manual-note-fixture";
+import { expect, test, editNote, openNotePanels } from "./manual-note-fixture";
 test("register a node source, associate it with a document, paste a URL and show unavailable fetch", async ({ page, context, request }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: `Sources ${Date.now()}` } })).json();
@@ -13,7 +13,7 @@ test("register a node source, associate it with a document, paste a URL and show
     await expect(panel.getByRole("link", { name: "My reference" })).toHaveAttribute("href", url);
     const all = await (await request.get("/api/resources")).json(); resourceIds.push(all.resources.find((r: { url: string }) => r.url === url).id);
     await panel.getByRole("button", { name: "取得を確認" }).click(); await expect(panel.getByRole("alert")).toContainText("UNAVAILABLE");
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await panel.getByLabel("登録済み資料").selectOption(resourceIds[0]); await panel.getByRole("button", { name: "資料を関連付け" }).click();
     await expect(panel.getByRole("link", { name: "My reference" })).toBeVisible();
     const pasted = `https://example.com/source-${Date.now()}`;
@@ -23,6 +23,6 @@ test("register a node source, associate it with a document, paste a URL and show
     await expect(page.getByRole("dialog")).toHaveCount(0); await expect(panel.getByRole("link", { name: pasted, exact: true })).toBeVisible();
     const linked = await (await request.get(`/api/documents/${document.id}/resources`)).json(); for (const r of linked.resources) if (!resourceIds.includes(r.id)) resourceIds.push(r.id);
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe("");
-    await page.reload(); await expect(panel.getByRole("link", { name: "My reference" })).toBeVisible();
+    await page.reload(); await openNotePanels(page); await expect(panel.getByRole("link", { name: "My reference" })).toBeVisible();
   } finally { for (const id of resourceIds) await request.delete(`/api/resources/${id}`); await request.delete(`/api/documents/${document.id}`); await request.delete(`/api/roadmaps/${roadmap.id}`); }
 });

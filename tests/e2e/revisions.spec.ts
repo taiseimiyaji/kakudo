@@ -1,10 +1,11 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test, editNote } from "./manual-note-fixture";
 test("save, save unchanged, edit and reload preserve the right revision", async ({ page, request }) => {
   const { document } = await (await request.post("/api/documents", { data: { title: "Revision browser" } })).json();
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await editNote(page);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await editNote(page);
     await page.getByText("保存情報", { exact: true }).click(); const revision = page.getByLabel("現在の保存版"); await expect(revision).toContainText(document.currentRevisionId);
-    await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.getByRole("status")).toHaveText("保存しました");
+    await page.getByRole("button", { name: "保存", exact: true }).click(); await expect(page.locator(".save-state")).toHaveText("保存済み");
     const revisions = async () => (await (await request.get(`/api/documents/${document.id}/revisions`)).json()).revisions;
     expect(await revisions()).toHaveLength(1);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.pressSequentially("My own explanation.");

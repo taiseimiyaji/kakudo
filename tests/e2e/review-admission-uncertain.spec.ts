@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { test, expect } from './manual-note-fixture';
 import { createDatabase } from '../../db/client';
 import { reviewRuns } from '../../db/schema';
@@ -22,7 +23,7 @@ for (const [type, button, loss] of cases) test(`uncertain ${type} admission open
       if (loss === 'invalid-schema') delete payload.run.id;
       return route.fulfill({ response, json: payload });
     });
-    await page.goto(`/workspaces/default/documents/${documentId}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await panel.getByRole('button', { name: button, exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${documentId}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await panel.getByRole('button', { name: button, exact: true }).click();
     const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery.getByRole('alert')).toContainText('受付結果は不明');
     for (const name of cases.map((entry) => entry[1])) await expect(panel.getByRole('button', { name, exact: true })).toBeDisabled(); expect(posts).toBe(1);
     await page.getByRole('button', { name: '編集', exact: true }).click(); await page.getByLabel('ノート名（必須）').fill('保持する人間の名前');
@@ -41,7 +42,7 @@ for (const terminal of ['COMPLETED', 'FAILED'] as const) test(`viewing another $
   const { db, client } = createDatabase(process.env.KAKUDO_E2E_DATABASE_URL!);
   await page.route(`**/api/documents/${document.id}/reviews?*`, (route) => { if (route.request().method() !== 'POST') return route.continue(); posts++; return posts === 1 ? route.abort() : route.continue(); });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); await start.click();
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); await start.click();
     const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery).toBeVisible();
     const { run: other } = await (await request.post(`/api/documents/${document.id}/reviews`, { data: { type: 'LOGIC', revisionId: document.currentRevisionId } })).json(); await expect.poll(async () => (await (await request.get(`/api/reviews/${other.id}`)).json()).run.status).toBe('COMPLETED');
     if (terminal === 'FAILED') await db.update(reviewRuns).set({ status: 'FAILED', stage: 'FAILED', error: 'Mock回復確認の失敗結果' }).where(eq(reviewRuns.id, other.id));
@@ -65,7 +66,7 @@ test('human saves do not change the uncertain target and stale-review replay sta
     if (route.request().method() !== 'POST') return route.continue(); posts++; const response = await route.fetch(); const data = await response.json(); admittedId = data.run.id; await expect.poll(async () => (await (await request.get(`/api/reviews/${admittedId}`)).json()).run.status).toBe('COMPLETED'); await route.abort();
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await panel.getByRole('button', { name: '論理を確認', exact: true }).click(); const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery).toBeVisible();
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await panel.getByRole('button', { name: '論理を確認', exact: true }).click(); const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery).toBeVisible();
     await page.getByRole('button', { name: '編集', exact: true }).click(); const editor = page.getByRole('textbox', { name: 'Markdown本文' }); await editor.click(); await editor.press('ControlOrMeta+End'); await editor.pressSequentially('人間が考え直して追記する。'); await page.getByLabel('ノート名（必須）').fill('人間が書いた新しい名前');
     await page.getByRole('button', { name: '保存', exact: true }).click(); await expect(page.getByText('保存済み', { exact: true })).toBeVisible(); const saved = await (await request.get(`/api/documents/${document.id}`)).json(); expect(saved.document.currentRevisionId).not.toBe(document.currentRevisionId);
     await recovery.getByRole('button', { name: '受付済みのレビューを確認', exact: true }).click(); await expect(recovery).toContainText(document.currentRevisionId); await recovery.getByRole('button', { name: 'このレビューを確認', exact: true }).click();
@@ -83,7 +84,7 @@ test('failed or absent recovery history keeps admission blocked until explicit r
     return route.continue();
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); await start.click();
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); await start.click();
     const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery).toBeVisible(); checking = true;
     await recovery.getByRole('button', { name: '受付済みのレビューを確認', exact: true }).click(); await expect(recovery.getByRole('alert').filter({ hasText: '履歴を取得できませんでした' })).toBeVisible();
     await expect(start).toBeDisabled(); await expect(recovery.getByRole('button', { name: '履歴を確認しました。新しく開始', exact: true })).toHaveCount(0); expect(posts).toBe(1);
@@ -100,7 +101,7 @@ test('recovery candidates exclude known history and other saved versions or type
     const { run } = await (await request.post(`/api/documents/${document.id}/reviews`, { data: { revisionId, type } })).json(); await expect.poll(async () => (await (await request.get(`/api/reviews/${run.id}`)).json()).run.status).toBe('COMPLETED'); return run.id as string;
   };
   try {
-    const known = await run('LOGIC'); await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await expect(panel.getByLabel('レビューの状態')).toContainText('完了');
+    const known = await run('LOGIC'); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); await expect(panel.getByLabel('レビューの状態')).toContainText('完了');
     await page.route(`**/api/documents/${document.id}/reviews?*`, (route) => route.request().method() === 'POST' ? route.abort() : route.continue()); await panel.getByRole('button', { name: '論理を確認', exact: true }).click();
     const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true }); await expect(recovery).toBeVisible();
     const first = await run('LOGIC'); const second = await run('LOGIC'); await run('COVERAGE');
@@ -122,10 +123,10 @@ test('a late recovery read from an earlier visit cannot change a new uncertain a
     await route.continue();
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true });
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole('region', { name: 'レビュー', exact: true }); const start = panel.getByRole('button', { name: '論理を確認', exact: true }); const recovery = panel.getByRole('region', { name: 'レビューの受付結果の確認', exact: true });
     await start.click(); await expect(recovery).toBeVisible(); holdRead = true; await recovery.getByRole('button', { name: '受付済みのレビューを確認', exact: true }).click(); await expect.poll(() => held).toBe(true);
     page.once('dialog', (dialog) => dialog.accept()); await page.getByRole('link', { name: 'ホーム', exact: true }).click(); await expect(page).toHaveURL(/\/workspaces\/default$/);
-    await page.goBack(); await expect(page).toHaveURL(new RegExp(`/documents/${document.id}$`)); await expect(panel.getByLabel('レビューの状態')).toContainText('完了'); await start.click(); await expect(recovery).toBeVisible(); expect(posts).toBe(2);
+    await page.goBack(); await openNotePanels(page); await expect(page).toHaveURL(new RegExp(`/documents/${document.id}$`)); await expect(panel.getByLabel('レビューの状態')).toContainText('完了'); await start.click(); await expect(recovery).toBeVisible(); expect(posts).toBe(2);
     release(); await expect.poll(() => delivered).toBe(true); await page.waitForTimeout(150); await expect(recovery).toBeVisible(); await expect(recovery.getByRole('button', { name: 'このレビューを確認', exact: true })).toHaveCount(0);
     await recovery.getByRole('button', { name: '受付済みのレビューを確認', exact: true }).click(); await expect(recovery.getByRole('button', { name: 'このレビューを確認', exact: true })).toHaveCount(1); await expect(recovery).toContainText(latestId.slice(0, 8));
   } finally { release(); await page.unrouteAll({ behavior: 'wait' }); await request.delete(`/api/documents/${document.id}`); }

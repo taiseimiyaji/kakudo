@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { test, expect, type Page } from "@playwright/test";
 
 const urlField = (page: Page) => page.getByLabel("資料URL（必須）", { exact: true });
@@ -90,7 +91,7 @@ test("document autosave and manual save never clear the separate resource draft 
   const { document } = await (await request.post("/api/documents", { data: { title: "ノートと参考資料", content: "自分で書いた本文。" } })).json();
   let dialogs = 0; page.on("dialog", async (dialog) => { dialogs++; await dialog.dismiss(); });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await page.getByRole("button", { name: "編集", exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await page.getByRole("button", { name: "編集", exact: true }).click();
     await input(page, "https://example.com/note-source");
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" 自分で考えた追記。");
     await expect(page.locator(".save-state")).toHaveText("保存済み"); await expect.poll(async () => (await (await request.get(`/api/documents/${document.id}`)).json()).content).toContain("自分で考えた追記");

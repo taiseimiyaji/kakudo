@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test } from "@playwright/test";
 
 async function pasteText(editor: import("@playwright/test").Locator, text: string) {
@@ -15,7 +16,7 @@ test("IME pauses body and title autosave until composition ends", async ({ page,
   const path = `/api/documents/${document.id}`; let writes = 0;
   page.on("request", (req) => { if (req.method() === "PUT" && new URL(req.url()).pathname === path) writes++; });
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.dispatchEvent("compositionstart"); await editor.pressSequentially("日本語の確定前");
     await page.clock.runFor(3000); expect(writes).toBe(0);
@@ -38,7 +39,7 @@ test("quote waits for slow autosave, carries its write ID, and keeps Undo across
   });
   page.on("request", (req) => { if (req.method() === "POST" && new URL(req.url()).pathname === `${path}/quotes`) quotes++; });
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     await page.getByRole("button", { name: "編集", exact: true }).click(); const editor = page.getByRole("textbox", { name: "Markdown本文" }); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially("My words"); await page.clock.runFor(1000);
     await expect.poll(() => saves).toBe(1); await expect(page.getByText("保存中…", { exact: true })).toBeVisible();
@@ -73,7 +74,8 @@ test("related-node write holds autosave while typing, then carries the new token
   page.on("request", (req) => { if (req.method() === "PUT" && new URL(req.url()).pathname === path) saves++; });
   await page.route(`**${path}/nodes?*`, async (route) => { const response = await route.fetch(); linkToken = (await response.json()).document.lastWriteId; await hold.promise; await route.fulfill({ response }); });
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await page.getByRole("button", { name: "編集", exact: true }).click(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await page.getByRole("button", { name: "編集", exact: true }).click(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await openNotePanels(page);
     const related = page.getByRole("region", { name: "関連する学習項目と目標" }); await related.getByText("学習項目の関連を変更", { exact: true }).click();
     await related.getByRole("checkbox", { name: `${roadmap.title} / A`, exact: true }).uncheck(); await related.getByRole("checkbox", { name: `${roadmap.title} / B`, exact: true }).check();
     await related.getByRole("button", { name: "関連を保存", exact: true }).click(); await expect.poll(() => linkToken).toBeTruthy();
@@ -82,6 +84,7 @@ test("related-node write holds autosave while typing, then carries the new token
     expect((await (await request.get(path)).json()).content).toBe("Human words.");
     const nextSave = page.waitForRequest((req) => req.method() === "PUT" && new URL(req.url()).pathname === path);
     await page.clock.runFor(1000); expect((await nextSave).postDataJSON().baseWriteId).toBe(linkToken); await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+    await openNotePanels(page);
     await expect(page.locator(".stale-review")).toBeVisible();
     const old = await (await request.get(`/api/reviews/${run.id}`)).json(); expect(old.run.objectives[0].text).toBe("Aの目標"); expect(old.revision.contentSnapshot).toBe("Human words.");
     const saved = await (await request.get(path)).json(); expect(saved.content).toBe("Human words. New draft."); expect(saved.nodeIds).toEqual([b.id]);
@@ -97,7 +100,7 @@ test("lost save response pauses timers; GET confirmation retains draft and requi
     await route.fetch(); await route.abort("failed");
   });
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); const editor = page.getByRole("textbox", { name: "Markdown本文" }); await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const editor = page.getByRole("textbox", { name: "Markdown本文" }); await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.click(); await editor.pressSequentially("Retained human words."); await page.getByLabel("ノート名（必須）").fill("Retained title"); await page.clock.runFor(1000);
     await expect(page.getByRole("alert")).toContainText("自動保存を停止"); const committed = await (await request.get(path)).json(); expect(committed.content).toBe("Retained human words.");
     await page.clock.runFor(5000); expect(writes).toBe(1);
@@ -117,7 +120,7 @@ test("title-only conflict and a stale confirmed baseline never overwrite another
   const path = `/api/documents/${document.id}`;
   const remoteTitle = async (title: string) => { const base = await (await request.get(path)).json(); const response = await request.put(path, { data: { title, content: base.content, baseHash: base.contentHash, baseWriteId: base.document.lastWriteId } }); expect(response.status()).toBe(200); };
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); const title = page.getByLabel("ノート名（必須）"); await expect(title).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const title = page.getByLabel("ノート名（必須）"); await expect(title).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await title.fill("Local title"); await remoteTitle("Remote title"); await page.clock.runFor(1000); await expect(page.getByRole("alert")).toContainText("競合");
     await page.getByRole("button", { name: "最新の保存内容を確認" }).click(); await expect(page.getByRole("region", { name: "最新の保存内容" })).toContainText("Remote title");
     await page.getByRole("button", { name: "確認した内容を基準に再試行" }).click(); await remoteTitle("Remote newer");
@@ -157,7 +160,7 @@ test("pending quote guards browser departure and unmount clears the autosave tim
     // Without interval cleanup, this old session would PUT after departure.
     await page.getByRole("link", { name: "離脱確認", exact: true }).click(); await page.getByRole("button", { name: "編集", exact: true }).click();
     const freshEditor = page.getByRole("textbox", { name: "Markdown本文" }); await freshEditor.click(); await freshEditor.press("ControlOrMeta+End"); await freshEditor.pressSequentially(" Deliberately discarded draft.");
-    page.once("dialog", (event) => event.accept()); await page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true }).click();
+    page.once("dialog", (event) => event.accept()); await page.locator(".note-navigation > summary").click(); await page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link", { name: "ホーム", exact: true }).click();
     await expect(page).toHaveURL(/\/workspaces\/default$/); await page.clock.runFor(6000); expect(saves).toBe(0);
     expect((await (await request.get(path)).json()).content).toBe(current.content);
   } finally { hold.release(); await page.unrouteAll({ behavior: "wait" }); await request.delete(path); }

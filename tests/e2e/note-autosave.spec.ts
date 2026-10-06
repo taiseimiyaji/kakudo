@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test } from "@playwright/test";
 
 test("switch modes and preview without losing edits; save changes on each one-second tick", async ({ page, request }) => {
@@ -7,7 +8,7 @@ test("switch modes and preview without losing edits; save changes on each one-se
   page.on("request", (req) => { if (req.method() === "PUT" && new URL(req.url()).pathname === path) writes++; });
   try {
     await page.clock.install();
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     await expect(page.getByRole("region", { name: "閲覧モード" })).toBeVisible();
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toBeHidden();
@@ -19,6 +20,7 @@ test("switch modes and preview without losing edits; save changes on each one-se
     await page.getByRole("button", { name: "編集", exact: true }).click();
     await editor.click(); await editor.press("ControlOrMeta+z");
     await expect(editor).toHaveText("# Saved");
+    await page.getByRole("button", { name: "プレビューを表示" }).click();
     await page.getByRole("button", { name: "プレビューを非表示" }).click();
     await expect(page.getByLabel("ノートのプレビュー")).toHaveCount(0);
     await editor.click(); await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" A");
@@ -65,7 +67,7 @@ test("a delayed autosave preserves newer typing and uses the latest hash for the
   });
   try {
     await page.clock.install();
-    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.click(); await editor.pressSequentially("first"); await page.clock.runFor(1000);
@@ -101,7 +103,7 @@ test("unknown 503 autosave keeps the draft and requires GET plus deliberate conf
     return route.continue();
   });
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.click(); await editor.pressSequentially("Do not lose my words.");
@@ -126,7 +128,7 @@ test("a conflicting external save is not overwritten by autosave or explicit ret
   const { document } = await (await request.post("/api/documents", { data: { title: "競合確認" } })).json();
   const path = `/api/documents/${document.id}`;
   try {
-    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.clock.install(); await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page);
     const editor = page.getByRole("textbox", { name: "Markdown本文" });
     await expect(editor).toBeVisible(); await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
     await editor.click(); await editor.pressSequentially("Local unsaved words.");

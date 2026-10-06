@@ -1,3 +1,4 @@
+import { openNotePanels } from "./manual-note-fixture";
 import { expect, test } from "@playwright/test";
 
 for (const outcome of ["stale success", "timeout"] as const) test(`background resource list ${outcome} cannot hide a newer inline registration`, async ({ page, context, request }) => {
@@ -13,7 +14,7 @@ for (const outcome of ["stale success", "timeout"] as const) test(`background re
     hold = false; const response = await route.fetch(); held = true; await gate; await route.fulfill({ response }).catch(() => {});
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); await page.getByRole("button", { name: "編集", exact: true }).click();
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); await page.getByRole("button", { name: "編集", exact: true }).click();
     const panel = page.getByRole("region", { name: "参考資料", exact: true }); await expect(panel.getByText("登録された資料はありません。", { exact: true })).toBeVisible();
     const editor = page.getByRole("textbox", { name: "Markdown本文" }); await editor.click();
     await page.evaluate((value) => navigator.clipboard.writeText(value), sourceA); await editor.press("ControlOrMeta+V");
@@ -44,7 +45,7 @@ test("a current background refresh timeout retains a known registration and offe
     hold = false; const response = await route.fetch(); held = true; await gate; await route.fulfill({ response }).catch(() => {});
   });
   try {
-    await page.goto(`/workspaces/default/documents/${document.id}`); const panel = page.getByRole("region", { name: "参考資料", exact: true });
+    await page.goto(`/workspaces/default/documents/${document.id}`); await openNotePanels(page); const panel = page.getByRole("region", { name: "参考資料", exact: true });
     await expect(panel.getByText("登録された資料はありません。", { exact: true })).toBeVisible();
     hold = true; await panel.getByLabel("資料URL（必須）").fill("https://example.com/known-after-timeout"); await panel.getByLabel("資料名（任意）").fill("保存が確定した資料");
     await panel.getByRole("button", { name: "資料を登録", exact: true }).click(); await expect.poll(() => held).toBe(true);
@@ -82,7 +83,7 @@ for (const scope of ["workspace", "linked", "available"] as const) test(`stalled
     await page.route(otherPath, (route) => route.fulfill({ json: { resources: scope === "linked" ? [resource] : [] } }));
   }
   try {
-    await page.goto(scope === "workspace" ? "/workspaces/default/resources" : `/workspaces/default/documents/${documentId}`);
+    await page.goto(scope === "workspace" ? "/workspaces/default/resources" : `/workspaces/default/documents/${documentId}`); await openNotePanels(page);
     const panel = page.getByRole("region", { name: "参考資料", exact: true }); await expect(panel.getByRole("status")).toContainText("資料を読み込んでいます"); await expect.poll(() => heldGets).toBe(1);
     await panel.getByLabel("資料URL（必須）").fill("https://example.com/retained-human-draft");
     await page.clock.runFor(20_100);
