@@ -135,3 +135,24 @@ it('a reactivated writer owns a new signal and cannot inherit its canceled respo
     expect(vi.getTimerCount()).toBe(0);
     writer.close();
 });
+for (const kind of ['save', 'quote'] as const) {
+    it(`${kind} recovery409 is unknown without displaying server diagnostics`, async () => {
+        const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'DOCUMENT_WRITE_OUTCOME_UNKNOWN', error: 'private recovery diagnostics' }), { status: 409 }));
+        vi.stubGlobal('fetch', fetchMock);
+        const error = await call(kind).catch((error: unknown) => error);
+        expect(error).toBeInstanceOf(UnknownNoteWriteOutcome);
+        expect((error as Error).message).not.toContain('private'); expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    it.each([
+        [400, 'DOCUMENT_WRITE_OUTCOME_UNKNOWN'],
+        [409, 'DOCUMENT_CREATE_OUTCOME_UNKNOWN'],
+        [409, undefined],
+    ] as const)(`${kind} HTTP%s with code%s remains a known input/conflict rejection`, async (status, code) => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code, error: 'private diagnostics' }), { status })));
+        await expect(call(kind)).rejects.toMatchObject({ name: 'Error', message: status === 400 ? '入力内容を確認して再試行してください。' : '別の変更と競合しました。最新の状態を確認してください。' });
+    });
+    it(`${kind} cannot establish an outcome from malformed recovery409 JSON`, async () => {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('private broken response', { status: 409 })));
+        await expect(call(kind)).rejects.toBeInstanceOf(UnknownNoteWriteOutcome);
+    });
+}

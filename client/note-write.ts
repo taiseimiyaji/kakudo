@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { request, UnknownMutationOutcome } from "./api";
-import { documentSave, documentSchema } from "../shared/document";
+import { documentSave, documentSchema, DOCUMENT_WRITE_OUTCOME_UNKNOWN } from "../shared/document";
 import { quoteInput, quoteMarkdown } from "../shared/quote";
 import { UnknownNoteWriteOutcome } from "../modules/editor/note-session";
 
@@ -15,6 +15,7 @@ export class NoteWriter {
   quote(draft: unknown) { return quoteNote(this.workspaceId, this.id, draft, this.controller.signal); }
 }
 const resultSchema = z.object({ document: documentSchema, contentHash: z.string().regex(/^[a-f0-9]{64}$/) });
+const uncertainWriteErrors = [{ status: 409, code: DOCUMENT_WRITE_OUTCOME_UNKNOWN }];
 async function hashText(content: string) {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(content));
   return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -40,7 +41,7 @@ export async function saveNote(workspaceId: string, id: string, draft: unknown, 
   const input = documentSave.safeParse(draft);
   if (!input.success) throw new Error("入力内容を確認して再試行してください。");
   return write(async (signal) => {
-    const payload = await request(`/documents/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", input.data, { uncertainMutation: true, uncertainServerError: true, signal });
+    const payload = await request(`/documents/${encodeURIComponent(id)}?workspaceId=${encodeURIComponent(workspaceId)}`, "PUT", input.data, { uncertainMutation: true, uncertainServerError: true, uncertainErrors: uncertainWriteErrors, signal });
     const result = resultSchema.safeParse(payload);
     if (!result.success || !matches(result.data.document, workspaceId, id, input.data.title, input.data.baseWriteId) || result.data.contentHash !== await hashText(input.data.content)) throw new UnknownNoteWriteOutcome();
     return result.data;
@@ -50,7 +51,7 @@ export async function quoteNote(workspaceId: string, id: string, draft: unknown,
   const input = quoteInput.safeParse(draft);
   if (!input.success) throw new Error("入力内容を確認して再試行してください。");
   return write(async (signal) => {
-    const payload = await request(`/documents/${encodeURIComponent(id)}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input.data, { uncertainMutation: true, uncertainServerError: true, signal });
+    const payload = await request(`/documents/${encodeURIComponent(id)}/quotes?workspaceId=${encodeURIComponent(workspaceId)}`, "POST", input.data, { uncertainMutation: true, uncertainServerError: true, uncertainErrors: uncertainWriteErrors, signal });
     const result = resultSchema.extend({ quoteId: z.string().min(1), content: z.string() }).safeParse(payload);
     const { content, text, sourceUrl, sourceTitle, from, to } = input.data;
     const expected = content.slice(0, from) + quoteMarkdown(text, sourceUrl, sourceTitle, content.includes("\r\n") ? "\r\n" : "\n") + content.slice(to);

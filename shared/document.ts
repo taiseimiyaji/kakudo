@@ -1,5 +1,6 @@
 import { z } from "zod";
 export const DOCUMENT_CREATE_OUTCOME_UNKNOWN = "DOCUMENT_CREATE_OUTCOME_UNKNOWN";
+export const DOCUMENT_WRITE_OUTCOME_UNKNOWN = "DOCUMENT_WRITE_OUTCOME_UNKNOWN";
 export const documentCreate = z.object({ title: z.string().trim().min(1).max(200), nodeIds: z.array(z.string().min(1)).max(100).default([]), content: z.string().max(2_000_000).default("") }).strict();
 export const documentSave = z.object({ title: z.string().trim().min(1).max(200), content: z.string().max(2_000_000), baseHash: z.string().regex(/^[a-f0-9]{64}$/), baseWriteId: z.string().min(1).nullable() }).strict();
 export const documentSchema = z.object({ id: z.string(), workspaceId: z.string(), title: z.string(), path: z.string(), currentRevisionId: z.string().nullable(), lastWriteId: z.string().nullable(), createdAt: z.string(), updatedAt: z.string() });
