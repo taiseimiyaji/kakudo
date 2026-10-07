@@ -89,6 +89,7 @@ summary { cursor: pointer; padding: 6px 0; }
 .empty-state { padding: 30px; margin: 28px 0; border: 1px dashed #b8c8b8; border-radius: var(--radius-lg); background: #fafbf7; color: var(--muted); }
 .workspace > ul { list-style: none; padding: 0; }
 .workspace > ul > li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 18px; margin-bottom: var(--space-md); }
+.document-updated { display: block; margin-top: 4px; color: var(--muted); font-size: .8125rem; line-height: 1.7; }
 .node-documents { border-top: 1px solid var(--line); margin-top: var(--space-xl); padding-top: var(--space-lg); }
 .node-documents ul { padding-left: 18px; font-size: var(--text-sm); }
 .document-workspace { max-width: 1600px; margin: auto; padding: 0 var(--space-xl) 30px; }

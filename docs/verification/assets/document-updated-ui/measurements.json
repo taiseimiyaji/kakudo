@@ -1,0 +1,102 @@
+{
+  "1440": {
+    "width": 1440,
+    "locale": "ja-JP",
+    "timezone": "Asia/Tokyo",
+    "preservedOrder": [
+      "HTTPを復習する",
+      "DB接続の考察",
+      "まだ途中のキャッシュ",
+      "OAuthメモ",
+      "ログの読み方",
+      "OAuthメモ",
+      "別の日のAPIノート"
+    ],
+    "sourceDates": [
+      {
+        "title": "HTTPを復習する",
+        "updatedAt": "2026-10-01T01:02:03.000Z"
+      },
+      {
+        "title": "DB接続の考察",
+        "updatedAt": "2026-10-02T01:02:03.000Z"
+      },
+      {
+        "title": "まだ途中のキャッシュ",
+        "updatedAt": "2026-10-03T01:02:03.000Z"
+      },
+      {
+        "title": "OAuthメモ",
+        "updatedAt": "2026-10-04T01:02:03.000Z"
+      },
+      {
+        "title": "ログの読み方",
+        "updatedAt": "2026-10-05T01:02:03.000Z"
+      },
+      {
+        "title": "OAuthメモ",
+        "updatedAt": "2026-10-06T01:02:03.000Z"
+      },
+      {
+        "title": "別の日のAPIノート",
+        "updatedAt": "2026-10-07T01:02:03.000Z"
+      }
+    ],
+    "descriptions": [
+      "最終更新 2026/10/04 10:02:03 JST",
+      "最終更新 2026/10/06 10:02:03 JST"
+    ],
+    "noNewTabStops": true,
+    "scrollWidth": 1440
+  },
+  "390": {
+    "width": 390,
+    "locale": "ja-JP",
+    "timezone": "Asia/Tokyo",
+    "preservedOrder": [
+      "HTTPを復習する",
+      "DB接続の考察",
+      "まだ途中のキャッシュ",
+      "OAuthメモ",
+      "ログの読み方",
+      "OAuthメモ",
+      "別の日のAPIノート"
+    ],
+    "sourceDates": [
+      {
+        "title": "HTTPを復習する",
+        "updatedAt": "2026-10-01T01:02:03.000Z"
+      },
+      {
+        "title": "DB接続の考察",
+        "updatedAt": "2026-10-02T01:02:03.000Z"
+      },
+      {
+        "title": "まだ途中のキャッシュ",
+        "updatedAt": "2026-10-03T01:02:03.000Z"
+      },
+      {
+        "title": "OAuthメモ",
+        "updatedAt": "2026-10-04T01:02:03.000Z"
+      },
+      {
+        "title": "ログの読み方",
+        "updatedAt": "2026-10-05T01:02:03.000Z"
+      },
+      {
+        "title": "OAuthメモ",
+        "updatedAt": "2026-10-06T01:02:03.000Z"
+      },
+      {
+        "title": "別の日のAPIノート",
+        "updatedAt": "2026-10-07T01:02:03.000Z"
+      }
+    ],
+    "descriptions": [
+      "最終更新 2026/10/04 10:02:03 JST",
+      "最終更新 2026/10/06 10:02:03 JST"
+    ],
+    "noNewTabStops": true,
+    "scrollWidth": 390
+  }
+}

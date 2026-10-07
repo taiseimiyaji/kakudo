@@ -27,6 +27,6 @@ function DocumentsList({ workspaceId }: { workspaceId: string }) {
       <h2>最初のノートを作りましょう</h2><p>学習マップで項目を選び、詳細にある「ノートを作成」から書き始められます。</p>
       <Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ進む →</Link>
     </div>}
-    <ul>{documents.map((doc) => <li key={doc.id}><Link to="/workspaces/$workspaceId/documents/$documentId" params={{ workspaceId, documentId: doc.id }}>{doc.title}</Link></li>)}</ul>
+    <ul>{documents.map((doc) => <li key={doc.id}><Link to="/workspaces/$workspaceId/documents/$documentId" params={{ workspaceId, documentId: doc.id }} aria-describedby={`document-updated-${doc.id}`}>{doc.title}</Link><small className="document-updated" id={`document-updated-${doc.id}`}>最終更新 <time dateTime={doc.updatedAt}>{new Date(doc.updatedAt).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "short" })}</time></small></li>)}</ul>
   </main>;
 }
