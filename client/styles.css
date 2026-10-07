@@ -114,6 +114,8 @@ dialog > .secondary { margin-top: 15px; }
 .resource-panel form { margin: var(--space-lg) 0; }
 .resource-panel button { margin: var(--space-xs) var(--space-xs) var(--space-xs) 0; }
 .review-panel { padding: var(--space-lg) 0; border-top: 1px solid var(--line); }
+.review-panel > h2:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.review-scope { font-size: 13px; line-height: 1.7; }
 .review-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: var(--space-lg) 0; }
 .review-panel article { border: 1px solid var(--line); border-left: 4px solid #ad730a; border-radius: var(--radius-md); padding: var(--space-lg); margin: var(--space-lg) 0; }
 .review-panel blockquote { margin: var(--space-sm) 0; padding: var(--space-sm) var(--space-lg); background: #f4f5f6; white-space: pre-wrap; }
