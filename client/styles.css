@@ -120,6 +120,7 @@ dialog > .secondary { margin-top: 15px; }
 .review-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: var(--space-lg) 0; }
 .review-panel article { border: 1px solid var(--line); border-left: 4px solid #ad730a; border-radius: var(--radius-md); padding: var(--space-lg); margin: var(--space-lg) 0; }
 .review-panel blockquote { margin: var(--space-sm) 0; padding: var(--space-sm) var(--space-lg); background: #f4f5f6; white-space: pre-wrap; }
+.review-source-quote blockquote { overflow-wrap: anywhere; }
 .review-panel article header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-sm); }
 .review-panel article button { margin: 6px var(--space-sm) 0 0; }
 .review-panel article[data-status="RESOLVED"], .review-panel article[data-status="DISMISSED"] { border-left-color: #6a7a72; background: #f8faf9; }

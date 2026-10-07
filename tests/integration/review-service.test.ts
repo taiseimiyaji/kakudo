@@ -9,7 +9,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { createDatabase } from "../../db/client";
-import { workspaces, reviewRuns } from "../../db/schema";
+import { workspaces, reviewRuns, quotes } from "../../db/schema";
 import { readTestDatabaseUrl } from "../../lib/env";
 import { LocalFileSystemStorage } from "../../modules/storage/local";
 import { documentService, contentHash } from "../../modules/document/service";
@@ -173,4 +173,40 @@ it("reviews logic, coverage and FULL on fixed human objectives across multiple n
   expect((await maps.detail(map.id, workspaceId)).nodes.find((n) => n.id === node.id)?.stats.outdatedReviews).toBe(1);
   const next = await service.start(doc.id, workspaceId, { type: "COVERAGE", revisionId: doc.currentRevisionId! }, false); await service.execute(next.id); expect((await service.get(next.id, workspaceId)).run.objectives).toHaveLength(2);
   await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);
+});
+
+it("persists explicit source finding IDs and displays only pinned quotes while leaving legacy runs untouched", async () => {
+  const docs = documentService(db, storage); const doc = await docs.create(workspaceId, { title: "Pinned source quotes", content: "Human note.", nodeIds: [] });
+  const texts = ["Different quote A", "Different quote B", "Different quote A"];
+  for (const text of texts) {
+    const current = await docs.get(doc.id, workspaceId);
+    await docs.quote(doc.id, workspaceId, { title: doc.title, text, sourceUrl: "https://www.rfc-editor.org/rfc/rfc6749", sourceTitle: "Same source", content: current.content, baseHash: current.contentHash, baseWriteId: current.document.lastWriteId, from: current.content.length, to: current.content.length });
+  }
+  const baseline = await docs.get(doc.id, workspaceId);
+  const service = reviewService({ db, storage, provider: mockProvider() });
+  const job = await service.start(doc.id, workspaceId, { revisionId: baseline.document.currentRevisionId!, type: "SOURCE" }, false);
+  // Both live metadata and current body change after admission. The run must use
+  // its frozen registration, not either later source.
+  await db.update(quotes).set({ text: "Later registration text" }).where(eq(quotes.documentId, doc.id));
+  await docs.save(doc.id, workspaceId, { title: doc.title, content: "Later human note.", baseHash: baseline.contentHash, baseWriteId: baseline.document.lastWriteId });
+  const saved = await docs.get(doc.id, workspaceId);
+  await service.execute(job.id);
+  const detail = await service.get(job.id, workspaceId);
+  expect(detail.stale).toBe(true); expect(detail.revision.contentSnapshot).toBe(baseline.content);
+  expect(detail.findings).toHaveLength(3);
+  for (const check of detail.run.sourceChecks) {
+    const quote = detail.run.quoteSnapshot.find((q) => q.id === check.quoteId)!;
+    const finding = detail.findings.find((f) => f.id === check.findingId)!;
+    expect(finding.sourceQuoteText).toBe(quote.text); expect(finding.targetText).toBeNull(); expect(finding.startOffset).toBeNull(); expect(finding.endOffset).toBeNull();
+  }
+  expect(detail.findings.map((f) => f.sourceQuoteText).sort()).toEqual([...texts].sort());
+  // Simulate a real pre-feature row with snapshots but no association IDs.
+  const oldChecks = detail.run.sourceChecks.map((check) => ({ quoteId: check.quoteId, status: check.status, url: check.url, title: check.title, accessedAt: check.accessedAt }));
+  await db.update(reviewRuns).set({ sourceChecks: oldChecks }).where(eq(reviewRuns.id, job.id));
+  const [before] = await db.select().from(reviewRuns).where(eq(reviewRuns.id, job.id));
+  const legacy = await service.get(job.id, workspaceId);
+  expect(legacy.findings.every((f) => f.sourceQuoteText === null)).toBe(true);
+  expect((await db.select().from(reviewRuns).where(eq(reviewRuns.id, job.id)))[0]).toEqual(before);
+  expect(await docs.get(doc.id, workspaceId)).toEqual(saved);
+  await docs.remove(doc.id, workspaceId);
 });

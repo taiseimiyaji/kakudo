@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { matchQuote } from "../../modules/review/source-check";
 import { evidenceRetriever, orderedSources } from "../../modules/review/evidence";
-import { verdictFinding } from "../../modules/review/pipeline";
+import { factSourcePipeline, verdictFinding } from "../../modules/review/pipeline";
 import { mockProvider } from "../../modules/review/mock-provider";
 it("distinguishes all four quote verification results", () => {
   expect(matchQuote("exact   quote", "prefix exact quote suffix")).toBe("VERIFIED");
@@ -28,4 +28,10 @@ it("does not turn insufficient evidence into a contradiction or show supported c
   expect(verdictFinding({ ...base, verdict: "SUPPORTED" })).toBeNull();
   expect(verdictFinding({ ...base, verdict: "INSUFFICIENT_EVIDENCE" })).toEqual({ category: "FACT", severity: "INFO" });
   expect(verdictFinding({ ...base, verdict: "TIME_SENSITIVE" })?.category).toBe("FRESHNESS");
+});
+
+it("retains quote IDs for each SOURCE finding without creating body offsets", async () => {
+  const input = { markdown: "Human note", type: "FULL" as const, groups: [], quotes: ["a", "b", "c"].map((id) => ({ id, text: id === "b" ? "Different quote" : "Same quote", sourceUrl: "https://example.com/same", sourceTitle: "Same source" })) };
+  const result = await factSourcePipeline(input, { provider: mockProvider(), fetcher: { async fetch(url) { return { url, title: "Same source", text: "Other source text", accessedAt: new Date().toISOString() }; } }, search: { async search() { return []; } }, stage: async () => {} });
+  expect(result.findings.filter((finding) => finding.category === "SOURCE").map((finding) => ({ quoteId: finding.sourceQuoteId, targetText: finding.targetText, startOffset: finding.startOffset, endOffset: finding.endOffset }))).toEqual(input.quotes.map((quote) => ({ quoteId: quote.id, targetText: null, startOffset: null, endOffset: null })));
 });

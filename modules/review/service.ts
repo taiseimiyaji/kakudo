@@ -17,6 +17,7 @@ import { factSourcePipeline } from "./pipeline";
 import { mockReviewFetcher } from "./fixtures";
 import { DomainError, requireFound } from "../../lib/errors";
 import { ReviewAdmissionError } from "./admission";
+import { sourceQuoteForFinding } from "./source-quote";
 import { quoteMarkdown } from "../../shared/quote";
 import { reviewIsStale } from "../../shared/revision";
 import { findingStatusInput, reviewStart } from "../../shared/review";
@@ -71,8 +72,10 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
         signal.throwIfAborted();
         for (const finding of result.findings) {
           signal.throwIfAborted();
-          const findingId = randomUUID(); const { evidence, ...fields } = finding;
+          const findingId = randomUUID(); const { evidence, sourceQuoteId, ...fields } = finding;
           await tx.insert(reviewFindings).values({ id: findingId, reviewRunId: id, ...fields });
+          const check = result.sourceChecks.find((item) => item.quoteId === sourceQuoteId);
+          if (check) check.findingId = findingId;
           for (const item of evidence) await tx.insert(findingEvidence).values({ id: randomUUID(), findingId, url: item.url, title: item.title, excerpt: item.text.slice(0, 1500) || null, sourceType: item.sourceType, accessedAt: new Date(item.accessedAt) });
         }
         signal.throwIfAborted();
@@ -132,7 +135,7 @@ export function reviewService({ db = getDatabase(), storage = getContentStorage(
       const evidence = findings.length ? await db.select().from(findingEvidence).where(inArray(findingEvidence.findingId, findings.map((f) => f.id))) : [];
       const currentNodes = current.nodeIds.length ? await db.select().from(learningNodes).where(inArray(learningNodes.id, current.nodeIds)) : [];
       const changedObjectives = ["COVERAGE", "FULL"].includes(job.type) && objectivesChanged(job.objectives, currentNodes.flatMap((node) => node.learningObjectives.map((text, index) => ({ id: `${node.id}:${index}`, text }))));
-      return { run: job, revision, objectivesChanged: changedObjectives, stale: changedObjectives || reviewIsStale(job.revisionId, current.document.currentRevisionId, revision.contentHash, current.contentHash), findings: findings.map((finding) => ({ ...finding, evidence: evidence.filter((item) => item.findingId === finding.id) })) };
+      return { run: job, revision, objectivesChanged: changedObjectives, stale: changedObjectives || reviewIsStale(job.revisionId, current.document.currentRevisionId, revision.contentHash, current.contentHash), findings: findings.map((finding) => ({ ...finding, sourceQuoteText: sourceQuoteForFinding(finding, job.sourceChecks, job.quoteSnapshot)?.text ?? null, evidence: evidence.filter((item) => item.findingId === finding.id) })) };
     },
   };
 }
