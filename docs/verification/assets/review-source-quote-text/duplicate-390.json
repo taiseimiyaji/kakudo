@@ -1,0 +1,45 @@
+{
+  "width": 390,
+  "kind": "duplicate",
+  "checks": [
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "title": "RFC 6749（Mock資料）",
+      "status": "NOT_FOUND",
+      "quoteId": "231861cc-4180-4a8f-94f6-b99964c53796",
+      "findingId": "0f01cf27-fdaf-4764-a62e-fc4b65c23eef",
+      "accessedAt": "2026-10-07T12:49:32.383Z"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "title": "RFC 6749（Mock資料）",
+      "status": "NOT_FOUND",
+      "quoteId": "12c1cb0f-3cfd-46fc-bd7f-ef9cfd326775",
+      "findingId": "97841cd5-8957-4e48-bb79-1dfe13bcc113",
+      "accessedAt": "2026-10-07T12:49:32.383Z"
+    }
+  ],
+  "quotes": [
+    {
+      "id": "231861cc-4180-4a8f-94f6-b99964c53796",
+      "text": "OAuth 2.0 automatically proves the real-world identity of every user.",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc6749",
+      "sourceTitle": "RFC 6749（Mock資料）"
+    },
+    {
+      "id": "12c1cb0f-3cfd-46fc-bd7f-ef9cfd326775",
+      "text": "OAuth 2.0 automatically proves the real-world identity of every user.",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc6749",
+      "sourceTitle": "RFC 6749（Mock資料）"
+    }
+  ],
+  "displayed": [
+    "OAuth 2.0 automatically proves the real-world identity of every user.",
+    "OAuth 2.0 automatically proves the real-world identity of every user."
+  ],
+  "documentPUTs": 0,
+  "documentDetailUnchanged": true,
+  "noJumpControls": true,
+  "noNewTabStops": true,
+  "scrollWidth": 390
+}

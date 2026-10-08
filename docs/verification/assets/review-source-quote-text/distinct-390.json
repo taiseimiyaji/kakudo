@@ -1,0 +1,43 @@
+{
+  "width": 390,
+  "kind": "distinct",
+  "checks": [
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "title": "RFC 6749（Mock資料）",
+      "status": "VERIFIED",
+      "quoteId": "3544ed9d-360d-4e1d-bb7f-35948960a099",
+      "accessedAt": "2026-10-07T12:49:28.721Z"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6749",
+      "title": "RFC 6749（Mock資料）",
+      "status": "NOT_FOUND",
+      "quoteId": "f708e5d2-aabc-42cb-86cd-43673b32fc0a",
+      "findingId": "55f2ec6b-1c0d-4b96-89f6-5225cba572dd",
+      "accessedAt": "2026-10-07T12:49:28.722Z"
+    }
+  ],
+  "quotes": [
+    {
+      "id": "3544ed9d-360d-4e1d-bb7f-35948960a099",
+      "text": "The OAuth 2.0 authorization framework enables a third-party application to obtain limited access to an HTTP service.",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc6749",
+      "sourceTitle": "RFC 6749（Mock資料）"
+    },
+    {
+      "id": "f708e5d2-aabc-42cb-86cd-43673b32fc0a",
+      "text": "OAuth 2.0 automatically proves the real-world identity of every user.",
+      "sourceUrl": "https://www.rfc-editor.org/rfc/rfc6749",
+      "sourceTitle": "RFC 6749（Mock資料）"
+    }
+  ],
+  "displayed": [
+    "OAuth 2.0 automatically proves the real-world identity of every user."
+  ],
+  "documentPUTs": 0,
+  "documentDetailUnchanged": true,
+  "noJumpControls": true,
+  "noNewTabStops": true,
+  "scrollWidth": 390
+}
