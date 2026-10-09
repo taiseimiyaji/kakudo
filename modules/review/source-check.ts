@@ -1,10 +1,13 @@
 import type { SourceCheck } from "../../shared/review";
-const normalize = (text: string) => text.normalize("NFKC").replace(/\s+/g, " ").trim();
+export const normalizeSourceText = (text: string) => text.normalize("NFKC").replace(/\s+/g, " ").trim();
+export function matchNormalizedQuote(quote: string, body: string): { status: SourceCheck["status"]; matchedPart?: string } {
+  const text = normalizeSourceText(quote);
+  if (text && body.includes(text)) return { status: "VERIFIED" };
+  const parts = text.split(/(?<=[。.!?])\s*/).filter((part) => part.length >= 20);
+  const matchedPart = parts.find((part) => body.includes(part));
+  return matchedPart ? { status: "PARTIAL_MATCH", matchedPart } : { status: "NOT_FOUND" };
+}
 export function matchQuote(quote: string, source: string | null): SourceCheck["status"] {
   if (source === null) return "UNAVAILABLE";
-  const text = normalize(quote); const body = normalize(source);
-  if (text && body.includes(text)) return "VERIFIED";
-  const parts = text.split(/(?<=[。.!?])\s*/).filter((part) => part.length >= 20);
-  if (parts.some((part) => body.includes(part))) return "PARTIAL_MATCH";
-  return "NOT_FOUND";
+  return matchNormalizedQuote(quote, normalizeSourceText(source)).status;
 }
