@@ -175,6 +175,26 @@ it("reviews logic, coverage and FULL on fixed human objectives across multiple n
   await docs.remove(doc.id, workspaceId); await maps.remove(map.id, workspaceId);
 });
 
+it("persists literal excerpts and fallback explanations without rewriting prior runs or human content", async () => {
+  const docs = documentService(db, storage); const doc = await docs.create(workspaceId, { title: "Literal evidence", content: "Human note.\n", nodeIds: [] });
+  const matched = "The source keeps the original human writing as the basis of review.";
+  const text = matched + " This additional sentence is absent from the source.";
+  await docs.quote(doc.id, workspaceId, { title: doc.title, text, sourceUrl: "https://example.com/literal", sourceTitle: "Human title", content: "Human note.\n", baseHash: contentHash("Human note.\n"), baseWriteId: doc.lastWriteId, from: 12, to: 12 });
+  const baseline = await docs.get(doc.id, workspaceId);
+  let source = "Unrelated background. ".repeat(1000) + matched;
+  const service = reviewService({ db, storage, provider: mockProvider(), fetcher: { async fetch(url) { return { url, text: source, title: "Fetched title", accessedAt: new Date().toISOString() }; } } });
+  const run = async () => { const job = await service.start(doc.id, workspaceId, { revisionId: baseline.document.currentRevisionId!, type: "SOURCE" }, false); await service.execute(job.id); return service.get(job.id, workspaceId); };
+  const old = await run(); expect(old.run.status).toBe("COMPLETED"); expect(old.run.sourceChecks[0].status).toBe("PARTIAL_MATCH");
+  expect(old.findings[0].evidence[0].excerpt).toContain(matched); expect(source).toContain(old.findings[0].evidence[0].excerpt!);
+  expect(old.findings[0]).toMatchObject({ sourceQuoteText: text, targetText: null, startOffset: null, endOffset: null });
+  source = "Unrelated background. ".repeat(1000) + matched.replaceAll(" ", "\n  ");
+  const next = await run(); expect(next.run.sourceChecks[0].status).toBe("PARTIAL_MATCH");
+  expect(next.findings[0].explanation).toContain("原文の同じ表記は見つかりませんでした");
+  expect(source.startsWith(next.findings[0].evidence[0].excerpt!)).toBe(true);
+  expect(await service.get(old.run.id, workspaceId)).toEqual(old); expect(await docs.get(doc.id, workspaceId)).toEqual(baseline);
+  await docs.remove(doc.id, workspaceId);
+});
+
 it("persists explicit source finding IDs and displays only pinned quotes while leaving legacy runs untouched", async () => {
   const docs = documentService(db, storage); const doc = await docs.create(workspaceId, { title: "Pinned source quotes", content: "Human note.", nodeIds: [] });
   const texts = ["Different quote A", "Different quote B", "Different quote A"];
