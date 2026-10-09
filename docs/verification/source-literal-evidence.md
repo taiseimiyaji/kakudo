@@ -53,3 +53,22 @@ Node 24.13.0、接続Mac、単独実行。約1,999,999 bytes以内のMock取得�
 | NFKC変換を含む前方 / 別文384件 | 3592.56 | 94.17 |
 
 [数値・全サンプル](source-literal-evidence/performance.json)。再実行は `npx tsx docs/verification/source-literal-evidence/benchmark.mts`（結果JSONを更新する）。1件では書記素境界を扱う準備の分だけ増えるケースがある。384件は検証用の形であり、引用数の上限・最大実行時間を意味しない。現行契約には有限の引用件数上限がなく、任意の件数・原文・環境に対する時間の保証はしない。引用上限やtimeout方針の変更は含めない。
+
+## 旧headのCI失敗と時計fixtureの修正
+
+`949b939a6987eedfb3832cfcafdbb6bbc231e172` は [PR CI](https://github.com/taiseimiyaji/kakudo/actions/runs/37889574975) 成功、[push CI](https://github.com/taiseimiyaji/kakudo/actions/runs/37889571158) は既存 `note-entry-read.spec.ts` の「note leaving cancels the old read and deadline while current human inputs remain」で初回・retryとも失敗（279 pass / 1 fail）。新しいSOURCEテストは成功していた。失敗を消すための単純な再実行やassert緩和は行っていない。
+
+両traceのalertは旧GETの読取エラーではなく、新しいノートの自動保存結果を確認できないという表示だった。新しいノートへのPUTが約89msの実時間で中断されていた。テストはそのノート名を変更した直後に仮想時刻を45秒進めており、正常な実ネットワークの応答を待つ前に自動保存の期限まで進めていた。
+
+新しいノートのPUT応答を250msだけ遅らせる制御実験で、変更前main `8ec882f` と同じテスト条件に保存alertを再現した。SOURCE処理はこのケースで実行しない。旧GETのrouteは、対象外のリクエストを `route.fallback()` にして、別途登録した新しいノートのPUT routeへ渡す。
+
+```ts
+await page.route(`**/api/documents/${document.id}?*`, async route => {
+  if (route.request().method() !== 'PUT') return route.continue();
+  const response = await route.fetch();
+  await new Promise(resolve => setTimeout(resolve, 250));
+  await route.fulfill({ response }).catch(() => {});
+});
+```
+
+修正は1秒のtick後、実際の保存名とUIの「保存済み」を待ち、その後に旧GETの期限を45秒進める。保存回数も新ノートでは1、ノードの作成フォームでは0と確認する。旧GETの取消・取得回数1・alertなし・人間の入力保持というassertを維持した。同じ250ms応答遅延で修正後は成功し、通常のautosaveを含む読取・自動保存browser 23件が成功した。手動保存fixtureでintervalを遅らせる初案はClock APIに上書きされ無効だったため採用していない。製品のタイマー・保存期限・本文・SOURCE実装の変更はない。新headの全チェックと両CIを改めて確認する。

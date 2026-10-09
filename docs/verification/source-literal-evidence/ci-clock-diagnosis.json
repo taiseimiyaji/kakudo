@@ -1,0 +1,34 @@
+{
+  "oldHead": "949b939a6987eedfb3832cfcafdbb6bbc231e172",
+  "pushFailure": 37889571158,
+  "prSuccess": 37889574975,
+  "test": "note-entry-read.spec.ts:44 note leaving cancels the old read and deadline while current human inputs remain",
+  "ciAttempts": {
+    "first": "autosave confirmation alert; PUT status -1, about 89.602ms",
+    "retry": "same alert; PUT status -1, about 88.4ms"
+  },
+  "classification": "Virtual-clock / real-network fixture race reproduced on baseline; source pipeline not executed in this test",
+  "controlledBefore": {
+    "head": "8ec882fbe709ec9072dfe5beb9cb090f28c501af",
+    "newNotePutResponseDelayMs": 250,
+    "result": "EXPECTED_FAIL: same autosave confirmation alert"
+  },
+  "controlledAfter": {
+    "newNotePutResponseDelayMs": 250,
+    "result": "PASS",
+    "change": "Run 1000ms, await real save and saved UI before remaining 45000ms",
+    "writes": "1 new note; 0 node creation form",
+    "oldReadAssertions": "unchanged"
+  },
+  "focusedBrowser": {
+    "tests": 23,
+    "result": "PASS",
+    "files": [
+      "note-entry-read.spec.ts",
+      "note-autosave.spec.ts",
+      "note-autosave-integration.spec.ts"
+    ]
+  },
+  "manualIntervalProposal": "Tested and discarded: Clock install overrides init-script wrapper",
+  "productChangesInCiFix": false
+}
