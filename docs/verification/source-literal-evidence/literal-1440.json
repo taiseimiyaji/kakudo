@@ -1,0 +1,79 @@
+{
+  "width": 1440,
+  "kind": "literal",
+  "sourceLength": 22063,
+  "checks": [
+    {
+      "url": "https://example.com/owned-literal-evidence",
+      "title": "人間が登録した資料名",
+      "status": "PARTIAL_MATCH",
+      "quoteId": "728bbee5-456a-45fb-b281-513b74164ff8",
+      "findingId": "16525124-4631-45ca-953c-d4f80d8795c0",
+      "accessedAt": "2026-10-09T05:34:41.417Z"
+    },
+    {
+      "url": "https://example.com/owned-literal-evidence",
+      "title": "人間が登録した資料名",
+      "status": "PARTIAL_MATCH",
+      "quoteId": "8f65224c-771c-4128-b1a5-c946fc3dcfe1",
+      "findingId": "ac22f808-d141-4af9-a120-137ff9ec207f",
+      "accessedAt": "2026-10-09T05:34:41.417Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "16525124-4631-45ca-953c-d4f80d8795c0",
+      "reviewRunId": "6b20eba9-8e08-4ec8-818a-3789a162650f",
+      "category": "SOURCE",
+      "severity": "WARNING",
+      "status": "OPEN",
+      "targetText": null,
+      "startOffset": null,
+      "endOffset": null,
+      "explanation": "引用の一部は確認できましたが、全体は一致していません。",
+      "guidingQuestion": "引用元の該当箇所と、引用の範囲を確認できますか？",
+      "verdict": "PARTIAL_MATCH",
+      "sourceQuoteText": "The source keeps original human writing as the basis of review. This additional sentence is absent from the source.",
+      "evidence": [
+        {
+          "id": "0b3f6120-08bf-4942-a649-d8e78180ae93",
+          "findingId": "16525124-4631-45ca-953c-d4f80d8795c0",
+          "url": "https://example.com/owned-literal-evidence",
+          "title": "人間が登録した資料名",
+          "excerpt": ". Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. The source keeps original human writing as the basis of review.",
+          "sourceType": "USER_RESOURCE",
+          "accessedAt": "2026-10-09T05:34:41.417Z"
+        }
+      ]
+    },
+    {
+      "id": "ac22f808-d141-4af9-a120-137ff9ec207f",
+      "reviewRunId": "6b20eba9-8e08-4ec8-818a-3789a162650f",
+      "category": "SOURCE",
+      "severity": "WARNING",
+      "status": "OPEN",
+      "targetText": null,
+      "startOffset": null,
+      "endOffset": null,
+      "explanation": "引用の一部は確認できましたが、全体は一致していません。",
+      "guidingQuestion": "引用元の該当箇所と、引用の範囲を確認できますか？",
+      "verdict": "PARTIAL_MATCH",
+      "sourceQuoteText": "The source keeps original human writing as the basis of review. This additional sentence is absent from the source.",
+      "evidence": [
+        {
+          "id": "7d1cb75f-2d86-43a1-b91a-9664b7b5f381",
+          "findingId": "ac22f808-d141-4af9-a120-137ff9ec207f",
+          "url": "https://example.com/owned-literal-evidence",
+          "title": "人間が登録した資料名",
+          "excerpt": ". Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. The source keeps original human writing as the basis of review.",
+          "sourceType": "USER_RESOURCE",
+          "accessedAt": "2026-10-09T05:34:41.417Z"
+        }
+      ]
+    }
+  ],
+  "documentUnchanged": true,
+  "documentPUTs": 0,
+  "oldRunUnchangedAfterSourceChange": true,
+  "noJump": true
+}

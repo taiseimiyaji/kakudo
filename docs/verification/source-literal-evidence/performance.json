@@ -1,0 +1,262 @@
+{
+  "node": "v24.13.0",
+  "protocol": "Standalone after all checks and focused UI ended. One warmup; median of three actual pipeline runs. FULL source stage retains previous per-quote normalization. SOURCE is the new prepared literal helper. No network, DB or UI timing; no absolute performance assertion; 384 is a fixture, not a quote limit.",
+  "cells": [
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 1,
+      "type": "FULL",
+      "sourceBytes": 1999984,
+      "milliseconds": 7.66220899999999,
+      "samples": [
+        6.987540999999993,
+        7.66220899999999,
+        19.802583
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 1,
+      "type": "SOURCE",
+      "sourceBytes": 1999984,
+      "milliseconds": 11.57291600000002,
+      "samples": [
+        6.656667000000027,
+        11.57291600000002,
+        13.393374999999992
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 10,
+      "type": "FULL",
+      "sourceBytes": 1999984,
+      "milliseconds": 69.421291,
+      "samples": [
+        69.40275000000003,
+        69.421291,
+        75.52895799999999
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 10,
+      "type": "SOURCE",
+      "sourceBytes": 1999984,
+      "milliseconds": 7.082875000000058,
+      "samples": [
+        7.077167000000031,
+        7.082875000000058,
+        11.32062499999995
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 384,
+      "type": "FULL",
+      "sourceBytes": 1999984,
+      "milliseconds": 2788.453958000001,
+      "samples": [
+        2759.2439589999994,
+        2788.453958000001,
+        2813.5462500000003
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "ASCII",
+      "count": 384,
+      "type": "SOURCE",
+      "sourceBytes": 1999984,
+      "milliseconds": 41.99158399999942,
+      "samples": [
+        41.763207999998485,
+        41.99158399999942,
+        44.60112499999923
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 1,
+      "type": "FULL",
+      "sourceBytes": 1999982,
+      "milliseconds": 8.408166999999594,
+      "samples": [
+        8.323667000000569,
+        8.408166999999594,
+        10.195166999999856
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 1,
+      "type": "SOURCE",
+      "sourceBytes": 1999982,
+      "milliseconds": 9.607333000001745,
+      "samples": [
+        9.556250000001455,
+        9.607333000001745,
+        10.763624999999593
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 10,
+      "type": "FULL",
+      "sourceBytes": 1999982,
+      "milliseconds": 88.6636669999989,
+      "samples": [
+        88.62366699999984,
+        88.6636669999989,
+        102.42349999999897
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 10,
+      "type": "SOURCE",
+      "sourceBytes": 1999982,
+      "milliseconds": 10.451000000000931,
+      "samples": [
+        10.219250000000102,
+        10.451000000000931,
+        11.582625000000917
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 384,
+      "type": "FULL",
+      "sourceBytes": 1999982,
+      "milliseconds": 3331.2286669999994,
+      "samples": [
+        3306.566834000001,
+        3331.2286669999994,
+        3374.386875
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "same-part",
+      "kind": "NFKC-prefix",
+      "count": 384,
+      "type": "SOURCE",
+      "sourceBytes": 1999982,
+      "milliseconds": 42.288291999997455,
+      "samples": [
+        40.97233300000153,
+        42.288291999997455,
+        50.287374999999884
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "distinct-parts",
+      "kind": "ASCII",
+      "count": 384,
+      "type": "FULL",
+      "sourceBytes": 1999995,
+      "milliseconds": 3271.8966660000006,
+      "samples": [
+        3247.5038330000025,
+        3271.8966660000006,
+        3279.4277500000026
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "distinct-parts",
+      "kind": "ASCII",
+      "count": 384,
+      "type": "SOURCE",
+      "sourceBytes": 1999995,
+      "milliseconds": 406.5115420000002,
+      "samples": [
+        381.4457089999996,
+        406.5115420000002,
+        410.1399999999994
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "distinct-parts",
+      "kind": "NFKC-prefix",
+      "count": 384,
+      "type": "FULL",
+      "sourceBytes": 1999991,
+      "milliseconds": 3592.5578749999986,
+      "samples": [
+        3591.449041,
+        3592.5578749999986,
+        3604.0404169999965
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    },
+    {
+      "pattern": "distinct-parts",
+      "kind": "NFKC-prefix",
+      "count": 384,
+      "type": "SOURCE",
+      "sourceBytes": 1999991,
+      "milliseconds": 94.16799999999785,
+      "samples": [
+        83.41875000000437,
+        94.16799999999785,
+        112.20449999999983
+      ],
+      "oneFetch": true,
+      "allPartial": true,
+      "allQuoteIdentitiesDistinct": true
+    }
+  ]
+}

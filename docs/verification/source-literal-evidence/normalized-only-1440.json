@@ -1,0 +1,79 @@
+{
+  "width": 1440,
+  "kind": "normalized-only",
+  "sourceLength": 22083,
+  "checks": [
+    {
+      "url": "https://example.com/owned-literal-evidence",
+      "title": "人間が登録した資料名",
+      "status": "PARTIAL_MATCH",
+      "quoteId": "9a3f51a2-579c-41c9-9d15-5b77d1d945a0",
+      "findingId": "8ef5ab15-2261-48bf-89fb-6c77ea5fc1a0",
+      "accessedAt": "2026-10-09T05:34:41.416Z"
+    },
+    {
+      "url": "https://example.com/owned-literal-evidence",
+      "title": "人間が登録した資料名",
+      "status": "PARTIAL_MATCH",
+      "quoteId": "d55b66de-0b84-4613-838f-e2ccfcb1f6fa",
+      "findingId": "97d1881f-d490-45e2-a33f-d324bbba9042",
+      "accessedAt": "2026-10-09T05:34:41.416Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "8ef5ab15-2261-48bf-89fb-6c77ea5fc1a0",
+      "reviewRunId": "29ada507-a6c4-4dea-b943-ed2c9ac2cd2b",
+      "category": "SOURCE",
+      "severity": "WARNING",
+      "status": "OPEN",
+      "targetText": null,
+      "startOffset": null,
+      "endOffset": null,
+      "explanation": "引用の一部は確認できましたが、全体は一致していません。表記や空白の正規化後には一部一致しましたが、原文の同じ表記は見つかりませんでした。取得資料の先頭部分を表示しています。",
+      "guidingQuestion": "引用元の該当箇所と、引用の範囲を確認できますか？",
+      "verdict": "PARTIAL_MATCH",
+      "sourceQuoteText": "The source keeps original human writing as the basis of review. This additional sentence is absent from the source.",
+      "evidence": [
+        {
+          "id": "0f902a39-6747-4c08-ac9e-03b2d2743e12",
+          "findingId": "8ef5ab15-2261-48bf-89fb-6c77ea5fc1a0",
+          "url": "https://example.com/owned-literal-evidence",
+          "title": "人間が登録した資料名",
+          "excerpt": "Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated ",
+          "sourceType": "USER_RESOURCE",
+          "accessedAt": "2026-10-09T05:34:41.416Z"
+        }
+      ]
+    },
+    {
+      "id": "97d1881f-d490-45e2-a33f-d324bbba9042",
+      "reviewRunId": "29ada507-a6c4-4dea-b943-ed2c9ac2cd2b",
+      "category": "SOURCE",
+      "severity": "WARNING",
+      "status": "OPEN",
+      "targetText": null,
+      "startOffset": null,
+      "endOffset": null,
+      "explanation": "引用の一部は確認できましたが、全体は一致していません。表記や空白の正規化後には一部一致しましたが、原文の同じ表記は見つかりませんでした。取得資料の先頭部分を表示しています。",
+      "guidingQuestion": "引用元の該当箇所と、引用の範囲を確認できますか？",
+      "verdict": "PARTIAL_MATCH",
+      "sourceQuoteText": "The source keeps original human writing as the basis of review. This additional sentence is absent from the source.",
+      "evidence": [
+        {
+          "id": "6087c362-4742-47ad-b8be-9278c05eb404",
+          "findingId": "97d1881f-d490-45e2-a33f-d324bbba9042",
+          "url": "https://example.com/owned-literal-evidence",
+          "title": "人間が登録した資料名",
+          "excerpt": "Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated background. Unrelated ",
+          "sourceType": "USER_RESOURCE",
+          "accessedAt": "2026-10-09T05:34:41.416Z"
+        }
+      ]
+    }
+  ],
+  "documentUnchanged": true,
+  "documentPUTs": 0,
+  "oldRunUnchangedAfterSourceChange": true,
+  "noJump": true
+}
