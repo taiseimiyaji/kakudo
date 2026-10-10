@@ -98,7 +98,8 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const savePresentation = noteSavePresentation(state, { recovering, composing, paste: !!paste });
   function showEdit() { if (mode === "edit") editorRef.current?.restoreFocus(); else { focusRequested.current = true; setMode("edit"); } }
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
-  useBlocker({ shouldBlockFn: () => (dirty || busy || outcomeUnknown || resourceProtected || associationProtected || reviewProtected) && !window.confirm("未保存・保存中・保存結果不明の変更、未登録・登録結果を確認中の資料、または受付・指摘更新の結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: dirty || busy || outcomeUnknown || resourceProtected || associationProtected || reviewProtected });
+  const departureProtected = dirty || busy || outcomeUnknown || !!paste || resourceProtected || associationProtected || reviewProtected;
+  useBlocker({ shouldBlockFn: () => departureProtected && !window.confirm("未保存・保存中・保存結果不明の変更、未追加の引用、未登録・登録結果を確認中の資料、または受付・指摘更新の結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: departureProtected });
   async function save() {
     if (await session.save(true)) { invalidateLatest(); setRecoveryError(""); }
   }
