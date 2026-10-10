@@ -8,10 +8,12 @@ import { EditorView, keymap, lineNumbers, drawSelection } from "@codemirror/view
 import { defaultKeymap, history, historyKeymap, isolateHistory } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
 
 export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void; rememberPosition: () => void; restoreFocus: () => void };
 export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
+  const keyboardReturn = useRef<KeyboardReturn | null>(null);
   const lastHighlightRequest = useRef<FindingSelection | null>(null);
   const position = useRef<{ pageY: number; editorY: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -25,6 +27,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
   }, restoreFocus() {
     const view = viewRef.current;
     if (!view) return;
+    keyboardReturn.current?.cancel();
     const remembered = position.current;
     position.current = null;
     view.focus();
@@ -32,6 +35,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
   }, applyQuote(paste, after) {
     const view = viewRef.current;
     if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");
+    keyboardReturn.current?.cancel();
     view.dispatch({ ...quoteEdit(paste, after), annotations: isolateHistory.of("full"), userEvent: "input.paste" });
     view.focus();
   } }), []);
@@ -53,11 +57,14 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
       EditorView.updateListener.of((update) => { if (update.docChanged) callback.current(update.state.sliceDoc()); }),
     ] }) });
     viewRef.current = view;
-    return () => { viewRef.current = null; view.destroy(); };
+    const returning = installKeyboardReturn(view);
+    keyboardReturn.current = returning;
+    return () => { returning.destroy(); keyboardReturn.current = null; viewRef.current = null; view.destroy(); };
     // A document session owns its initial content; parent keys remount it on reload.
   }, [initialContent]);
   useEffect(() => {
     const view = viewRef.current; if (!view) return;
+    keyboardReturn.current?.cancel();
     // Revalidating a decoration after Undo must preserve Undo's restored caret.
     const navigate = highlight && highlightRequest && highlightRequest !== lastHighlightRequest.current;
     lastHighlightRequest.current = highlightRequest;
