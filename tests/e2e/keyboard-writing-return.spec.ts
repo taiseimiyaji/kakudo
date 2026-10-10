@@ -48,15 +48,18 @@ for (const width of [390, 1440]) test(`keyboard return reveals writing head with
   test.setTimeout(60000); await page.setViewportSize({ width, height: 1000 });
   const suffix = `?workspaceId=${workspace}`;
   const { document } = await (await request.post(`/api/documents${suffix}`, { data: { title: "資料とレビューから同じ本文へ", content: original } })).json();
-  const api = `/api/documents/${document.id}`, stored = async () => (await (await request.get(api + suffix)).json());
-  let puts = 0; page.on("request", r => { if (r.method() === "PUT" && new URL(r.url()).pathname === api) puts++; });
+  const api = `/api/documents/${document.id}`, stored = async () => { const response = await request.get(api + suffix); expect(response.status()).toBe(200); return response.json(); };
+  const saveResponses: number[] = []; page.on("response", r => { if (r.request().method() === "PUT" && new URL(r.url()).pathname === api) saveResponses.push(r.status()); });
+  let puts = 0, fullSaveVerified = false; page.on("request", r => { if (r.method() === "PUT" && new URL(r.url()).pathname === api) puts++; });
   const observations: Record<string, unknown> = {};
   try {
     await page.goto(`/workspaces/${workspace}/documents/${document.id}`); await page.getByRole("button", { name: "編集", exact: true }).click();
     const editor = page.getByRole("textbox", { name: "Markdown本文" }), identity = await editor.elementHandle();
-    await selectMiddle(editor, "caret"); for (let i = 0; i < 6; i++) await editor.press("Shift+ArrowRight"); await editor.pressSequentially("人間の追記");
-    await expect.poll(async () => (await stored()).content.includes("人間の追記")).toBe(true); await expect(page.locator(".save-state")).toHaveText("保存済み");
-    const changed = await stored(), writingPuts = puts; for (let i = 0; i < 3; i++) await editor.press("Shift+ArrowLeft"); const selected = await position(page);
+    await selectMiddle(editor, "caret"); for (let i = 0; i < 6; i++) await editor.press("Shift+ArrowRight");
+    const replaced = await position(page), expectedChanged = original.slice(0, Math.min(replaced.anchor, replaced.head)) + "人間の追記" + original.slice(Math.max(replaced.anchor, replaced.head));
+    await editor.pressSequentially("人間の追記");
+    await expect.poll(async () => (await stored()).content).toBe(expectedChanged); await expect(page.locator(".save-state")).toHaveText("保存済み");
+    const changed = await stored(), writingPuts = puts; expect(await editor.evaluate(e => (e as EditorDOM).cmTile.root.view.state.sliceDoc())).toBe(expectedChanged); for (let i = 0; i < 3; i++) await editor.press("Shift+ArrowLeft"); const selected = await position(page);
     const summary = page.locator("[data-note-panel=resources] > summary"); await keyTo(page, summary, "Tab"); await page.keyboard.press("Enter");
     const form = page.getByRole("region", { name: "参考資料", exact: true }); await keyTo(page, form.getByLabel("資料URL（必須）"), "Tab"); await page.keyboard.type(`https://example.com/keyboard-return-${document.id}`);
     await page.keyboard.press("Tab"); await page.keyboard.type("自分が必要とした資料"); await keyTo(page, form.getByRole("button", { name: "資料を登録", exact: true }), "Tab"); await page.keyboard.press("Enter");
@@ -80,10 +83,38 @@ for (const width of [390, 1440]) test(`keyboard return reveals writing head with
     // The title is the immediate previous control: also exercise forward Tab.
     const beforeTitle = await position(page); await keyTo(page, page.getByLabel("ノート名（必須）"), "Shift+Tab"); await page.keyboard.press("Tab"); const afterTitle = await visibleHead(page);
     expect([afterTitle.anchor, afterTitle.head]).toEqual([beforeTitle.anchor, beforeTitle.head]); observations.forwardTab = afterTitle;
-    await editor.pressSequentially(" 続けて考える。"); await expect.poll(async () => (await stored()).content.includes(" 続けて考える。")).toBe(true); await expect(page.locator(".save-state")).toHaveText("保存済み"); expect(puts).toBeGreaterThan(undoRedoPuts);
+    const expectedFinal = expectedChanged.slice(0, afterTitle.head) + " 続けて考える。" + expectedChanged.slice(afterTitle.head);
+    await editor.pressSequentially(" 続けて考える。"); await expect.poll(async () => (await stored()).content).toBe(expectedFinal); await expect(page.locator(".save-state")).toHaveText("保存済み"); expect(puts).toBeGreaterThan(undoRedoPuts); expect(await editor.evaluate(e => (e as EditorDOM).cmTile.root.view.state.sliceDoc())).toBe(expectedFinal); expect(saveResponses.length).toBeGreaterThan(0); expect(saveResponses.every(status => status === 200)).toBe(true); fullSaveVerified = true;
     expect(await editor.evaluate((e, previous) => e === previous, identity)).toBe(true); await expect(page.getByRole("alert")).toHaveCount(0); expect((await position(page)).scrollWidth).toBe(width);
     await page.screenshot({ path: info.outputPath(`writing-continues-${width}.png`) });
-  } finally { await writeFile(info.outputPath(`keyboard-return-${width}.json`), JSON.stringify({ width, normalTimers: true, originalCharacters: original.length, puts, observations }, null, 2)); }
+  } finally { await writeFile(info.outputPath(`keyboard-return-${width}.json`), JSON.stringify({ width, normalTimers: true, originalCharacters: original.length, puts, saveResponses, fullSavedTextEqualsExpectedHumanEdits: fullSaveVerified, observations }, null, 2)); }
+});
+
+test("native Tab reveals the head below the sticky header and leaves an already visible head alone", async ({ page, request, workspace }, info) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const { document } = await (await request.post(`/api/documents?workspaceId=${workspace}`, { data: { title: "headと固定ヘッダー", content: original } })).json();
+  await page.goto(`/workspaces/${workspace}/documents/${document.id}`); await page.getByRole("button", { name: "編集", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Markdown本文" }), summary = page.locator("[data-note-panel=resources] > summary");
+  type NativeFocusWindow = Window & { nativeWritingFocus?: { scrollY: number; headTop: number; headBottom: number; headerBottom: number } };
+  const observations: Record<string, unknown> = {};
+  for (const kind of ["backward", "caret"] as const) {
+    await selectMiddle(editor, kind); if (kind === "caret") for (let i = 0; i < 3; i++) await editor.press("Shift+ArrowRight");
+    await keyTo(page, summary, "Tab");
+    // Keep the native DOM selection, to observe Chrome's default selection scroll.
+    await page.evaluate(() => {
+      const capture = (event: FocusEvent) => {
+        if (event.target !== document.querySelector(".cm-content")) return;
+        const selected = getSelection()!, head = document.createRange(); head.setStart(selected.focusNode!, selected.focusOffset); head.collapse(true); const rect = head.getBoundingClientRect();
+        (window as unknown as NativeFocusWindow).nativeWritingFocus = { scrollY, headTop: rect.top, headBottom: rect.bottom, headerBottom: document.querySelector(".note-header")!.getBoundingClientRect().bottom };
+        window.removeEventListener("focus", capture, true);
+      };
+      window.addEventListener("focus", capture, true);
+    });
+    await keyTo(page, editor, "Shift+Tab"); const after = await visibleHead(page), native = await page.evaluate(() => (window as unknown as NativeFocusWindow).nativeWritingFocus!);
+    if (kind === "caret") { expect(native.headTop).toBeGreaterThanOrEqual(native.headerBottom + 4); expect(native.headBottom).toBeLessThan(996); expect(after.scrollY).toBe(native.scrollY); }
+    observations[kind] = { native, after };
+  }
+  await writeFile(info.outputPath("native-focus-header.json"), JSON.stringify(observations, null, 2));
 });
 
 test("mouse and imperative focus preserve their scroll intent", async ({ page, request, workspace }) => {
