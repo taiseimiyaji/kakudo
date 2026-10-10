@@ -1,0 +1,569 @@
+{
+  "baseHead": "ecfc4d205831927f0b5171cf89c6478ae6dadf42",
+  "normalBrowserTimers": true,
+  "data": {
+    "baseline": {
+      "390": {
+        "width": 390,
+        "normalTimers": true,
+        "originalCharacters": 10561,
+        "puts": 1,
+        "observations": {
+          "shortReviewReturn": {
+            "anchor": 1152,
+            "head": 1149,
+            "length": 3,
+            "headRect": {
+              "left": 54,
+              "right": 54,
+              "top": 2433.34375,
+              "bottom": 2452.34375
+            },
+            "headerBottom": 109,
+            "scrollY": 0,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 390
+          }
+        }
+      },
+      "1440": {
+        "width": 1440,
+        "normalTimers": true,
+        "originalCharacters": 10561,
+        "puts": 1,
+        "observations": {
+          "shortReviewReturn": {
+            "anchor": 1597,
+            "head": 1594,
+            "length": 3,
+            "headRect": {
+              "left": 436.359375,
+              "right": 436.359375,
+              "top": 2576.125,
+              "bottom": 2596.125
+            },
+            "headerBottom": 65,
+            "scrollY": 0,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 1440
+          }
+        }
+      }
+    },
+    "after": {
+      "1440": {
+        "width": 1440,
+        "normalTimers": true,
+        "originalCharacters": 10561,
+        "puts": 4,
+        "saveResponses": [
+          200,
+          200,
+          200,
+          200
+        ],
+        "fullSavedTextEqualsExpectedHumanEdits": true,
+        "observations": {
+          "shortReviewReturn": {
+            "anchor": 1597,
+            "head": 1594,
+            "length": 3,
+            "headRect": {
+              "left": 436.359375,
+              "right": 436.359375,
+              "top": 976.125,
+              "bottom": 996.125
+            },
+            "headerBottom": 65,
+            "scrollY": 1600,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 1440
+          },
+          "forward": {
+            "before": {
+              "anchor": 1592,
+              "head": 3032,
+              "length": 1440,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 1006.953125,
+                "bottom": 1026.953125
+              },
+              "headerBottom": 65,
+              "scrollY": 3545,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            },
+            "after": {
+              "anchor": 1592,
+              "head": 3032,
+              "length": 1440,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 975.953125,
+                "bottom": 995.953125
+              },
+              "headerBottom": 65,
+              "scrollY": 3576,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            }
+          },
+          "backward": {
+            "before": {
+              "anchor": 2995,
+              "head": 1592,
+              "length": 1403,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 5.125,
+                "bottom": 25.125
+              },
+              "headerBottom": 65,
+              "scrollY": 2571,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            },
+            "after": {
+              "anchor": 2995,
+              "head": 1592,
+              "length": 1403,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 976.125,
+                "bottom": 996.125
+              },
+              "headerBottom": 65,
+              "scrollY": 1600,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            }
+          },
+          "caret": {
+            "before": {
+              "anchor": 1592,
+              "head": 1592,
+              "length": 0,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 975.125,
+                "bottom": 995.125
+              },
+              "headerBottom": 65,
+              "scrollY": 1601,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            },
+            "after": {
+              "anchor": 1592,
+              "head": 1592,
+              "length": 0,
+              "headRect": {
+                "left": 400.359375,
+                "right": 400.359375,
+                "top": 976.125,
+                "bottom": 996.125
+              },
+              "headerBottom": 65,
+              "scrollY": 1600,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 1440
+            }
+          },
+          "forwardTab": {
+            "anchor": 1592,
+            "head": 1592,
+            "length": 0,
+            "headRect": {
+              "left": 400.359375,
+              "right": 400.359375,
+              "top": 976.125,
+              "bottom": 996.125
+            },
+            "headerBottom": 65,
+            "scrollY": 1600,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 1440
+          }
+        }
+      },
+      "390": {
+        "width": 390,
+        "normalTimers": true,
+        "originalCharacters": 10561,
+        "puts": 4,
+        "saveResponses": [
+          200,
+          200,
+          200,
+          200
+        ],
+        "fullSavedTextEqualsExpectedHumanEdits": true,
+        "observations": {
+          "shortReviewReturn": {
+            "anchor": 1152,
+            "head": 1149,
+            "length": 3,
+            "headRect": {
+              "left": 54,
+              "right": 54,
+              "top": 977.34375,
+              "bottom": 996.34375
+            },
+            "headerBottom": 109,
+            "scrollY": 1456,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 390
+          },
+          "forward": {
+            "before": {
+              "anchor": 1147,
+              "head": 2179,
+              "length": 1032,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 1006.15625,
+                "bottom": 1025.15625
+              },
+              "headerBottom": 109,
+              "scrollY": 3324,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            },
+            "after": {
+              "anchor": 1147,
+              "head": 2179,
+              "length": 1032,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 977.15625,
+                "bottom": 996.15625
+              },
+              "headerBottom": 109,
+              "scrollY": 3353,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            }
+          },
+          "backward": {
+            "before": {
+              "anchor": 2138,
+              "head": 1147,
+              "length": 991,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 5.34375,
+                "bottom": 24.34375
+              },
+              "headerBottom": 109,
+              "scrollY": 2428,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            },
+            "after": {
+              "anchor": 2138,
+              "head": 1147,
+              "length": 991,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 977.34375,
+                "bottom": 996.34375
+              },
+              "headerBottom": 109,
+              "scrollY": 1456,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            }
+          },
+          "caret": {
+            "before": {
+              "anchor": 1147,
+              "head": 1147,
+              "length": 0,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 976.34375,
+                "bottom": 995.34375
+              },
+              "headerBottom": 109,
+              "scrollY": 1457,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            },
+            "after": {
+              "anchor": 1147,
+              "head": 1147,
+              "length": 0,
+              "headRect": {
+                "left": 20,
+                "right": 20,
+                "top": 977.34375,
+                "bottom": 996.34375
+              },
+              "headerBottom": 109,
+              "scrollY": 1456,
+              "focused": true,
+              "height": 1000,
+              "scrollWidth": 390
+            }
+          },
+          "forwardTab": {
+            "anchor": 1147,
+            "head": 1147,
+            "length": 0,
+            "headRect": {
+              "left": 20,
+              "right": 20,
+              "top": 977.34375,
+              "bottom": 996.34375
+            },
+            "headerBottom": 109,
+            "scrollY": 1456,
+            "focused": true,
+            "height": 1000,
+            "scrollWidth": 390
+          }
+        }
+      }
+    }
+  },
+  "cancelledReveals": {
+    "heldKeyboardMeasureOnly": true,
+    "normalTimers": true,
+    "observations": {
+      "none": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 0,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": {
+            "left": 258,
+            "right": 258,
+            "top": 976.75,
+            "bottom": 995.75
+          },
+          "headerBottom": 109,
+          "scrollY": 1426,
+          "focused": true,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "key": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 0,
+        "after": {
+          "anchor": 0,
+          "head": 0,
+          "length": 0,
+          "headRect": {
+            "left": 20,
+            "right": 20,
+            "top": 291.78125,
+            "bottom": 310.78125
+          },
+          "headerBottom": 109,
+          "scrollY": 0,
+          "focused": true,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "scroll": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 600,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": {
+            "left": 258,
+            "right": 258,
+            "top": 1802.75,
+            "bottom": 1821.75
+          },
+          "headerBottom": 109,
+          "scrollY": 600,
+          "focused": true,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "wheel": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": ""
+        },
+        "intended": 600,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": {
+            "left": 258,
+            "right": 258,
+            "top": 1802.75,
+            "bottom": 1821.75
+          },
+          "headerBottom": 109,
+          "scrollY": 600,
+          "focused": true,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "focus": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 11722,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": {
+            "left": 258,
+            "right": 258,
+            "top": -9319.25,
+            "bottom": -9300.25
+          },
+          "headerBottom": 109,
+          "scrollY": 11722,
+          "focused": false,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "pointer": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 0,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": null,
+          "headerBottom": 109,
+          "scrollY": 0,
+          "focused": false,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      },
+      "imperative": {
+        "beforeAction": {
+          "scrollY": 0,
+          "selected": "言葉を整え、"
+        },
+        "intended": 0,
+        "after": {
+          "anchor": 1147,
+          "head": 1141,
+          "length": 6,
+          "headRect": {
+            "left": 258,
+            "right": 258,
+            "top": 2402.75,
+            "bottom": 2421.75
+          },
+          "headerBottom": 109,
+          "scrollY": 0,
+          "focused": true,
+          "height": 1000,
+          "scrollWidth": 390
+        }
+      }
+    }
+  },
+  "verifiedCodeAndTestsHead": "a98c6e06f1fd514c756fc95fe8fad2396f487931",
+  "nativeVisibleHeads": {
+    "backward": {
+      "native": {
+        "scrollY": 1974,
+        "headTop": 428.75,
+        "headBottom": 447.75,
+        "headerBottom": 109
+      },
+      "after": {
+        "anchor": 2139,
+        "head": 1147,
+        "length": 992,
+        "headRect": {
+          "left": 20,
+          "right": 20,
+          "top": 459.34375,
+          "bottom": 478.34375
+        },
+        "headerBottom": 109,
+        "scrollY": 1974,
+        "focused": true,
+        "height": 1000,
+        "scrollWidth": 390
+      }
+    },
+    "caret": {
+      "native": {
+        "scrollY": 1944,
+        "headTop": 489.34375,
+        "headBottom": 508.34375,
+        "headerBottom": 109
+      },
+      "after": {
+        "anchor": 1147,
+        "head": 1150,
+        "length": 3,
+        "headRect": {
+          "left": 71,
+          "right": 71,
+          "top": 489.34375,
+          "bottom": 508.34375
+        },
+        "headerBottom": 109,
+        "scrollY": 1944,
+        "focused": true,
+        "height": 1000,
+        "scrollWidth": 390
+      }
+    }
+  }
+}
