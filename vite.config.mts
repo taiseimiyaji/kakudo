@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   return {
     root: "client",
     plugins: [react()],
-    build: { outDir: "../dist/client", emptyOutDir: true },
+    build: { outDir: "../dist/client", emptyOutDir: true, rollupOptions: { input: ["client/index.html", "client/export-trial-render.html"] } },
     server: {
       host: "127.0.0.1",
       port: Number(process.env.DEV_WEB_PORT ?? 43170),
