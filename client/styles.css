@@ -250,3 +250,10 @@ dialog > .secondary { margin-top: 15px; }
 .parallel-edge-route { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .parallel-edge-label[aria-pressed="true"] { border-color: var(--green); background: #f0f5ec; box-shadow: 0 0 0 1px var(--green); }
 .react-flow__edge.parallel-connection.selected .react-flow__edge-path { stroke: var(--green); stroke-width: 2.5; }
+
+.note-save-comparison-grid { display: grid; gap: 20px; min-width: 0; }
+.note-save-comparison-grid > section { min-width: 0; overflow-wrap: anywhere; }
+.note-save-comparison pre:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+@media (min-width: 900px) {
+  .note-save-comparison-grid.is-comparing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

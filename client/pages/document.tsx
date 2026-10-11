@@ -2,6 +2,7 @@ import { noteSavePresentation } from "../../modules/editor/note-presentation";
 import { NoteSession } from "../../modules/editor/note-session";
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
 import { DocumentNodes } from "../../components/editor/document-nodes";
+import { NoteSaveComparison } from "../../components/editor/note-save-comparison";
 import { findingHighlight, type FindingSelection } from "../../modules/editor/review-highlight";
 import { ReviewPanel } from "../../components/reviews/review-panel";
 import { ResourcePanel } from "../../components/resources/resource-panel";
@@ -129,7 +130,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       });
       invalidateLatest(); closePaste(paste);
     }} />}
-    {latest && <section className="latest-document" ref={latestPanelRef} aria-label="最新の保存内容"><h2>最新の保存内容</h2><p>{latest.document.title}</p><pre>{latest.content}</pre><p>編集中の本文と名前は保持されています。{outcomeUnknown ? "この取得結果だけでは直前の保存・引用の成功・失敗は確定しません。現在の入力を保存すると、確認した本文と名前を置き換えます。" : "確認後、現在の入力を保存する場合は再試行してください。"}</p><button disabled={busy || !!paste} onClick={() => { if (outcomeUnknown && !window.confirm("直前の保存・引用の結果は不明です。確認した保存内容を基準に、現在の本文と名前で置き換えるために保存を再開しますか？確認だけでは書き込みません。")) return; session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
+    {latest && <section className="latest-document" ref={latestPanelRef} aria-label="最新の保存内容"><h2>最新の保存内容</h2><NoteSaveComparison title={title} content={content} nodes={nodes} latest={latest} /><p>編集中の本文と名前は保持されています。{outcomeUnknown ? "この取得結果だけでは直前の保存・引用の成功・失敗は確定しません。現在の入力を保存すると、確認した本文と名前を置き換えます。" : "確認後、現在の入力を保存する場合は再試行してください。"}</p><button disabled={busy || !!paste} onClick={() => { if (outcomeUnknown && !window.confirm("直前の保存・引用の結果は不明です。確認した保存内容を基準に、現在の本文と名前で置き換えるために保存を再開しますか？確認だけでは書き込みません。")) return; session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
     <aside className="note-context" aria-label="ノートの補助情報">
       <details className="note-context-panel" data-note-panel="goals"><summary>目標・関連{associationProtected ? "（未確定の変更あり）" : ""}</summary>
     <DocumentNodes documentId={id} workspaceId={workspaceId} nodes={nodes} confirmation={confirmedNodes} disabled={busy || !!paste} writeBlocked={outcomeUnknown} onDraftProtectionChange={setAssociationProtected} onRefresh={() => setContextVersion((value) => value + 1)} onLinkedRemovalConfirmed={() => { if (latest || recovering) setRecoveryError("項目の再取得で関連の状態が変わりました。最新の保存内容をもう一度確認してください。本文と名前は保持しています。"); invalidateLatest(); }} onSave={async (nodeIds, onWrite) => {
