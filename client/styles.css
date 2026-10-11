@@ -163,7 +163,7 @@ dialog > .secondary { margin-top: 15px; }
 .mode-switch button { min-width: 76px; }
 .mode-switch button[aria-pressed="true"] { background: var(--green); color: white; }
 .document-toolbar > button[aria-pressed="true"] { border: 1px solid #8ca98e; }
-.editor-split[hidden] { display: none; }
+.editor-split[hidden], .document-title[hidden] { display: none; }
 .editor-only { grid-template-columns: minmax(0, 1fr); }
 .note-reading { max-width: 920px; margin: 24px auto 32px; }
 .note-reading .markdown-preview { min-height: 240px; padding: 32px; }
