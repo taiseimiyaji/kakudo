@@ -1,0 +1,134 @@
+{
+  "projectId": "387632d7-9340-4516-b2ec-ca3729858b2c",
+  "revision": 1,
+  "sourceTasteProfileRevision": null,
+  "status": "Draft",
+  "schemaVersion": "foundation-library-1",
+  "templateVersion": "preview-9",
+  "images": "omitted",
+  "openQuestions": [
+    "Components / Patterns の個別仕様・全状態は未確認（Preview テンプレートの動作例）",
+    "実アプリでの設計・アクセシビリティレビューが必要"
+  ],
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "lucide-react": "^1.43.0",
+    "zod": "^4.6.1",
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0"
+  },
+  "dtcgVersion": "2025.10",
+  "files": [
+    {
+      "path": "DESIGN.md",
+      "bytes": 13450,
+      "sha256": "bdcc107ab88837f43a51143d51af233505cd56ba31093fbfc359b56b1406f7c5"
+    },
+    {
+      "path": "design-system.json",
+      "bytes": 16295,
+      "sha256": "4ba754d181de531ff22929cedbd511d0c40378543eb021363a537ae160f50328"
+    },
+    {
+      "path": "tokens/tokens.json",
+      "bytes": 6663,
+      "sha256": "4901fbed229ce550b5faf190bb79afbd55a5158fe8aa46915182ba5315cec7e2"
+    },
+    {
+      "path": "tokens/variables.css",
+      "bytes": 1251,
+      "sha256": "5ed8ba2d11865857dc372e5389155809726c7f4c7c1d16465eeebf0543c8edff"
+    },
+    {
+      "path": "ui/components/Preview.tsx",
+      "bytes": 11370,
+      "sha256": "4f05888ba6c8210bd68bf0eb375a8fde290f0850fd975647852a01934a71a5fd"
+    },
+    {
+      "path": "ui/components/TemplateControls.tsx",
+      "bytes": 397,
+      "sha256": "9e5b8897212e13751ccb5ae56e033223ed6b60f967c38888914bde979c9992ed"
+    },
+    {
+      "path": "ui/design-runtime/Library.tsx",
+      "bytes": 10740,
+      "sha256": "a3953a06461a0217d5daf8b7033b1ff51c2db3a3583b2d8bb7a7b3023249b8a2"
+    },
+    {
+      "path": "ui/domain/library.ts",
+      "bytes": 5707,
+      "sha256": "4827c3d3d80dc91c7d7ee3e88b593a65314196aab85fb40dd35085115c046782"
+    },
+    {
+      "path": "ui/styles.css",
+      "bytes": 63372,
+      "sha256": "bd11498182f9b81b9c7d9c4cf9702d0ca3059d56e0a0d63c2ff08a64053d5afa"
+    },
+    {
+      "path": "ui/domain/design.ts",
+      "bytes": 6167,
+      "sha256": "ff5de02be3c1e2a06261df5716c1a72a8ee9735a6ead97769f975e04f00f4b71"
+    },
+    {
+      "path": "ui/domain/foundation.ts",
+      "bytes": 4590,
+      "sha256": "c7fa1ad7d3e0c2bc12ab0dee4b97de719584d9f0efc282666305ecebad332731"
+    },
+    {
+      "path": "ui/domain/tokens.ts",
+      "bytes": 2199,
+      "sha256": "f625ba13d42e289df110f62a749dcc75824995feb78ef14e2007df8bc87a772c"
+    },
+    {
+      "path": "ui/design.ts",
+      "bytes": 6879,
+      "sha256": "9fc5086f255bc74ce98ceaeb2f91af83e65d04016d147e8c7e08dabb0a75572a"
+    },
+    {
+      "path": "ui/index.ts",
+      "bytes": 171,
+      "sha256": "1b35210380f77380f084990fc609cff6863706393ba1a2ee45e60b14122bdcd1"
+    },
+    {
+      "path": "ui/patterns/pages.tsx",
+      "bytes": 360,
+      "sha256": "4dea663945601d077c43dfa6db51fd1a5dceec624f0f76862900a43f8cdafeb2"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 296,
+      "sha256": "f90201bf834f8ef3afee45c4605355c682a528041db6742c77702159dab0843a"
+    },
+    {
+      "path": "ui/css.d.ts",
+      "bytes": 24,
+      "sha256": "35d26ea66c86da9701e4f4b467913481ffeae910761cea34c775c5dacb7f8eaa"
+    },
+    {
+      "path": "examples/ListPage.tsx",
+      "bytes": 60,
+      "sha256": "c9325fef2397dfd5f396fff9730f81935855876eeb4a1aadbaee7e94823a3bae"
+    },
+    {
+      "path": "examples/SettingsPage.tsx",
+      "bytes": 64,
+      "sha256": "035bb547f4fa7a25aa59d8e8d32faf85fafb28e1ef94a31d6efe4a3319d9daad"
+    },
+    {
+      "path": "examples/FormPage.tsx",
+      "bytes": 60,
+      "sha256": "b36e7b4182ad59e05afee55240720ce85d7ac6df24fa9f808018637988767ee3"
+    },
+    {
+      "path": "package.json",
+      "bytes": 466,
+      "sha256": "2ed3f5d199a4fe8a3ebbe221700327bedd732f2c8b6a1926bd116d052b9c2ca3"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1930,
+      "sha256": "325cdea975d8612ea890263841c999f4ec9887555c4fa607019682580bfe35b9"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ export function createApp(services?: ApiServices) {
   app.all("/api/*", (c) => c.json({ error: "API route not found" }, 404));
   app.all("/api", (c) => c.json({ error: "API route not found" }, 404));
   app.use("/assets/*", serveStatic({ root: "./dist/client" }));
+  app.get("/export-trial-render.html", serveStatic({ path: "./dist/client/export-trial-render.html" }));
   // Serve the entry point for the existing pages, including direct navigation.
   app.get("/", serveStatic({ path: "./dist/client/index.html" }));
   app.get("/workspaces/*", serveStatic({ path: "./dist/client/index.html" }));

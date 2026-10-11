@@ -3,7 +3,8 @@ import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
-  { ignores: ["dist/**", ".local/**", "workspace-data/**", "coverage/**", "playwright-report/**", "test-results/**"] },
+  // Frozen, byte-for-byte downloaded artifact; host tsc still checks its source.
+  { ignores: ["client/tasteprint-export/**", "dist/**", ".local/**", "workspace-data/**", "coverage/**", "playwright-report/**", "test-results/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { files: ["client/**/*.{ts,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactHooks.configs.recommended.rules },
