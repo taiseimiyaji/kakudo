@@ -21,6 +21,10 @@ async function writingPosition(editor: Locator) {
   });
 }
 
+async function editorContent(editor: Locator) {
+  return editor.evaluate(element => (element as EditorDOM).cmTile.root.view.state.sliceDoc());
+}
+
 for (const width of [390, 1440]) for (const exit of ['Escape', 'button'] as const) {
   test(`cancel quote with ${exit} keeps selected writing context at ${width}px`, async ({ page, context, request }, info) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -92,11 +96,14 @@ for (const width of [390, 1440]) for (const exit of ['Escape', 'button'] as cons
       const replacement = 'HUMAN_REPLACEMENT';
       await page.keyboard.type(replacement);
       const replaced = body.replace(marker, replacement);
+      await expect.poll(() => editorContent(editor)).toBe(replaced);
       await expect.poll(async () => (await (await request.get(path)).json()).content).toBe(replaced);
-      await page.keyboard.press('ControlOrMeta+z');
+      await editor.press('ControlOrMeta+z');
+      await expect.poll(() => editorContent(editor)).toBe(body);
       await expect.poll(async () => (await (await request.get(path)).json()).content).toBe(body);
       await expect.poll(async () => (await writingPosition(editor)).nativeText).toBe(marker);
-      await page.keyboard.press('ControlOrMeta+Shift+z');
+      await editor.press('ControlOrMeta+Shift+Z');
+      await expect.poll(() => editorContent(editor)).toBe(replaced);
       await expect.poll(async () => (await (await request.get(path)).json()).content).toBe(replaced);
       const final = await (await request.get(path)).json();
       await page.reload();
