@@ -24,7 +24,9 @@ const typeNames: Record<Resource["type"], string> = {
 export function resourceConfirmationMessage(resource: Resource, input: z.infer<typeof resourceInput>, scope: ResourceTarget["kind"] | "workspace"): string {
   const place = scope === "document" ? "このノートに関連付いている" : scope === "node" ? "この学習項目に関連付いている" : "このワークスペースに登録されている";
   const confirmed = `${place}資料を確認しました。直前の登録要求が成功したかは、この確認だけでは確定できません。`;
-  if (resource.title === input.title && resource.type === input.type) return confirmed;
   const title = (value: string) => value || "（名称なし）";
-  return `${confirmed} 保存済みの資料名は「${title(resource.title)}」、種類は「${typeNames[resource.type]}」です。入力した資料名「${title(input.title)}」、種類「${typeNames[input.type]}」は反映されていません。`;
+  const differences: string[] = [];
+  if (resource.title !== input.title) differences.push(`保存済みの資料名は「${title(resource.title)}」です。入力した資料名「${title(input.title)}」は反映されていません。`);
+  if (resource.type !== input.type) differences.push(`保存済みの種類は「${typeNames[resource.type]}」です。入力した種類「${typeNames[input.type]}」は反映されていません。`);
+  return differences.length ? `${confirmed} ${differences.join(" ")}` : confirmed;
 }

@@ -24,9 +24,26 @@ it("describes the current scope and both stored and attempted metadata without c
     expect(message).toContain("Human title");
     expect(message).toContain("Webページ");
     expect(message).toContain("RFC（技術仕様）");
-    expect(message).toContain("反映されていません");
+    expect(message.match(/反映されていません/g)).toHaveLength(2);
   }
-  expect(resourceConfirmationMessage(resource, input, "document")).not.toContain("反映されていません");
+  const titleOnly = resourceConfirmationMessage({ ...resource, title: "Existing title" }, input, "document");
+  expect(titleOnly).toContain("保存済みの資料名は「Existing title」");
+  expect(titleOnly).toContain("入力した資料名「Human title」は反映されていません");
+  expect(titleOnly).not.toContain("保存済みの種類");
+  expect(titleOnly).not.toContain("入力した種類");
+  expect(titleOnly.match(/反映されていません/g)).toHaveLength(1);
+
+  const typeOnly = resourceConfirmationMessage({ ...resource, type: "WEB" }, input, "node");
+  expect(typeOnly).toContain("保存済みの種類は「Webページ」");
+  expect(typeOnly).toContain("入力した種類「RFC（技術仕様）」は反映されていません");
+  expect(typeOnly).not.toContain("保存済みの資料名");
+  expect(typeOnly).not.toContain("入力した資料名");
+  expect(typeOnly.match(/反映されていません/g)).toHaveLength(1);
+
+  const exact = resourceConfirmationMessage(resource, input, "workspace");
+  expect(exact).not.toContain("反映されていません");
+  expect(exact).not.toContain("保存済みの資料名");
+  expect(exact).not.toContain("保存済みの種類");
 });
 it("uses the shared URL schema without dropping a path, query, or fragment", () => {
   const specific = resourceInput.parse({ url: "https://example.com/path?chapter=1#section", title: "Human title", type: "RFC" });
