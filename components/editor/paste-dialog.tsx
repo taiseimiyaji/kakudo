@@ -11,7 +11,7 @@ export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceChe
     dialog?.showModal();
     return () => {
       dialog?.close();
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
     };
   }, []);
   return <dialog ref={ref} onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }} aria-labelledby="paste-dialog-title">
