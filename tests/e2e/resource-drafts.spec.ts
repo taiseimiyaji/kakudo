@@ -110,7 +110,7 @@ test("unknown registration result guards departure until GET confirmation withou
   try {
     await page.goto("/workspaces/default/resources"); await input(page, url); await page.getByRole("button", { name: "資料を登録", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("結果は不明"); await home(page).click(); expect(dialogs).toBe(1); await expect(urlField(page)).toHaveValue(url);
-    await page.getByRole("button", { name: "登録結果を確認", exact: true }).click(); await expect(page.getByRole("status")).toContainText("登録済みの資料を確認しました"); await expect(urlField(page)).toHaveValue("");
+    await page.getByRole("button", { name: "登録結果を確認", exact: true }).click(); await expect(page.getByRole("status")).toContainText("このワークスペースに登録されている資料を確認しました"); await expect(urlField(page)).toHaveValue("");
     await home(page).click(); await expect(page).toHaveURL(/\/workspaces\/default$/); expect(dialogs).toBe(1); expect(posts).toBe(1);
   } finally { await page.unrouteAll({ behavior: "wait" }); if (resourceId) await request.delete(`/api/resources/${resourceId}`); }
 });

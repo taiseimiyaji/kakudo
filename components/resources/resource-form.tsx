@@ -2,10 +2,11 @@ import { label } from "../../client/labels";
 import { useEffect, useId, useRef, useState } from "react";
 import { resourceInput, resourceTypes, type Resource } from "../../shared/resource";
 import { UnknownMutationOutcome } from "../../client/api";
+import { resourceConfirmationMessage } from "../../modules/resource/confirmation";
 import { Feedback } from "../common/feedback";
 import type { z } from "zod";
 type Input = z.infer<typeof resourceInput>;
-export function ResourceForm({ initialUrl = "", onSave, onCheck, onConfirmed, onDraftProtectionChange }: { initialUrl?: string; onSave: (input: Input) => Promise<void>; onCheck: (input: Input) => Promise<Resource | null>; onConfirmed: (resource: Resource) => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
+export function ResourceForm({ initialUrl = "", scope, onSave, onCheck, onConfirmed, onDraftProtectionChange }: { initialUrl?: string; scope: "document" | "node" | "workspace"; onSave: (input: Input) => Promise<void>; onCheck: (input: Input) => Promise<Resource | null>; onConfirmed: (resource: Resource, message: string) => void; onDraftProtectionChange?: (protectedDraft: boolean) => void }) {
   const id = useId();
   const pending = useRef(false);
   const mounted = useRef(true);
@@ -27,7 +28,8 @@ export function ResourceForm({ initialUrl = "", onSave, onCheck, onConfirmed, on
       const resource = await onCheck(unknown);
       if (!mounted.current) return;
       if (resource) {
-        setUnknown(null); resetInput(); setStatus("登録済みの資料を確認しました。"); onConfirmed(resource);
+        const message = resourceConfirmationMessage(resource, unknown, scope);
+        setUnknown(null); resetInput(); setStatus(message); onConfirmed(resource, message);
       } else setError("登録済み一覧で一致する資料を確認できませんでした。結果はまだ不明です。再登録せず、時間をおいてもう一度確認してください。");
     } catch {
       if (mounted.current) setError("登録結果を確認できませんでした。接続を確認して、もう一度確認してください。入力内容は保持されています。");

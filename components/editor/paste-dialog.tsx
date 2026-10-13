@@ -3,7 +3,7 @@ import type { resourceInput, Resource } from "../../shared/resource";
 import type { z } from "zod";
 import { useEffect, useRef, useState } from "react";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
-export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceCheck, onResourceConfirmed, quoteBlocked = false }: { paste: InterceptedPaste; onClose: () => void; onQuote: (url: string, title: string) => Promise<void>; onResource: (input: z.infer<typeof resourceInput>) => Promise<void>; onResourceCheck: (input: z.infer<typeof resourceInput>) => Promise<Resource | null>; onResourceConfirmed: (resource: Resource) => void; quoteBlocked?: boolean }) {
+export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceCheck, onResourceConfirmed, quoteBlocked = false }: { paste: InterceptedPaste; onClose: () => void; onQuote: (url: string, title: string) => Promise<void>; onResource: (input: z.infer<typeof resourceInput>) => Promise<void>; onResourceCheck: (input: z.infer<typeof resourceInput>) => Promise<Resource | null>; onResourceConfirmed: (resource: Resource, message: string) => void; quoteBlocked?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   useEffect(() => {
     const dialog = ref.current;
@@ -24,7 +24,7 @@ export function PasteDialog({ paste, onClose, onQuote, onResource, onResourceChe
       {error && <p role="alert">{error}</p>}
       {quoteBlocked && <p>保存・引用の結果は不明です。キャンセルして本文に戻り、最新の保存内容を確認してください。引用は自動で再追加しません。</p>}
       <button disabled={busy || quoteBlocked}>引用を追加</button>
-    </form> : <ResourceForm initialUrl={paste.text.trim()} onSave={async (input) => {
+    </form> : <ResourceForm initialUrl={paste.text.trim()} scope="document" onSave={async (input) => {
       setBusy(true);
       try { await onResource(input); } finally { setBusy(false); }
     }} onCheck={onResourceCheck} onConfirmed={onResourceConfirmed} />}

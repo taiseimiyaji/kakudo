@@ -21,9 +21,12 @@ afterAll(async () => { await db.delete(workspaces).where(eq(workspaces.id, works
 it("scopes resources and links, deduplicates URLs, preserves resources after unlink and cascades deletes", async () => {
   const service = resourceService(db); const node = { kind: "node" as const, id: nodeId }; const document = { kind: "document" as const, id: documentId };
   const item = await service.create(workspaceId, { url: "https://example.com/source", title: "Source", type: "OFFICIAL_DOC" }, node);
-  expect((await service.create(workspaceId, { url: item.url, title: "Ignored duplicate", type: "WEB" })).id).toBe(item.id);
+  expect(await service.create(workspaceId, { url: item.url, title: "Ignored duplicate", type: "WEB" })).toEqual(item);
+  expect(await service.list(workspaceId, document)).toHaveLength(0);
+  expect(await service.create(workspaceId, { url: item.url, title: "Ignored document title", type: "PAPER" }, document)).toEqual(item);
   await service.link(workspaceId, item.id, document); await service.link(workspaceId, item.id, document);
   expect(await service.list(workspaceId, document)).toHaveLength(1); expect(await service.list(workspaceId, node)).toHaveLength(1);
+  expect((await service.list(workspaceId, document))[0]).toMatchObject({ id: item.id, title: "Source", type: "OFFICIAL_DOC" });
   await expect(service.link(foreignId, item.id, document)).rejects.toThrow("not found");
   await expect(service.create(foreignId, { url: item.url, title: "Wrong", type: "WEB" }, node)).rejects.toThrow("not found");
   await expect(db.insert(nodeResources).values({ nodeId: "missing", resourceId: item.id })).rejects.toThrow();

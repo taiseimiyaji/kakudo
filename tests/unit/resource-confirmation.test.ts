@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { confirmedResource } from "../../modules/resource/confirmation";
+import { confirmedResource, resourceConfirmationMessage } from "../../modules/resource/confirmation";
 import { resourceInput } from "../../shared/resource";
 import { checkResourceRegistration, registerResource, RESOURCE_CONFIRMATION_TIMEOUT_MS, RESOURCE_REGISTRATION_TIMEOUT_MS } from "../../client/resource-registration";
 import { UnknownMutationOutcome } from "../../client/api";
@@ -7,11 +7,35 @@ import { UnknownMutationOutcome } from "../../client/api";
 const input = resourceInput.parse({ url: "https://example.com/confirmed", title: "Human title", type: "RFC" });
 const resource = { ...input, id: "resource-1", workspaceId: "default", createdAt: "2026-10-04T00:00:00Z" };
 afterEach(() => vi.unstubAllGlobals());
-it("confirms only one exact stored match in the requested scope", () => {
+it("confirms one valid stored URL regardless of reused metadata, but never an ambiguous or unsafe candidate", () => {
   expect(confirmedResource([resource], "default", input)).toEqual(resource);
-  for (const items of [[], null, {}, [resource, { ...resource, id: "resource-2" }], [{ ...resource, title: "Existing title" }], [{ ...resource, type: "WEB" }], [{ ...resource, workspaceId: "other" }], [{ ...resource, id: "" }], [{ ...resource, createdAt: null }], [{ ...resource, url: "https://example.com/other" }]]) {
+  expect(confirmedResource([{ ...resource, title: "Existing title", type: "WEB" }], "default", input)).toEqual({ ...resource, title: "Existing title", type: "WEB" });
+  for (const items of [[], null, {}, [resource, { ...resource, id: "resource-2" }], [resource, { ...resource, id: "", workspaceId: "other" }], [resource, { ...resource, id: "", title: {} }], [{ ...resource, workspaceId: "other" }], [{ ...resource, id: "" }], [{ ...resource, id: "\uD800" }], [{ ...resource, createdAt: null }], [{ ...resource, url: "https://example.com/other" }]]) {
     expect(confirmedResource(items, "default", input)).toBeNull();
   }
+});
+it("describes the current scope and both stored and attempted metadata without claiming a lost POST succeeded", () => {
+  const existing = { ...resource, title: "Existing title", type: "WEB" as const };
+  for (const [scope, wording] of [["document", "このノート"], ["node", "この学習項目"], ["workspace", "このワークスペース"]] as const) {
+    const message = resourceConfirmationMessage(existing, input, scope);
+    expect(message).toContain(wording);
+    expect(message).toContain("直前の登録要求が成功したかは、この確認だけでは確定できません");
+    expect(message).toContain("Existing title");
+    expect(message).toContain("Human title");
+    expect(message).toContain("Webページ");
+    expect(message).toContain("RFC（技術仕様）");
+    expect(message).toContain("反映されていません");
+  }
+  expect(resourceConfirmationMessage(resource, input, "document")).not.toContain("反映されていません");
+});
+it("uses the shared URL schema without dropping a path, query, or fragment", () => {
+  const specific = resourceInput.parse({ url: "https://example.com/path?chapter=1#section", title: "Human title", type: "RFC" });
+  const stored = { ...resource, url: specific.url };
+  expect(confirmedResource([stored], "default", specific)).toEqual(stored);
+  for (const url of ["https://example.com/path?chapter=1#other", "https://example.com/path?chapter=2#section", "https://example.com/other?chapter=1#section"]) {
+    expect(confirmedResource([{ ...stored, url }], "default", specific)).toBeNull();
+  }
+  expect(confirmedResource([stored, { ...stored, id: "second", url: "https://example.com:443/path?chapter=1#section" }], "default", specific)).toBeNull();
 });
 it("uses only GET for confirmation, leaving an absent result uncertain", async () => {
   const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response(JSON.stringify({ resources: [] })));
