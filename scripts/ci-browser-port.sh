@@ -3,11 +3,15 @@ set -u
 
 inspect_browser_port() {
   local phase="$1" listeners line remaining pid details seen=" "
+  if ! command -v timeout >/dev/null 2>&1; then
+    printf '[ci-port] %s 43172 diagnostic_unavailable=timeout_missing\n' "$phase"
+    return 0
+  fi
   if ! command -v ss >/dev/null 2>&1; then
     printf '[ci-port] %s 43172 diagnostic_unavailable=ss_missing\n' "$phase"
     return 0
   fi
-  if ! listeners=$(ss -H -ltnp 'sport = :43172' 2>/dev/null); then
+  if ! listeners=$(timeout -k 1s 2s ss -H -ltnp 'sport = :43172' 2>/dev/null); then
     printf '[ci-port] %s 43172 diagnostic_unavailable=ss_failed\n' "$phase"
     return 0
   fi
@@ -27,7 +31,7 @@ inspect_browser_port() {
       remaining="${remaining#*pid=$pid}"
       if [[ "$seen" == *" $pid "* ]]; then continue; fi
       seen="$seen$pid "
-      if details=$(ps -p "$pid" -o pid=,ppid=,lstart=,comm= 2>/dev/null) && [[ -n "$details" ]]; then
+      if details=$(timeout -k 1s 2s ps -p "$pid" -o pid=,ppid=,lstart=,comm= 2>/dev/null) && [[ -n "$details" ]]; then
         printf '[ci-port] %s 43172 pid_ppid_start_comm=%s\n' "$phase" "$details"
       else
         printf '[ci-port] %s 43172 process_details_unavailable pid=%s\n' "$phase" "$pid"
