@@ -9,8 +9,9 @@ import { defaultKeymap, history, historyKeymap, isolateHistory } from "@codemirr
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
+import { noteSearch, openNoteSearch } from "./note-search";
 
-export type MarkdownEditorHandle = { applyQuote: (paste: InterceptedPaste, after: string) => void; rememberPosition: () => void; restoreFocus: () => void };
+export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; rememberPosition: () => void; restoreFocus: () => void };
 export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const keyboardReturn = useRef<KeyboardReturn | null>(null);
@@ -21,7 +22,9 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
   const pasteCallback = useRef(onPaste);
   const compositionCallback = useRef(onCompositionChange);
   useEffect(() => { compositionCallback.current = onCompositionChange; }, [onCompositionChange]);
-  useImperativeHandle(editorRef, () => ({ rememberPosition() {
+  useImperativeHandle(editorRef, () => ({ openSearch() {
+    if (viewRef.current) openNoteSearch(viewRef.current);
+  }, rememberPosition() {
     const view = viewRef.current;
     if (view) position.current = { pageY: window.scrollY, editorY: view.scrollDOM.scrollTop };
   }, restoreFocus() {
@@ -43,7 +46,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
   useEffect(() => { callback.current = onChange; }, [onChange]);
   useEffect(() => {
     const view = new EditorView({ parent: host.current!, state: EditorState.create({ doc: initialContent, extensions: [
-      reviewHighlightField, lineNumbers(), history(), drawSelection(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), syntaxHighlighting(defaultHighlightStyle),
+      reviewHighlightField, lineNumbers(), history(), drawSelection(), noteSearch(), keymap.of([...defaultKeymap, ...historyKeymap]), markdown(), syntaxHighlighting(defaultHighlightStyle),
       EditorState.lineSeparator.of(initialContent.includes("\r\n") ? "\r\n" : "\n"), EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": "Markdown本文", role: "textbox", "aria-multiline": "true" }),
       EditorView.domEventHandlers({ compositionstart() { compositionCallback.current?.(true); }, compositionend() { compositionCallback.current?.(false); }, paste(event, view) {

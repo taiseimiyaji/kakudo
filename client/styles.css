@@ -196,6 +196,14 @@ dialog > .secondary { margin-top: 15px; }
 .document-workspace .markdown-editor .cm-line { padding: 0 4px; }
 .document-workspace .markdown-editor .cm-gutters { background: transparent; border: 0; color: #859087; font-size: 11px; padding-right: 10px; }
 .document-workspace .markdown-editor .cm-editor.cm-focused { outline: 2px solid var(--focus); outline-offset: 8px; }
+.document-workspace .cm-panels { z-index: 4; }
+.document-workspace .cm-panels-top { top: var(--note-search-offset, 0px); }
+.document-workspace .note-search { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; font: inherit; background: var(--paper); }
+.note-search label { flex: 1 1 160px; margin: 0; }
+.note-search button { padding: 6px 8px; }
+.note-search [role="status"] { flex-basis: 100%; font-size: var(--text-sm); }
+.document-workspace .cm-searchMatch { background: #fff0b8; }
+.document-workspace .cm-searchMatch-selected { background: #d6e9d8; }
 .document-workspace .markdown-preview { font-size: 18px; padding: 16px 0 48px; }
 .document-workspace .markdown-preview h1 { font-size: 32px; }
 .note-reading { margin-top: 16px; }
@@ -216,7 +224,8 @@ dialog > .secondary { margin-top: 15px; }
   /* Preview is an optional disclosure on narrow screens, not a second article. */
   .document-workspace .editor-split { grid-template-columns: 1fr; }
   .document-workspace .editor-split > section + section { display: none; }
-  .document-toolbar > button { display: none; }
+  .document-toolbar > button[data-preview-toggle] { display: none; }
+  .document-toolbar [data-save-detail] { flex: 1 1 180px; }
 }
 @media (max-width: 640px) {
   .document-workspace .note-header { display: grid; grid-template-columns: minmax(0, 1fr) 128px auto; padding: 10px 0; gap: 8px; }

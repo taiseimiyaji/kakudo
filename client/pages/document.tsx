@@ -116,7 +116,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {latest && <button className="secondary" onClick={() => latestPanelRef.current?.scrollIntoView({ block: "start" })}>取得した保存内容を見る</button>}
     <div className="document-toolbar">
 
-      {mode === "edit" && <button className="secondary" aria-pressed={showPreview} disabled={!!paste} onClick={togglePreview}>{showPreview ? "プレビューを非表示" : "プレビューを表示"}</button>}
+      {mode === "edit" && <><button className="secondary" data-preview-toggle aria-pressed={showPreview} disabled={!!paste} onClick={togglePreview}>{showPreview ? "プレビューを非表示" : "プレビューを表示"}</button><button className="secondary" disabled={!!paste} onClick={() => editorRef.current?.openSearch()}>本文を検索</button></>}
       <p className="muted" data-save-detail>{savePresentation.detail}</p>
     </div>
     <label className="document-title" hidden={mode !== "edit"}><span className="visually-hidden">ノート名（必須）</span><textarea ref={titleRef} rows={1} value={title} onChange={(e) => session.edit({ title: e.target.value })} onCompositionStart={() => compositionChange(true)} onCompositionEnd={() => compositionChange(false)} onKeyDown={(event) => { if (event.key === "Enter" && !composing && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); editorRef.current?.restoreFocus(); } }} maxLength={200} required /></label>{mode === "read" && <h2 className="note-reading-title">{title}</h2>}
