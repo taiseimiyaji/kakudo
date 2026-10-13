@@ -23,10 +23,15 @@ function createPanel(view: EditorView): Panel {
     previous.disabled = next.disabled = !matches;
     status.textContent = !query.search ? '検索語を入力' : matches ? '一致あり（Enterで次へ）' : '一致なし';
   }
+  let composing = false;
+  input.addEventListener('compositionstart', () => { composing = true; });
+  input.addEventListener('compositionend', () => { composing = false; });
+  input.addEventListener('blur', () => { composing = false; });
   input.addEventListener('input', () => { view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: input.value, literal: true })) }); });
   dom.addEventListener('keydown', event => {
+    if (composing || event.isComposing || event.keyCode === 229) return;
     if (runScopeHandlers(view, event, 'search-panel')) event.preventDefault();
-    else if (event.key === 'Enter' && event.target === input && !event.isComposing) {
+    else if (event.key === 'Enter' && event.target === input) {
       event.preventDefault(); (event.shiftKey ? findPrevious : findNext)(view);
     }
   });
@@ -58,12 +63,18 @@ export function openNoteSearch(view: EditorView) {
   return opened;
 }
 
+function moveNoteSearch(view: EditorView, backwards = false) {
+  // Upstream opens an invalid query directly, bypassing our single-line normalization.
+  if (!getSearchQuery(view.state).valid) return openNoteSearch(view);
+  return (backwards ? findPrevious : findNext)(view);
+}
+
 export function noteSearch() {
   return [
     search({ literal: true, top: true, createPanel, scrollToMatch: range => EditorView.scrollIntoView(range, { y: 'center' }) }),
     keymap.of([
       { key: 'Mod-f', run: openNoteSearch, scope: 'editor search-panel', preventDefault: true },
-      { key: 'Mod-g', run: findNext, shift: findPrevious, scope: 'editor search-panel', preventDefault: true },
+      { key: 'Mod-g', run: moveNoteSearch, shift: view => moveNoteSearch(view, true), scope: 'editor search-panel', preventDefault: true },
       { key: 'Escape', run: closeSearchPanel, scope: 'editor search-panel' },
     ]),
   ];

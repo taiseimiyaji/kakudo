@@ -18,4 +18,8 @@
 
 初回focused runでは狭い画面の追加controlが本文開始位置を押し下げた。save detailと同じ行に収まる配置へ直し、既存の本文開始位置の期待値を維持した。長文fixtureの「全体を確認」は既存の主張20件上限でFAILEDとなったため、この引用検証には「出典を確認」を使う。上限を変更せず、登録引用・人間の目標snapshot・全文Revisionを確認する。初回traceも保存している。
 
+親レビューのIME境界を旧head `66c69163631f8f4022bf472c4a0adffca152cf6a` で限定再現した。`runScopeHandlers` はcomposition判定をせず、Escapeでpanelを閉じ、compositionend後のEnter/keyCode229も一致選択へ進んだ。検索inputのcompositionstart/end/blurと、isComposing/keyCode229をscope処理より前に判定する。変換中のpanel・query focus・input caret・本文selection・保存detailを保持し、終了後の通常Enter/Escapeは機能することを合成イベントで確認する。実OSのIME動作の証明ではない。
+
+freshな複数行selectionからCmd/Ctrl+G/Shift+Gを直接押すと、上流のquery未設定時のopen処理が単行query正規化を迂回したことも再現した。未設定queryのG経路を同じ正規化されたopen処理へ通し、元selection・保存detailを保持する。既存の有効queryの移動処理はCodeMirrorを使う。
+
 本文生成・置換UI・正規表現・文書横断検索・永続検索履歴は対象外。保存/CAS・本文/名前mode・引用/Paste Policy・人間が本文を書きAIがレビューする方針を維持する。原本45ファイル・実DB・実AI・実資料取得・認証・本番・#128・保留PR135を変更しない。
