@@ -64,7 +64,7 @@ function ScopedResourcePanel({ workspaceId, target, refresh = 0, onChange, showH
       <ul>{items.map((item) => <ResourceRow key={item.id} item={item} suffix={suffix} unlinkPath={target ? `${path}/${encodeURIComponent(item.id)}${suffix}` : undefined} onUnlink={() => { setItems((current) => current.filter((r) => r.id !== item.id)); setRefreshFailed(false); setVersion((v) => v + 1); setLinkMessage({ text: `「${item.title || item.url}」の関連を外しました。資料は登録済み一覧に残っています。`, error: false }); onChange?.(); }} />)}</ul>
       {!items.length && !refreshFailed && <p className="muted">登録された資料はありません。</p>}
     </>}
-    <ResourceForm onDraftProtectionChange={setFormProtected} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={added} />
+    <ResourceForm scope={target?.kind ?? "workspace"} onDraftProtectionChange={setFormProtected} onSave={async (input) => { const resource = await registerResource(path + suffix, workspaceId, input); added(resource); }} onCheck={(input) => checkResourceRegistration(path + suffix, workspaceId, input)} onConfirmed={(resource) => added(resource)} />
     {target && <form aria-busy={linkBusy} onSubmit={(event) => {
       event.preventDefault(); if (linkPending.current || !selected || load !== "ready") return;
       linkPending.current = true; setLinkBusy(true); setLinkMessage({ text: "", error: false });

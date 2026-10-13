@@ -26,7 +26,7 @@ for (const placement of ["dialog", "inline"] as const) {
         await form.getByRole("button", { name: "登録結果を確認", exact: true }).click();
         await expect(panel.getByRole("link", { name: "Confirmed human title", exact: true })).toBeVisible();
         if (placement === "dialog") { await expect(page.getByRole("dialog")).toHaveCount(0); await expect(editor).toBeFocused(); }
-        else await expect(form.getByRole("status")).toContainText("登録済みの資料を確認しました");
+        else await expect(form.getByRole("status")).toContainText("このノートに関連付いている資料を確認しました");
         await expect(editor).toContainText("Keep my draft."); expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe("Human saved prose.");
         const linked = (await (await request.get(`/api/documents/${document.id}/resources`)).json()).resources.filter((item: { url: string }) => item.url === url); expect(linked).toHaveLength(1); expect(posts).toBe(1);
         if (placement === "dialog" && lostResponse === "abort") await page.screenshot({ path: testInfo.outputPath("confirmed-resource.png"), fullPage: true });
@@ -86,15 +86,23 @@ test("a late GET after cancellation cannot close the next quote or clear its att
 });
 
 test("workspace resource registration confirms a unique stored match using GET", async ({ page, request }) => {
-  const url = "https://example.com/workspace-confirmation"; let resourceId = ""; let posts = 0;
+  const url = `https://example.com/workspace-confirmation-${crypto.randomUUID()}`;
+  const { resource } = await (await request.post('/api/resources', { data: { url, title: '既存のworkspace資料', type: 'RFC' } })).json();
+  let posts = 0;
   await page.route("**/api/resources?*", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
-    posts++; const response = await route.fetch(); resourceId = (await response.json()).resource.id; await route.abort();
+    posts++; const response = await route.fetch(); expect((await response.json()).resource.id).toBe(resource.id); await route.abort();
   });
   try {
     await page.goto("/workspaces/default/resources"); const panel = page.getByRole("region", { name: "参考資料", exact: true });
-    await panel.getByLabel("資料URL（必須）").fill(url); await panel.getByLabel("資料名（任意）").fill("Workspace confirmation"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
+    await panel.getByLabel("資料URL（必須）").fill(url); await panel.getByLabel("資料名（任意）").fill("入力したworkspace資料"); await panel.getByRole("button", { name: "資料を登録", exact: true }).click();
     await expect(panel.getByRole("alert")).toContainText("結果は不明"); await panel.getByRole("button", { name: "登録結果を確認", exact: true }).click();
-    await expect(panel.getByRole("link", { name: "Workspace confirmation", exact: true })).toBeVisible(); await expect(panel.getByLabel("資料URL（必須）")).toHaveValue(""); expect(posts).toBe(1);
-  } finally { await page.unrouteAll({ behavior: "wait" }); if (resourceId) await request.delete(`/api/resources/${resourceId}`); }
+    await expect(panel.getByRole("link", { name: "既存のworkspace資料", exact: true })).toBeVisible();
+    await expect(panel.getByRole("status")).toContainText("このワークスペースに登録されている資料を確認しました");
+    await expect(panel.getByRole("status")).toContainText("入力したworkspace資料");
+    await expect(panel.getByRole("status")).toContainText("既存のworkspace資料");
+    await expect(panel.getByLabel("資料URL（必須）")).toHaveValue(""); expect(posts).toBe(1);
+    const stored = (await (await request.get('/api/resources')).json()).resources.find((item: { id: string }) => item.id === resource.id);
+    expect(stored).toMatchObject({ title: resource.title, type: resource.type });
+  } finally { await page.unrouteAll({ behavior: "wait" }); await request.delete(`/api/resources/${resource.id}`); }
 });

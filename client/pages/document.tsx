@@ -6,6 +6,7 @@ import { NoteSaveComparison } from "../../components/editor/note-save-comparison
 import { findingHighlight, type FindingSelection } from "../../modules/editor/review-highlight";
 import { ReviewPanel } from "../../components/reviews/review-panel";
 import { ResourcePanel } from "../../components/resources/resource-panel";
+import { Feedback } from "../../components/common/feedback";
 import { PasteDialog } from "../../components/editor/paste-dialog";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -42,6 +43,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [confirmedNodes, setConfirmedNodes] = useState({ version: 0, writeId: initial.document.lastWriteId });
   const [contextVersion, setContextVersion] = useState(0);
   const [resourceVersion, setResourceVersion] = useState(0);
+  const [resourceConfirmation, setResourceConfirmation] = useState("");
   const [resourceProtected, setResourceProtected] = useState(false);
   const [associationProtected, setAssociationProtected] = useState(false);
   const [reviewProtected, setReviewProtected] = useState(false);
@@ -79,7 +81,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") === "visible"; } catch { return false; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);
   useEffect(() => { const timer = setInterval(() => session.tick(), 1000); return () => clearInterval(timer); }, [session]);
-  function openPaste(value: InterceptedPaste) { pasteRef.current = value; session.setPaused(true); setPaste(value); }
+  function openPaste(value: InterceptedPaste) { pasteRef.current = value; setResourceConfirmation(""); session.setPaused(true); setPaste(value); }
   function closePaste(expected = pasteRef.current) {
     if (pasteRef.current !== expected) return;
     pasteRef.current = null; setPaste(null); session.setPaused(false);
@@ -123,13 +125,14 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={(content) => session.edit({ content })} onPaste={openPaste} onCompositionChange={compositionChange} highlight={highlight} highlightRequest={selection} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
     {mode === "read" && <section className="note-reading" aria-label="閲覧モード">{content ? <MarkdownPreview content={content} label="ノート本文" /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
-    {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={() => { setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
+    {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={(_resource, message) => { if (pasteRef.current !== paste) return; setResourceConfirmation(message); setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
       await session.addQuote(paste.content, (draft) => writer.quote({ text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
         if (!editorRef.current) throw new Error("ノートを閉じています");
         editorRef.current.applyQuote(paste, content);
       });
       invalidateLatest(); closePaste(paste);
     }} />}
+    {resourceConfirmation && <Feedback>{resourceConfirmation}</Feedback>}
     {latest && <section className="latest-document" ref={latestPanelRef} aria-label="最新の保存内容"><h2>最新の保存内容</h2><NoteSaveComparison title={title} content={content} nodes={nodes} latest={latest} /><p>編集中の本文と名前は保持されています。{outcomeUnknown ? "この取得結果だけでは直前の保存・引用の成功・失敗は確定しません。現在の入力を保存すると、確認した本文と名前を置き換えます。" : "確認後、現在の入力を保存する場合は再試行してください。"}</p><button disabled={busy || !!paste} onClick={() => { if (outcomeUnknown && !window.confirm("直前の保存・引用の結果は不明です。確認した保存内容を基準に、現在の本文と名前で置き換えるために保存を再開しますか？確認だけでは書き込みません。")) return; session.acceptBase({ title: latest.document.title, content: latest.content, hash: latest.contentHash, writeId: latest.document.lastWriteId, revisionId: latest.document.currentRevisionId }); setNodes(latest.nodes); setConfirmedNodes((current) => ({ version: current.version + 1, writeId: latest.document.lastWriteId })); setContextVersion((v) => v + 1); invalidateLatest(); }}>確認した内容を基準に再試行</button></section>}
     <aside className="note-context" aria-label="ノートの補助情報">
       <details className="note-context-panel" data-note-panel="goals"><summary>目標・関連{associationProtected ? "（未確定の変更あり）" : ""}</summary>
