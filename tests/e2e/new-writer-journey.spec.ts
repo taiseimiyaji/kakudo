@@ -43,7 +43,7 @@ for (const width of [390, 1440]) test(`opted-in draft survives note navigation, 
     await expect(page).toHaveURL(new RegExp(`${first.id}$`));
     const reopened = page.getByRole("region", { name: "端末内の下書き" });
     await expect(reopened.getByRole("heading", { name: "この端末の復元候補" })).toBeVisible();
-    await reopened.locator(".local-recovery-candidate summary", { hasText: "サーバー版と候補の本文を比較" }).click();
+    await reopened.locator(".local-recovery-candidate summary", { hasText: "確認済みの保存版と候補の本文を比較" }).click();
     await expect(reopened.getByText("保存済みの本文", { exact: true })).toBeVisible();
     await expect(reopened.getByText(" 人間の追記", { exact: false })).toBeVisible();
     await reopened.getByRole("button", { name: "この候補を編集画面に復元" }).click();
