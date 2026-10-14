@@ -11,6 +11,7 @@ export type NoteState = NoteDraft & {
   saving: boolean;
   retryRequired: boolean;
   outcomeUnknown: boolean;
+  localRecoveryPending: boolean;
   error: string;
   status: string;
 };
@@ -26,9 +27,9 @@ export class NoteSession {
   private composing = false;
   private stopped = false;
 
-  constructor(initial: NoteBase & { revisionId: string | null }, private persist: Persist) {
+  constructor(initial: NoteBase & { revisionId: string | null }, private persist: Persist, private onConfirmed?: (draft: NoteDraft, generation: number) => void, private captureVersion?: (draft: NoteDraft) => number) {
     const { content, title, hash, writeId, revisionId } = initial;
-    this.state = { content, title, saved: { content, title, hash, writeId }, revisionId, dirty: false, saving: false, retryRequired: false, outcomeUnknown: false, error: "", status: "" };
+    this.state = { content, title, saved: { content, title, hash, writeId }, revisionId, dirty: false, saving: false, retryRequired: false, outcomeUnknown: false, localRecoveryPending: false, error: "", status: "" };
   }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -39,21 +40,31 @@ export class NoteSession {
     this.listeners.forEach((listener) => listener());
   }
   edit(change: Partial<NoteDraft>) { this.update({ ...change, status: "" }); }
+  restoreLocalDraft(draft: NoteDraft) {
+    if (this.flight || this.holds || this.state.dirty || this.state.outcomeUnknown || this.state.retryRequired || this.stopped) throw new Error("編集中の入力を保持してから復元してください。");
+    this.update({ ...draft, localRecoveryPending: true, retryRequired: true, status: "端末の下書きを編集中です。保存には明示操作が必要です。" });
+  }
+  cancelLocalRestore() {
+    if (!this.state.localRecoveryPending || this.flight) return;
+    this.update({ content: this.state.saved.content, title: this.state.saved.title, localRecoveryPending: false, retryRequired: false, status: "端末の下書きの復元を取り消しました。" });
+  }
   setPaused(paused: boolean) { this.paused = paused; }
   setComposing(composing: boolean) { this.composing = composing; }
   tick() {
-    if (this.paused || this.holds || this.composing || this.stopped || this.state.retryRequired || !this.state.dirty || !this.state.title.trim()) return;
+    if (this.paused || this.holds || this.composing || this.stopped || this.state.retryRequired || this.state.localRecoveryPending || !this.state.dirty || !this.state.title.trim()) return;
     void this.save();
   }
   save(force = false): Promise<boolean> {
     if (this.flight) return this.flight;
-    if (this.holds || this.stopped || this.composing || this.state.outcomeUnknown || !this.state.title.trim()) return Promise.resolve(false);
+    if (this.holds || this.stopped || this.composing || this.state.outcomeUnknown || (this.state.localRecoveryPending && !force) || !this.state.title.trim()) return Promise.resolve(false);
     if (!this.state.dirty && !force) { this.update({ error: "", retryRequired: false, status: "保存しました" }); return Promise.resolve(true); }
     const snapshot = { content: this.state.content, title: this.state.title };
+    const generation = this.captureVersion?.(snapshot) ?? 0;
     const { hash: baseHash, writeId: baseWriteId } = this.state.saved;
     return this.write(async () => {
       const result = await this.persist({ ...snapshot, baseHash, baseWriteId });
-      this.update({ saved: { ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }, revisionId: result.document.currentRevisionId, retryRequired: false, status: this.state.content === snapshot.content && this.state.title === snapshot.title ? "保存しました" : "変更の一部を保存しました" });
+      this.update({ saved: { ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }, revisionId: result.document.currentRevisionId, retryRequired: false, localRecoveryPending: false, status: this.state.content === snapshot.content && this.state.title === snapshot.title ? "保存しました" : "変更の一部を保存しました" });
+      this.onConfirmed?.(snapshot, generation);
     });
   }
   private write(work: () => Promise<void>): Promise<boolean> {
@@ -79,18 +90,23 @@ export class NoteSession {
     } finally { this.holds--; this.update({ saving: this.holds > 0 || !!this.flight }); }
   }
   async addQuote(contentAtPaste: string, writeQuote: (draft: NoteDraft & { baseHash: string; baseWriteId: string | null }) => Promise<NoteSaveResult & { content: string }>, applyQuote: (content: string) => void) {
+    if (this.state.localRecoveryPending) throw new Error("端末の下書きを明示保存してから引用を追加してください。");
     return this.exclusive(async () => {
       if (this.state.content !== contentAtPaste) throw new Error("引用操作中に本文が変わりました。引用を開き直してください。");
       const snapshot = { content: this.state.content, title: this.state.title };
+      const generation = this.captureVersion?.(snapshot) ?? 0;
       const { hash: baseHash, writeId: baseWriteId } = this.state.saved;
       const result = await writeQuote({ ...snapshot, baseHash, baseWriteId });
       // CodeMirror owns the quote transaction and preserves its existing Undo history.
       applyQuote(result.content);
       this.update({ content: result.content, saved: { content: result.content, title: snapshot.title, hash: result.contentHash, writeId: result.document.lastWriteId }, revisionId: result.document.currentRevisionId, retryRequired: false, status: "引用を追加して保存しました" });
+      const confirmed = { content: result.content, title: snapshot.title };
+      this.onConfirmed?.(confirmed, generation);
       return result;
     });
   }
   async updateContext<T extends { document: { lastWriteId: string | null } }>(writeContext: (baseWriteId: string | null) => Promise<T>): Promise<T> {
+    if (this.state.localRecoveryPending) throw new Error("端末の下書きを明示保存してから関連を変更してください。");
     return this.exclusive(async () => {
       const result = await writeContext(this.state.saved.writeId);
       this.update({ saved: { ...this.state.saved, writeId: result.document.lastWriteId }, status: "関連を更新しました。本文は保持されています。" });
@@ -104,7 +120,7 @@ export class NoteSession {
     this.update({ saved, revisionId, error: "", outcomeUnknown: false, retryRequired: true, status: "最新の保存内容を確認しました。現在の入力で保存を再試行できます。" });
   }
   async remove(remove: () => Promise<void>): Promise<boolean> {
-    if (this.state.outcomeUnknown) return false;
+    if (this.state.outcomeUnknown || this.state.localRecoveryPending) return false;
     this.stopped = true;
     while (this.flight) await this.flight;
     if (this.state.outcomeUnknown) { this.stopped = false; return false; }

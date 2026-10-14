@@ -6,6 +6,7 @@ export function noteSavePresentation(state: NoteState, { recovering = false, com
   if (state.saving) return { label: "保存中…", detail: "応答を確認するまで、現在の入力の保存は確定していません。", attention: false };
   if (state.outcomeUnknown) return { label: "保存結果は不明です", detail: "自動保存を停止しています。最新の保存内容を確認してください。", attention: true };
   if (state.error) return { label: "保存できませんでした", detail: "自動保存を停止しています。入力内容はこの画面に残っています。", attention: true };
+  if (state.localRecoveryPending) return { label: "端末の下書き", detail: "復元した入力はサーバーに未保存です。現在の保存版を置き換える場合だけ明示的に保存してください。", attention: true };
   if (state.retryRequired) return { label: "保存の再開待ち", detail: "確認だけでは保存されません。「保存を再試行」で保存を再開できます。", attention: true };
   if (composing) return { label: state.dirty ? "未保存の変更" : "入力中", detail: "入力が確定してから保存します。", attention: false };
   if (paste) return { label: state.dirty ? "未保存の変更" : "保存済み", detail: "引用・資料の操作中は本文の自動保存を一時停止しています。", attention: false };

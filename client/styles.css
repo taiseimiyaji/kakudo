@@ -130,6 +130,14 @@ dialog > .secondary { margin-top: 15px; }
 .coverage-result { display: grid; gap: var(--space-sm); padding: var(--space-lg); margin: var(--space-md) 0; border: 1px solid #b6cbbd; border-radius: var(--radius-md); }
 .coverage-result p { margin: var(--space-xs) 0; }
 .latest-document pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--space-md); background: #f0f3ee; }
+.local-recovery { width: min(100%, 720px); margin: 12px auto; padding: var(--space-md); background: #f4f6f1; border-radius: 8px; }
+.local-recovery button { margin: 6px 8px 6px 0; }
+.local-recovery-candidates { margin-top: 16px; }
+.local-recovery-candidate { border-top: 1px solid #cad3c7; padding: 12px 0; overflow-wrap: anywhere; }
+.local-recovery-compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.local-recovery-compare section { min-width: 0; }
+.local-recovery-compare pre { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #fff; }
+@media (max-width: 640px) { .local-recovery-compare { grid-template-columns: 1fr; } }
 .document-node-context { border: 1px solid var(--line); border-radius: var(--radius-md); margin: var(--space-lg) 0; padding: var(--space-lg); }
 .document-node-context article { padding: var(--space-sm) 0; }
 .document-node-context fieldset { max-height: 260px; overflow: auto; }
@@ -182,6 +190,8 @@ dialog > .secondary { margin-top: 15px; }
 .note-navigation .workspace-nav { position: absolute; top: 100%; right: 0; max-width: 100%; margin-bottom: 0; background: var(--surface); border: 1px solid var(--line); padding: 12px; box-shadow: 0 4px 12px #233a3210; }
 .document-toolbar, .document-title, .note-reading-title, .editor-split, .note-reading, .note-context, .document-workspace > footer { width: min(100%, 720px); margin-inline: auto; }
 .document-toolbar { gap: 8px 12px; margin-top: 12px; }
+.document-workspace .document-toolbar { position: relative; }
+.document-toolbar > .local-recovery-jump { position: absolute; right: 0; top: 0; }
 .document-toolbar [data-save-detail] { flex-basis: 100%; }
 .mode-switch { border: 0; padding: 0; }
 .mode-switch button { min-width: 64px; padding: 6px 10px; }
