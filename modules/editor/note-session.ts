@@ -12,6 +12,7 @@ export type NoteState = NoteDraft & {
   retryRequired: boolean;
   outcomeUnknown: boolean;
   localRecoveryPending: boolean;
+  localRecoveryCanceled: boolean;
   error: string;
   status: string;
 };
@@ -26,10 +27,11 @@ export class NoteSession {
   private paused = false;
   private composing = false;
   private stopped = false;
+  private protectionVersion = 0;
 
   constructor(initial: NoteBase & { revisionId: string | null }, private persist: Persist, private onConfirmed?: (draft: NoteDraft, generation: number) => void, private captureVersion?: (draft: NoteDraft) => number) {
     const { content, title, hash, writeId, revisionId } = initial;
-    this.state = { content, title, saved: { content, title, hash, writeId }, revisionId, dirty: false, saving: false, retryRequired: false, outcomeUnknown: false, localRecoveryPending: false, error: "", status: "" };
+    this.state = { content, title, saved: { content, title, hash, writeId }, revisionId, dirty: false, saving: false, retryRequired: false, outcomeUnknown: false, localRecoveryPending: false, localRecoveryCanceled: false, error: "", status: "" };
   }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
@@ -41,12 +43,22 @@ export class NoteSession {
   }
   edit(change: Partial<NoteDraft>) { this.update({ ...change, status: "" }); }
   restoreLocalDraft(draft: NoteDraft) {
-    if (this.flight || this.holds || this.state.dirty || this.state.outcomeUnknown || this.state.retryRequired || this.stopped) throw new Error("編集中の入力を保持してから復元してください。");
-    this.update({ ...draft, localRecoveryPending: true, retryRequired: true, status: "端末の下書きを編集中です。保存には明示操作が必要です。" });
+    if (this.flight || this.holds || this.state.dirty || this.state.outcomeUnknown || (this.state.retryRequired && !this.state.localRecoveryCanceled) || this.stopped) throw new Error("編集中の入力を保持してから復元してください。");
+    this.protectionVersion++;
+    this.update({ ...draft, localRecoveryPending: true, localRecoveryCanceled: false, retryRequired: true, status: "端末の下書きを編集中です。保存には明示操作が必要です。" });
+  }
+  requireExplicitLocalSave() {
+    if ((this.state.localRecoveryPending && !this.state.localRecoveryCanceled) || this.state.outcomeUnknown) return;
+    this.protectionVersion++;
+    this.update({ localRecoveryPending: true, localRecoveryCanceled: false, retryRequired: true, status: "復元本文がRedoで戻りました。明示保存まで自動保存を停止します。" });
   }
   cancelLocalRestore() {
     if (!this.state.localRecoveryPending || this.flight) return;
-    this.update({ content: this.state.saved.content, title: this.state.saved.title, localRecoveryPending: false, retryRequired: false, status: "端末の下書きの復元を取り消しました。" });
+    this.update({ content: this.state.saved.content, title: this.state.saved.title, localRecoveryCanceled: true, status: "復元を取り消しました。履歴から復元本文が戻る可能性があるため、明示保存まで自動保存を停止します。" });
+  }
+  abortLocalRestore() {
+    if (!this.state.localRecoveryPending || this.flight) return;
+    this.update({ content: this.state.saved.content, title: this.state.saved.title, localRecoveryPending: false, localRecoveryCanceled: false, retryRequired: false, status: "端末の下書きを復元できませんでした。" });
   }
   setPaused(paused: boolean) { this.paused = paused; }
   setComposing(composing: boolean) { this.composing = composing; }
@@ -60,10 +72,15 @@ export class NoteSession {
     if (!this.state.dirty && !force) { this.update({ error: "", retryRequired: false, status: "保存しました" }); return Promise.resolve(true); }
     const snapshot = { content: this.state.content, title: this.state.title };
     const generation = this.captureVersion?.(snapshot) ?? 0;
+    const protectionVersion = this.protectionVersion;
     const { hash: baseHash, writeId: baseWriteId } = this.state.saved;
     return this.write(async () => {
       const result = await this.persist({ ...snapshot, baseHash, baseWriteId });
-      this.update({ saved: { ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }, revisionId: result.document.currentRevisionId, retryRequired: false, localRecoveryPending: false, status: this.state.content === snapshot.content && this.state.title === snapshot.title ? "保存しました" : "変更の一部を保存しました" });
+      const sameProtection = this.protectionVersion === protectionVersion;
+      this.update({ saved: { ...snapshot, hash: result.contentHash, writeId: result.document.lastWriteId }, revisionId: result.document.currentRevisionId,
+        retryRequired: sameProtection ? false : this.state.retryRequired, localRecoveryPending: sameProtection ? false : this.state.localRecoveryPending,
+        localRecoveryCanceled: sameProtection ? false : this.state.localRecoveryCanceled,
+        status: this.state.content === snapshot.content && this.state.title === snapshot.title ? "保存しました" : "変更の一部を保存しました" });
       this.onConfirmed?.(snapshot, generation);
     });
   }

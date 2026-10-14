@@ -3,7 +3,7 @@ export const LOCAL_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const LOCAL_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
 export const LOCAL_DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
 const DATABASE = "kakudo-local-recovery";
-const VERSION = 1;
+const VERSION = 2;
 
 export type LocalCandidate = {
   version: 1;
@@ -53,6 +53,10 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("drafts")) {
         const drafts = db.createObjectStore("drafts", { keyPath: "key" });
         drafts.createIndex("documentKey", "documentKey");
+        drafts.createIndex("updatedAt", "updatedAt");
+      } else {
+        const drafts = request.transaction!.objectStore("drafts");
+        if (!drafts.indexNames.contains("updatedAt")) drafts.createIndex("updatedAt", "updatedAt");
       }
       if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "documentKey" });
       if (!db.objectStoreNames.contains("acknowledged")) db.createObjectStore("acknowledged", { keyPath: "key" });
@@ -84,18 +88,26 @@ export async function loadLocalRecovery(documentKey: string, now = Date.now()): 
     const settingsRequest = tx.objectStore("settings").get(documentKey);
     settingsRequest.onsuccess = () => { setting = settingsRequest.result; };
     const draftStore = tx.objectStore("drafts");
-    const draftsRequest = draftStore.index("documentKey").getAll(documentKey);
-    draftsRequest.onsuccess = () => {
-      drafts = draftsRequest.result as unknown[];
-      const candidates: LocalCandidate[] = [];
-      let warning = setting !== undefined && !validSetting(setting);
-      for (const raw of drafts) {
-        if (!validCandidate(raw) || raw.documentKey !== documentKey) { warning = true; continue; }
-        if (now - raw.updatedAt >= LOCAL_DRAFT_TTL_MS) { draftStore.delete(raw.key); continue; }
-        candidates.push(raw);
+    const expired = draftStore.index("updatedAt").openCursor(IDBKeyRange.upperBound(now - LOCAL_DRAFT_TTL_MS));
+    expired.onsuccess = () => {
+      const cursor = expired.result;
+      if (cursor) {
+        if (validCandidate(cursor.value) && now - cursor.value.updatedAt >= LOCAL_DRAFT_TTL_MS) cursor.delete();
+        cursor.continue();
+        return;
       }
-      candidates.sort((a, b) => b.updatedAt - a.updatedAt || b.generation - a.generation);
-      set({ enabled: validSetting(setting) && setting.enabled, epoch: validSetting(setting) ? setting.epoch : 0, candidates, warning });
+      const draftsRequest = draftStore.index("documentKey").getAll(documentKey);
+      draftsRequest.onsuccess = () => {
+        drafts = draftsRequest.result as unknown[];
+        const candidates: LocalCandidate[] = [];
+        let warning = setting !== undefined && !validSetting(setting);
+        for (const raw of drafts) {
+          if (!validCandidate(raw) || raw.documentKey !== documentKey) { warning = true; continue; }
+          candidates.push(raw);
+        }
+        candidates.sort((a, b) => b.updatedAt - a.updatedAt || b.generation - a.generation);
+        set({ enabled: validSetting(setting) && setting.enabled, epoch: validSetting(setting) ? setting.epoch : 0, candidates, warning });
+      };
     };
   });
 }

@@ -1,5 +1,5 @@
 import { noteSavePresentation } from "../../modules/editor/note-presentation";
-import { NoteSession } from "../../modules/editor/note-session";
+import { NoteSession, type NoteBase } from "../../modules/editor/note-session";
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
 import { DocumentNodes } from "../../components/editor/document-nodes";
 import { NoteSaveComparison } from "../../components/editor/note-save-comparison";
@@ -60,10 +60,13 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
   useEffect(() => { void localRecovery.activate(session.getSnapshot); return () => localRecovery.close(); }, [localRecovery, session]);
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const localView = useSyncExternalStore(localRecovery.subscribe, localRecovery.getSnapshot);
-  const { content, title, revisionId, dirty, saving, retryRequired, outcomeUnknown, localRecoveryPending, error } = state;
+  const { content, title, revisionId, dirty, saving, retryRequired, outcomeUnknown, localRecoveryPending, localRecoveryCanceled, error } = state;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const programmaticRecovery = useRef(false);
+  const restoredBody = useRef<string | null>(null);
+  const canceledRedoBody = useRef<string | null>(null);
   const [restoreUndo, setRestoreUndo] = useState(false);
+  const [restoreBase, setRestoreBase] = useState<NoteBase | null>(null);
   useEffect(() => { if (outcomeUnknown) localRecovery.onUnknownOutcome(session.getSnapshot()); }, [outcomeUnknown, localRecovery, session]);
   const [composing, setComposing] = useState(false);
   function compositionChange(value: boolean) { session.setComposing(value); setComposing(value); }
@@ -126,32 +129,47 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     session.edit({ title: value });
     localRecovery.onHumanEdit(session.getSnapshot());
     setRestoreUndo(false);
+    setRestoreBase(null);
   }
-  function editContent(value: string) {
+  function editContent(value: string, historyEvent: "undo" | "redo" | null) {
+    if (!programmaticRecovery.current) {
+      if (historyEvent === "redo" && canceledRedoBody.current === value) session.requireExplicitLocalSave();
+      else if (historyEvent === null) canceledRedoBody.current = null;
+    }
     session.edit({ content: value });
-    if (!programmaticRecovery.current) { localRecovery.onHumanEdit(session.getSnapshot()); setRestoreUndo(false); }
+    if (!programmaticRecovery.current) { localRecovery.onHumanEdit(session.getSnapshot()); setRestoreUndo(false); setRestoreBase(null); }
+  }
+  function sameRestoreBase(saved: NoteBase) {
+    return !!restoreBase && saved.content === restoreBase.content && saved.title === restoreBase.title && saved.hash === restoreBase.hash && saved.writeId === restoreBase.writeId;
   }
   function restoreCandidate(candidate: LocalCandidate) {
     const current = session.getSnapshot();
-    if (current.dirty || current.saving || current.outcomeUnknown || current.retryRequired || paste || !editorRef.current) return;
+    if (current.dirty || current.saving || current.outcomeUnknown || (current.retryRequired && !current.localRecoveryCanceled) || paste || !editorRef.current) return;
     session.restoreLocalDraft({ title: candidate.title, content: candidate.content });
     programmaticRecovery.current = true;
     try { editorRef.current.restoreContent(candidate.content); }
-    catch (error) { session.cancelLocalRestore(); throw error; }
+    catch (error) { session.abortLocalRestore(); setRecoveryError(error instanceof Error ? error.message : "端末下書きを編集器へ復元できませんでした。"); return; }
     finally { programmaticRecovery.current = false; }
+    restoredBody.current = candidate.content;
+    canceledRedoBody.current = null;
+    setRestoreBase({ ...current.saved });
     localRecovery.markRestored(candidate);
     setRestoreUndo(true);
     if (mode === "edit") editorRef.current.restoreFocus();
     else { focusRequested.current = true; setMode("edit"); }
   }
   function undoRestore() {
-    if (!restoreUndo || !localRecoveryPending) return;
+    const current = session.getSnapshot();
+    if (!restoreUndo || !current.localRecoveryPending || current.saving || paste || !sameRestoreBase(current.saved)) { setRestoreUndo(false); return; }
     programmaticRecovery.current = true;
     try {
       if (!editorRef.current?.undoRestore()) return;
       session.cancelLocalRestore();
+      canceledRedoBody.current = restoredBody.current;
+      restoredBody.current = null;
       localRecovery.clearRestored();
       setRestoreUndo(false);
+      setRestoreBase(null);
     } finally { programmaticRecovery.current = false; }
   }
   return <main className="document-workspace" onKeyDown={(event) => {
@@ -160,7 +178,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       if (!busy && !outcomeUnknown && !paste && !composing && title.trim()) void save();
     }
   }}>
-    <header className="app-header note-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => { if (mode === "edit") editorRef.current?.rememberPosition(); setMode("read"); }}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={showEdit}>編集</button></div><span className="save-state" role="status" aria-atomic="true" data-attention={savePresentation.attention} title={savePresentation.detail}>{savePresentation.label}</span><button ref={saveButtonRef} className="secondary" disabled={busy || outcomeUnknown || !!paste || composing || !title.trim()} onClick={() => { void save(); }}>{localRecoveryPending ? "復元した下書きを保存" : retryRequired ? "保存を再試行" : "保存"}</button><details className="note-navigation"><summary>メニュー</summary><WorkspaceNav workspaceId={workspaceId} /></details></header>
+    <header className="app-header note-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => { if (mode === "edit") editorRef.current?.rememberPosition(); setMode("read"); }}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={showEdit}>編集</button></div><span className="save-state" role="status" aria-atomic="true" data-attention={savePresentation.attention} title={savePresentation.detail}>{savePresentation.label}</span><button ref={saveButtonRef} className="secondary" disabled={busy || outcomeUnknown || !!paste || composing || !title.trim()} onClick={() => { void save(); }}>{localRecoveryCanceled ? "自動保存を再開" : localRecoveryPending ? "復元した下書きを保存" : retryRequired ? "保存を再試行" : "保存"}</button><details className="note-navigation"><summary>メニュー</summary><WorkspaceNav workspaceId={workspaceId} /></details></header>
     {error && <p role="alert" className="error">{error} 自動保存を停止しています。入力内容はこの画面に残っています。{outcomeUnknown ? "直前の保存・引用がサーバーに反映されたかは不明です。タブを閉じたり再読み込みしたりすると、サーバーに反映されていない入力は復元できない可能性があります。「最新の保存内容を確認」で保存済みの本文と名前を確かめてください。この取得だけでは引用の成否は確定しません。現在の本文と名前を保存する場合だけ、「確認した内容を基準に再試行」の後に「保存を再試行」を押してください。確認だけでは保存しません。" : "再読み込みする前に本文と名前を確認してください。"}</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}
     {retryRequired && (!localRecoveryPending || error) && <button disabled={busy || !!paste} onClick={() => { const version = ++latestReadVersion.current; latestReadStop.current?.(); setLatest(null); setRecovering(true); setRecoveryError(""); latestReadStop.current = readNote({ load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === id && document.workspaceId === workspaceId).parse(await request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })), onData: (data) => { if (version === latestReadVersion.current) { setLatest(data); setRecovering(false); } }, onError: (e) => { if (version === latestReadVersion.current) { setRecoveryError(e.message); setRecovering(false); } } }); }}>最新の保存内容を確認</button>}
     {latest && <button className="secondary" onClick={() => latestPanelRef.current?.scrollIntoView({ block: "start" })}>取得した保存内容を見る</button>}
@@ -177,7 +195,9 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown || localRecoveryPending} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={(_resource, message) => { if (pasteRef.current !== paste) return; setResourceConfirmation(message); setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
       await session.addQuote(paste.content, (draft) => writer.quote({ text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
         if (!editorRef.current) throw new Error("ノートを閉じています");
-        editorRef.current.applyQuote(paste, content);
+        programmaticRecovery.current = true;
+        try { editorRef.current.applyQuote(paste, content); }
+        finally { programmaticRecovery.current = false; }
       });
       invalidateLatest(); closePaste(paste);
     }} />}
@@ -199,10 +219,14 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
       </details>
       <details className="document-metadata"><summary>保存情報</summary><p className="document-path">{initial.document.path}</p><p aria-label="現在の保存版">保存版: {revisionId ?? "未作成（保存すると作成されます）"}</p></details>
     </aside>
-    <LocalRecoveryPanel view={localView} note={state} onEnable={() => { void localRecovery.enable(session.getSnapshot()); }} onDisable={() => { if (confirm("このノートの端末内候補をすべて削除し、これからの保存も無効にしますか？サーバーの保存版は変わりません。")) void localRecovery.disable(); }} onRefresh={() => { void localRecovery.refresh(); }} onRestore={restoreCandidate} onDiscard={(candidate) => { if (confirm("この端末の候補を破棄しますか？サーバーの保存版は変わりません。")) void localRecovery.discard(candidate); }} canRestore={!dirty && !busy && !retryRequired && !outcomeUnknown && !paste} canUndoRestore={restoreUndo} onUndoRestore={undoRestore} />
+    <LocalRecoveryPanel view={localView} note={state} onEnable={() => { void localRecovery.enable(session.getSnapshot); }} onDisable={() => { if (confirm("このノートの端末内候補をすべて削除し、これからの保存も無効にしますか？サーバーの保存版は変わりません。")) void localRecovery.disable(); }} onRefresh={() => { void localRecovery.refresh(); }} onRestore={restoreCandidate} onDiscard={(candidate) => { if (confirm("この端末の候補を破棄しますか？サーバーの保存版は変わりません。")) void localRecovery.discard(candidate); }} canRestore={!dirty && !busy && (!retryRequired || localRecoveryCanceled) && !outcomeUnknown && !paste} canUndoRestore={restoreUndo && localRecoveryPending && !saving && !paste && sameRestoreBase(state.saved)} onUndoRestore={undoRestore} />
     <footer><span>本文は自分の言葉で書きます。</span><button className="danger" disabled={busy || outcomeUnknown || localRecoveryPending || !!paste} onClick={() => {
       if (!confirm("このノートとMarkdownファイルを削除しますか？")) return;
-      void session.remove(() => request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE")).then((removed) => { if (removed) void navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true }); });
+      void session.remove(() => request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "DELETE")).then(async (removed) => {
+        if (!removed) return;
+        if (!await localRecovery.disable()) window.alert("ノートはサーバーから削除されましたが、端末内候補を消去できませんでした。ブラウザのサイトデータを確認してください。");
+        void navigate({ to: "/workspaces/$workspaceId/roadmaps", params: { workspaceId }, ignoreBlocker: true });
+      });
     }}>ノートを削除</button></footer>
   </main>;
 }

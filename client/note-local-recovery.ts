@@ -86,7 +86,7 @@ export class NoteLocalRecovery {
       if (!this.closed && this.state.enabled && this.epoch === epoch && candidate.generation === this.generation) this.update({ status: "error", warning: errorMessage(error) });
     }
   }
-  async enable(note: NoteState) {
+  async enable(getNote: () => NoteState) {
     const operation = ++this.operation;
     this.update({ busy: true });
     try {
@@ -95,22 +95,24 @@ export class NoteLocalRecovery {
       this.epoch = epoch;
       this.update({ busy: false, enabled: true, status: "idle", warning: "" });
       this.announce();
+      const note = getNote();
       if (note.dirty || note.outcomeUnknown) this.capture(note, false);
     } catch (error) { if (!this.closed && operation === this.operation) this.update({ busy: false, status: "error", warning: errorMessage(error) }); }
   }
-  async disable() {
+  async disable(): Promise<boolean> {
     const operation = ++this.operation;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.update({ busy: true, status: "pending" });
     try {
       await disableLocalRecovery(this.documentKey);
-      if (this.closed || operation !== this.operation) return;
+      if (this.closed || operation !== this.operation) return true;
       this.epoch++;
       this.latest = null;
       this.update({ busy: false, enabled: false, candidates: [], status: "off", warning: "" });
       this.announce();
-    } catch (error) { if (!this.closed && operation === this.operation) this.update({ busy: false, status: "error", warning: errorMessage(error) }); }
+      return true;
+    } catch (error) { if (!this.closed && operation === this.operation) this.update({ busy: false, status: "error", warning: errorMessage(error) }); return false; }
   }
   async refresh() {
     const operation = ++this.operation;
@@ -127,7 +129,12 @@ export class NoteLocalRecovery {
   async discard(candidate: LocalCandidate) {
     try {
       await discardLocalCandidate(candidate);
-      if (!this.closed) { this.update({ candidates: this.state.candidates.filter((item) => item.key !== candidate.key || item.generation > candidate.generation) }); this.announce(); }
+      if (!this.closed) {
+        const candidates = this.state.candidates.filter((item) => item.key !== candidate.key || item.generation > candidate.generation);
+        const ownCurrent = candidates.some((item) => item.sessionId === this.sessionId && item.generation === this.generation);
+        const status = this.state.status === "stored" && !ownCurrent ? "idle" : this.state.status;
+        this.update({ candidates, status }); this.announce();
+      }
     } catch (error) { if (!this.closed) this.update({ status: "error", warning: errorMessage(error) }); }
   }
   markRestored(candidate: LocalCandidate) { this.restored = candidate; }

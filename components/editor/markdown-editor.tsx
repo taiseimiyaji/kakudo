@@ -12,7 +12,7 @@ import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
 import { noteSearch, openNoteSearch } from "./note-search";
 
 export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; restoreFocus: () => void };
-export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
+export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string, historyEvent: "undo" | "redo" | null) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const keyboardReturn = useRef<KeyboardReturn | null>(null);
   const lastHighlightRequest = useRef<FindingSelection | null>(null);
@@ -52,9 +52,10 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
     if (!view) throw new Error("ノートを閉じています");
     keyboardReturn.current?.cancel();
     const separator = content.includes("\r\n") ? "\r\n" : "\n";
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: Text.of(content.split(separator)) },
+    const transaction = view.state.update({ changes: { from: 0, to: view.state.doc.length, insert: Text.of(content.split(separator)) },
       effects: setLineBreak.of(separator), annotations: isolateHistory.of("full"), userEvent: "input.local-recovery" });
-    if (view.state.sliceDoc() !== content) throw new Error("端末下書きの本文を編集器へ正確に復元できませんでした。");
+    if (transaction.state.sliceDoc() !== content) throw new Error("端末下書きの本文を編集器へ正確に復元できませんでした。");
+    view.dispatch(transaction);
   }, undoRestore() {
     const view = viewRef.current;
     return !!view && undo(view);
@@ -79,7 +80,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
         if (text) pasteCallback.current({ kind, text, content: view.state.sliceDoc(), from: view.state.sliceDoc(0, view.state.selection.main.from).length, to: view.state.sliceDoc(0, view.state.selection.main.to).length });
         return true;
       }, drop(event) { event.preventDefault(); return true; } }),
-      EditorView.updateListener.of((update) => { if (update.docChanged) callback.current(update.state.sliceDoc()); }),
+      EditorView.updateListener.of((update) => { if (update.docChanged) callback.current(update.state.sliceDoc(), update.transactions.some((transaction) => transaction.isUserEvent("redo")) ? "redo" : update.transactions.some((transaction) => transaction.isUserEvent("undo")) ? "undo" : null); }),
     ] }) });
     viewRef.current = view;
     const returning = installKeyboardReturn(view);

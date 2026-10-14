@@ -2,21 +2,21 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function readLocalDrafts(page: Page): Promise<Array<Record<string, unknown>>> {
   return page.evaluate(async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     try { return await new Promise<Array<Record<string, unknown>>>((resolve, reject) => { const request = db.transaction("drafts", "readonly").objectStore("drafts").getAll(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
     finally { db.close(); }
   });
 }
 async function writeLocalDraft(page: Page, record: Record<string, unknown>) {
   await page.evaluate(async (value) => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     try { await new Promise<void>((resolve, reject) => { const tx = db.transaction("drafts", "readwrite"); tx.objectStore("drafts").put(value); tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error); }); }
     finally { db.close(); }
   }, record);
 }
 async function countLocalDrafts(page: Page): Promise<number> {
   return page.evaluate(async () => {
-    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     try { return await new Promise<number>((resolve, reject) => { const request = db.transaction("drafts", "readonly").objectStore("drafts").count(); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); }); }
     finally { db.close(); }
   });
@@ -51,6 +51,14 @@ test("opted-in local draft survives failed save and tab close, then needs explic
     await expect(page.getByText("保存結果は不明です", { exact: true })).toBeVisible();
     await expect(recovery.getByText("端末に保存済み（サーバーとは別）").last()).toBeVisible();
     await expect.poll(async () => readLocalDrafts(page)).toMatchObject([{ title: "  人間の変更した名前  ", content: original + addition, outcomeUnknown: true }]);
+    await page.evaluate(() => scrollTo(0, 0));
+    const targets = await page.evaluate(() => ["本文を検索", "端末内の下書き（候補1件）"].map((label) => {
+      const button = [...document.querySelectorAll(".document-toolbar button")].find((item) => item.textContent === label)!;
+      const box = button.getBoundingClientRect();
+      return { left: box.left, right: box.right, centerIsButton: document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === button };
+    }));
+    expect(targets[0].right).toBeLessThanOrEqual(targets[1].left);
+    expect(targets.every((target) => target.centerIsButton)).toBe(true);
     const dialogs: string[] = [];
     page.on("dialog", async (dialog) => { dialogs.push(dialog.type()); await dialog.accept(); });
     await page.close({ runBeforeUnload: true });
@@ -153,6 +161,9 @@ test("next opening expires only seven-day-old drafts and preserves unknown schem
     await writeLocalDraft(first, { ...original, key: `${original.documentKey}:${expiredSession}`, sessionId: expiredSession, updatedAt: now - period - 60000 });
     const unknownSession = crypto.randomUUID();
     await writeLocalDraft(first, { ...original, key: `${original.documentKey}:${unknownSession}`, sessionId: unknownSession, version: 2 });
+    const orphanDocumentKey = `default:${crypto.randomUUID()}`;
+    const orphanSession = crypto.randomUUID();
+    await writeLocalDraft(first, { ...original, key: `${orphanDocumentKey}:${orphanSession}`, documentKey: orphanDocumentKey, sessionId: orphanSession, updatedAt: now - period - 60000 });
     const second = await context.newPage();
     await second.goto(`/workspaces/default/documents/${document.id}`);
     const secondPanel = second.getByRole("region", { name: "端末内の下書き" });
@@ -162,6 +173,7 @@ test("next opening expires only seven-day-old drafts and preserves unknown schem
     const kept = await readLocalDrafts(second);
     expect(kept.map((record) => record.key).sort()).toEqual([original.key, `${original.documentKey}:${unknownSession}`].sort());
     expect(kept.find((record) => record.key === `${original.documentKey}:${unknownSession}`)?.version).toBe(2);
+    expect(kept.some((record) => record.documentKey === orphanDocumentKey)).toBe(false);
   } finally { await context.close().catch(() => {}); await request.delete(path); }
 });
 
@@ -312,6 +324,15 @@ test("a restored old local candidate uses the fresh server baseline and a later 
     expect(localWrites).toBe(1);
     expect((await (await request.get(path)).json()).content).toBe("外部D本文");
     expect(await countLocalDrafts(reopened)).toBe(1);
+    await reopened.getByRole("button", { name: "最新の保存内容を確認" }).click();
+    await expect(reopened.getByRole("region", { name: "最新の保存内容" })).toContainText("外部D本文");
+    await reopened.getByRole("button", { name: "確認した内容を基準に再試行" }).click();
+    await expect(candidates.getByRole("button", { name: "復元前に戻す（本文と名前）" })).toHaveCount(0);
+    await reopened.getByRole("textbox", { name: "Markdown本文" }).press("ControlOrMeta+Z");
+    await expect(reopened.getByRole("textbox", { name: "Markdown本文" })).toContainText("外部C本文");
+    await reopened.waitForTimeout(1200);
+    expect(localWrites).toBe(1);
+    expect((await (await request.get(path)).json()).content).toBe("外部D本文");
   } finally { await context.close().catch(() => {}); await request.delete(path); }
 });
 
@@ -357,7 +378,7 @@ test("a delayed local read never replaces typing started after the server page o
     await first.getByRole("textbox", { name: "Markdown本文" }).pressSequentially(" Aの候補");
     await expect.poll(async () => countLocalDrafts(first!)).toBe(1);
     await first.evaluate(async () => {
-      const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+      const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
       const tx = db.transaction(["settings", "drafts"], "readwrite");
       let hold = true;
       (window as unknown as { releaseLocalRead: () => void }).releaseLocalRead = () => { hold = false; };
@@ -415,4 +436,150 @@ test("restoring CRLF over an LF server version remains undoable without normaliz
     expect(writes).toBe(1);
     expect((await (await request.get(path)).json()).content).toBe("復元した行\r\n次の行");
   } finally { await context.close().catch(() => {}); await request.delete(path); }
+});
+
+test("enabling during new typing stores the latest note snapshot before reporting it protected", async ({ page, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "元の名前", content: "保存済み" } })).json();
+  const path = `/api/documents/${document.id}`;
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "端末内の下書き" });
+    await panel.locator("summary", { hasText: "端末内の下書き" }).click();
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    await page.getByLabel("ノート名（必須）").fill(" ");
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" A");
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+      const tx = db.transaction("settings", "readwrite");
+      let hold = true;
+      (window as unknown as { releaseLocalEnable: () => void }).releaseLocalEnable = () => { hold = false; };
+      const keepAlive = () => { if (!hold) return; const request = tx.objectStore("settings").get("hold"); request.onsuccess = keepAlive; };
+      keepAlive(); tx.oncomplete = () => db.close();
+    });
+    await panel.getByRole("button", { name: "このノートの端末下書きを有効にする" }).click();
+    await expect(panel.getByRole("button", { name: "このノートの端末下書きを有効にする" })).toBeDisabled();
+    await editor.pressSequentially(" B");
+    await page.evaluate(() => (window as unknown as { releaseLocalEnable: () => void }).releaseLocalEnable());
+    await expect(panel.getByText("端末に保存済み（サーバーとは別）").last()).toBeVisible();
+    expect((await readLocalDrafts(page))[0]).toMatchObject({ title: " ", content: "保存済み A B" });
+    expect((await (await request.get(path)).json()).content).toBe("保存済み");
+  } finally {
+    await page.evaluate(() => (window as unknown as { releaseLocalEnable?: () => void }).releaseLocalEnable?.()).catch(() => {});
+    await request.delete(path);
+  }
+});
+
+test("canceling a restore keeps the write gate if native Redo brings the candidate back", async ({ page, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "元の名前", content: "保存済み" } })).json();
+  const path = `/api/documents/${document.id}`;
+  let writes = 0;
+  try {
+    await page.route(`**${path}?*`, (route) => { if (route.request().method() === "PUT") writes++; return route.continue(); });
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "端末内の下書き" });
+    await panel.locator("summary", { hasText: "端末内の下書き" }).click();
+    await panel.getByRole("button", { name: "このノートの端末下書きを有効にする" }).click();
+    const saved = await (await request.get(path)).json();
+    const documentKey = `default:${document.id}`; const sessionId = crypto.randomUUID();
+    await writeLocalDraft(page, { version: 1, key: `${documentKey}:${sessionId}`, documentKey, sessionId, generation: 1,
+      title: "候補の名前", content: "候補の本文", baseHash: saved.contentHash, baseWriteId: saved.document.lastWriteId, outcomeUnknown: false, updatedAt: Date.now() });
+    await panel.getByRole("button", { name: "候補を再確認" }).click();
+    await panel.getByRole("button", { name: "この候補を編集画面に復元" }).click();
+    await panel.getByRole("button", { name: "復元前に戻す（本文と名前）" }).click();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await expect(editor).toContainText("保存済み");
+    await expect(page.getByLabel("ノート名（必須）")).toHaveValue("元の名前");
+    await page.getByRole("button", { name: "自動保存を再開" }).click();
+    await expect.poll(() => writes).toBe(1);
+    expect((await (await request.get(path)).json()).content).toBe("保存済み");
+    await editor.press("ControlOrMeta+Shift+Z");
+    await expect(editor).toContainText("候補の本文");
+    await expect(page.getByText("端末の下書き", { exact: true })).toBeVisible();
+    await page.waitForTimeout(1300);
+    expect(writes).toBe(1);
+    await page.getByRole("button", { name: "復元した下書きを保存" }).click();
+    await expect.poll(() => writes).toBe(2);
+    expect((await (await request.get(path)).json()).content).toBe("候補の本文");
+  } finally { await request.delete(path); }
+});
+
+test("restore cancellation is unavailable during an in-flight explicit save", async ({ page, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "元の名前", content: "保存済み" } })).json();
+  const path = `/api/documents/${document.id}`;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let writes = 0;
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "端末内の下書き" });
+    await panel.locator("summary", { hasText: "端末内の下書き" }).click();
+    await panel.getByRole("button", { name: "このノートの端末下書きを有効にする" }).click();
+    const saved = await (await request.get(path)).json();
+    const documentKey = `default:${document.id}`; const sessionId = crypto.randomUUID();
+    await writeLocalDraft(page, { version: 1, key: `${documentKey}:${sessionId}`, documentKey, sessionId, generation: 1,
+      title: "復元後の名前", content: "復元後の本文", baseHash: saved.contentHash, baseWriteId: saved.document.lastWriteId, outcomeUnknown: false, updatedAt: Date.now() });
+    await panel.getByRole("button", { name: "候補を再確認" }).click();
+    await panel.getByRole("button", { name: "この候補を編集画面に復元" }).click();
+    await page.route(`**${path}?*`, async (route) => { if (route.request().method() === "PUT") { writes++; await held; } return route.continue(); });
+    await page.getByRole("button", { name: "復元した下書きを保存" }).click();
+    await expect.poll(() => writes).toBe(1);
+    await expect(panel.getByRole("button", { name: "復元前に戻す（本文と名前）" })).toHaveCount(0);
+    await expect(page.getByLabel("ノート名（必須）")).toHaveValue("復元後の名前");
+    await expect(page.getByRole("textbox", { name: "Markdown本文" })).toContainText("復元後の本文");
+    release();
+    await expect(page.getByText("保存済み", { exact: true })).toBeVisible();
+    expect((await (await request.get(path)).json()).content).toBe("復元後の本文");
+  } finally { release(); await page.unrouteAll({ behavior: "wait" }); await request.delete(path); }
+});
+
+test("successful quote application does not create a second local candidate for already saved prose", async ({ page, context, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "元の名前", content: "人間の本文" } })).json();
+  const path = `/api/documents/${document.id}`;
+  try {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "端末内の下書き" });
+    await panel.locator("summary", { hasText: "端末内の下書き" }).click();
+    await panel.getByRole("button", { name: "このノートの端末下書きを有効にする" }).click();
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await editor.press("ControlOrMeta+End");
+    await page.evaluate(() => navigator.clipboard.writeText("人間が出典を確かめた引用文"));
+    await editor.press("ControlOrMeta+V");
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("出典URL（必須）").fill("https://example.com/quote-source");
+    await dialog.getByRole("button", { name: "引用を追加" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect.poll(async () => (await (await request.get(path)).json()).content).toContain("人間が出典を確かめた引用文");
+    expect(await readLocalDrafts(page)).toEqual([]);
+    await page.getByLabel("ノート名（必須）").fill(" ");
+    await editor.press("ControlOrMeta+End"); await editor.pressSequentially(" 後続の人間入力");
+    await expect(panel.getByText("端末に保存済み（サーバーとは別）").last()).toBeVisible();
+    expect((await readLocalDrafts(page))[0].content).toContain("後続の人間入力");
+  } finally { await request.delete(path); }
+});
+
+test("deleting a note removes its local candidate after the server confirms deletion", async ({ page, request }) => {
+  const { document } = await (await request.post("/api/documents", { data: { title: "元の名前", content: "保存済み" } })).json();
+  const path = `/api/documents/${document.id}`;
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const panel = page.getByRole("region", { name: "端末内の下書き" });
+    await panel.locator("summary", { hasText: "端末内の下書き" }).click();
+    await panel.getByRole("button", { name: "このノートの端末下書きを有効にする" }).click();
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    await page.getByLabel("ノート名（必須）").fill(" ");
+    await expect(panel.getByText("端末に保存済み（サーバーとは別）").last()).toBeVisible();
+    page.on("dialog", (dialog) => dialog.accept());
+    await panel.getByRole("button", { name: "この候補を破棄" }).click();
+    await expect.poll(async () => countLocalDrafts(page)).toBe(0);
+    await expect(panel.getByText("端末に保存済み（サーバーとは別）")).toHaveCount(0);
+    await page.getByRole("textbox", { name: "Markdown本文" }).pressSequentially(" 新しい候補");
+    await expect.poll(async () => countLocalDrafts(page)).toBe(1);
+    await page.getByRole("button", { name: "ノートを削除" }).click();
+    await page.waitForURL(/\/roadmaps$/);
+    expect(await countLocalDrafts(page)).toBe(0);
+    expect((await request.get(path)).status()).toBe(404);
+  } finally { if ((await request.get(path)).status() !== 404) await request.delete(path); }
 });

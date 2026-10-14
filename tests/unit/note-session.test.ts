@@ -166,10 +166,29 @@ it("local restoration keeps the fresh server baseline and blocks timer, quote, c
   expect(session.getSnapshot()).toMatchObject({ localRecoveryPending: false, retryRequired: false });
 });
 
-it("cancelling a local restoration restores both fields without a server write", () => {
+it("cancelling a local restoration restores both fields but keeps the redo write gate", async () => {
   const persist = vi.fn(); const session = new NoteSession(initial, persist);
   session.restoreLocalDraft({ title: " ", content: "復元本文" });
   session.cancelLocalRestore(); session.tick();
-  expect(session.getSnapshot()).toMatchObject({ title: initial.title, content: initial.content, localRecoveryPending: false, dirty: false });
+  expect(session.getSnapshot()).toMatchObject({ title: initial.title, content: initial.content, localRecoveryPending: true, localRecoveryCanceled: true, dirty: false });
+  session.edit({ content: "復元本文" }); session.tick();
+  expect(await session.save()).toBe(false);
   expect(persist).not.toHaveBeenCalled();
+});
+
+it("redo during a canceled draft's in-flight explicit save keeps the newer write gate", async () => {
+  const pending = deferred<NoteSaveResult>();
+  const persist = vi.fn().mockReturnValue(pending.promise);
+  const session = new NoteSession(initial, persist);
+  session.restoreLocalDraft({ title: initial.title, content: "復元本文" });
+  session.cancelLocalRestore();
+  const saving = session.save(true);
+  await Promise.resolve();
+  session.requireExplicitLocalSave();
+  session.edit({ content: "復元本文" });
+  pending.resolve(result("baseline"));
+  expect(await saving).toBe(true);
+  session.tick();
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(session.getSnapshot()).toMatchObject({ content: "復元本文", saved: { content: initial.content }, localRecoveryPending: true, localRecoveryCanceled: false, retryRequired: true });
 });
