@@ -58,6 +58,27 @@ for (const width of [390, 1440]) test(`opted-in draft survives note navigation, 
       return [...range.getClientRects()].some((line) => line.left < jump.right && line.right > jump.left && line.top < jump.bottom && line.bottom > jump.top);
     });
     expect(detailOverlap).toBe(false);
+    if (width === 390) {
+      await page.evaluate(() => { document.body.style.zoom = "2"; });
+      const zoomLayout = await page.evaluate(() => {
+        const range = document.createRange(); range.selectNodeContents(document.querySelector("[data-save-detail]")!);
+        const jump = document.querySelector(".local-recovery-jump")!.getBoundingClientRect();
+        return { overlap: [...range.getClientRects()].some((line) => line.left < jump.right && line.right > jump.left && line.top < jump.bottom && line.bottom > jump.top),
+          buttonHeight: jump.height, scrollWidth: document.documentElement.scrollWidth };
+      });
+      expect(zoomLayout.buttonHeight).toBeGreaterThan(48);
+      expect(zoomLayout.overlap).toBe(false);
+      expect(zoomLayout.scrollWidth).toBeLessThanOrEqual(390);
+      await page.locator(".local-recovery-jump").click();
+      expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+      await page.evaluate(() => scrollTo(0, 0));
+      await page.getByRole("button", { name: "本文を検索" }).focus();
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".local-recovery-jump")).toBeFocused();
+      await page.keyboard.press("Enter");
+      expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+      await page.evaluate(() => { document.body.style.zoom = ""; scrollTo(0, 0); });
+    }
     await page.getByRole("button", { name: "閲覧", exact: true }).click();
     const readingOverlap = await page.evaluate(() => {
       const range = document.createRange(); range.selectNodeContents(document.querySelector("[data-save-detail]")!);

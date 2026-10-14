@@ -193,8 +193,7 @@ dialog > .secondary { margin-top: 15px; }
 .document-workspace .document-toolbar { position: relative; }
 .document-toolbar > .local-recovery-jump { position: absolute; right: 0; top: 0; }
 .document-toolbar [data-save-detail] { flex-basis: 100%; }
-.document-toolbar[data-attention="true"] { padding-bottom: 48px; }
-.document-toolbar[data-attention="true"] > .local-recovery-jump { top: auto; bottom: 0; }
+.document-toolbar[data-attention="true"] > .local-recovery-jump { position: static; order: 1; margin-left: auto; }
 .mode-switch { border: 0; padding: 0; }
 .mode-switch button { min-width: 64px; padding: 6px 10px; }
 .document-title { margin-top: 16px; margin-bottom: 16px; font-size: 32px; font-weight: 500; line-height: 1.5; letter-spacing: -.025em; }
