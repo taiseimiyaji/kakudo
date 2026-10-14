@@ -27,13 +27,13 @@ export function LocalRecoveryPanel({ view, note, onEnable, onDisable, onRefresh,
     </details>
     {view.enabled && view.status !== "idle" && <p className="muted" role="status">{status}</p>}
     {canUndoRestore && <button type="button" className="secondary" onClick={onUndoRestore}>復元前に戻す（本文と名前）</button>}
-    {view.candidates.length > 0 && <div className="local-recovery-candidates"><h2>この端末の復元候補</h2><p>サーバーの保存版と確認し、復元する候補を選んでください。復元してもサーバーには書き込みません。保存は別の明示操作です。</p>
+    {view.candidates.length > 0 && <div className="local-recovery-candidates"><h2>この端末の復元候補</h2><p>この画面で最後に確認した保存版と候補を比べてください。別画面での変更は自動反映されません。復元してもサーバーには書き込みません。保存は別の明示操作で、競合があれば保存時に検出します。</p>
       {view.candidates.map((candidate) => <article key={candidate.key} className="local-recovery-candidate">
         <h3>{candidate.title.trim() ? candidate.title : "（名前が空または空白の下書き）"}</h3>
         <p>最終編集: <time dateTime={new Date(candidate.updatedAt).toISOString()}>{new Date(candidate.updatedAt).toLocaleString("ja-JP")}</time> / 編集セッション: {candidate.sessionId.slice(0, 8)}</p>
         {candidate.outcomeUnknown && <p>直前の保存・引用の結果は不明です。本文が一致しても引用の成否は確定しません。</p>}
         {candidate.baseHash !== note.saved.hash || candidate.baseWriteId !== note.saved.writeId ? <p>候補の保存基準よりサーバー版が変わっています。本文と名前を確認してください。</p> : null}
-        <details><summary>サーバー版と候補の本文を比較</summary><div className="local-recovery-compare"><section><h4>現在のサーバー版: {note.saved.title}</h4><pre tabIndex={0}>{note.saved.content}</pre></section><section><h4>この端末の候補: {candidate.title}</h4><pre tabIndex={0}>{candidate.content}</pre></section></div></details>
+        <details><summary>確認済みの保存版と候補の本文を比較</summary><div className="local-recovery-compare"><section><h4>この画面で最後に確認した保存版: {note.saved.title}</h4><pre tabIndex={0}>{note.saved.content}</pre></section><section><h4>この端末の候補: {candidate.title}</h4><pre tabIndex={0}>{candidate.content}</pre></section></div></details>
         <button type="button" disabled={!canRestore || view.busy} onClick={() => onRestore(candidate)}>この候補を編集画面に復元</button>
         <button type="button" className="secondary" disabled={view.busy} onClick={() => onDiscard(candidate)}>この候補を破棄</button>
       </article>)}
