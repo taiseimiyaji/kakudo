@@ -1,5 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// The contenteditable DOM can omit offscreen lines; sliceDoc reads the mounted editor's full text.
+async function readEditorDocument(page: Page): Promise<string> {
+  return page.getByRole("textbox", { name: "Markdown本文" }).evaluate((element) => {
+    const tile = (element as HTMLElement & { cmTile?: { root?: { view?: { state: { sliceDoc: () => string } } } } }).cmTile;
+    const view = tile?.root?.view;
+    if (!view) throw new Error("CodeMirror view is unavailable");
+    return view.state.sliceDoc();
+  });
+}
+
 async function readLocalDrafts(page: Page): Promise<Array<Record<string, unknown>>> {
   return page.evaluate(async () => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open("kakudo-local-recovery", 2); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
@@ -75,6 +85,7 @@ test("opted-in local draft survives failed save and tab close, then needs explic
     await candidates.getByRole("button", { name: "この候補を編集画面に復元" }).click();
     await expect(reopened.getByText("端末の下書き", { exact: true })).toBeVisible();
     await expect(reopened.getByLabel("ノート名（必須）")).toHaveValue("  人間の変更した名前  ");
+    expect(await readEditorDocument(reopened)).toBe(original + addition);
     await expect(reopened.getByRole("textbox", { name: "Markdown本文" })).toContainText(addition);
     expect(retryWrites).toBe(0);
     await candidates.getByRole("button", { name: "復元前に戻す（本文と名前）" }).click();
@@ -84,9 +95,14 @@ test("opted-in local draft survives failed save and tab close, then needs explic
     await reopened.getByRole("textbox", { name: "Markdown本文" }).press("ControlOrMeta+End");
     await expect(reopened.getByRole("textbox", { name: "Markdown本文" })).toContainText(addition);
     await reopened.getByRole("textbox", { name: "Markdown本文" }).press("ControlOrMeta+Z");
+    expect(await readEditorDocument(reopened)).toBe(original);
     await expect(reopened.getByRole("textbox", { name: "Markdown本文" })).not.toContainText(addition);
     await expect(reopened.getByLabel("ノート名（必須）")).toHaveValue("  人間の変更した名前  ");
+    await reopened.evaluate(() => scrollTo(0, 0));
     await reopened.getByRole("textbox", { name: "Markdown本文" }).press("ControlOrMeta+Shift+Z");
+    // CodeMirror may only render the visible lines while its document already contains the redo.
+    expect(await readEditorDocument(reopened)).toBe(original + addition);
+    await reopened.getByRole("textbox", { name: "Markdown本文" }).press("ControlOrMeta+End");
     await expect(reopened.getByRole("textbox", { name: "Markdown本文" })).toContainText(addition);
     expect(retryWrites).toBe(0);
     await reopened.getByRole("button", { name: "復元した下書きを保存" }).click();
