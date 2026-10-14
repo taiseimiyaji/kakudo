@@ -70,6 +70,7 @@ for (const width of [390, 1440]) test(`opted-in draft survives note navigation, 
     await page.getByRole("textbox", { name: "Markdown本文" }).pressSequentially(" 続き");
     await expect(page.getByRole("button", { name: "復元した下書きを保存" })).toBeEnabled();
     await page.waitForTimeout(1300);
+    expect(writes).toBe(1);
     expect((await (await request.get(firstPath)).json()).content).toBe("保存済みの本文");
     await page.unroute(`**${firstPath}?*`);
     await page.getByRole("button", { name: "復元した下書きを保存" }).click();
