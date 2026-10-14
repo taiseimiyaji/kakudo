@@ -118,6 +118,13 @@ describe("autosave integration with current concurrency protection", () => {
     expect(apply).toHaveBeenCalledWith("Human words\n> Cited");
     expect(session.getSnapshot()).toMatchObject({ saved: { writeId: "write-q" }, dirty: false });
   });
+  it("acknowledges the local generation submitted with a successful quote", async () => {
+    const confirmed = vi.fn();
+    const session = new NoteSession(initial, vi.fn(), confirmed, (draft) => draft.content === "Human words" ? 4 : 0);
+    session.edit({ content: "Human words" });
+    await session.addQuote("Human words", vi.fn().mockResolvedValue({ ...result("q"), content: "Human words\n> Cited" }), vi.fn());
+    expect(confirmed).toHaveBeenCalledWith({ content: "Human words\n> Cited", title: initial.title }, 4);
+  });
 });
 
 it("explicit save can record external Markdown after reload while unchanged ticks stay silent", async () => {
@@ -141,4 +148,47 @@ it("a queued quote, context update and delete cannot run after the preceding wri
 });
 it("an unknown forced save remains protected even when the human draft equals the previous baseline", async () => {
   const persist = vi.fn().mockRejectedValue(new UnknownNoteWriteOutcome()); const session = new NoteSession(initial, persist); expect(await session.save(true)).toBe(false); expect(session.getSnapshot()).toMatchObject({ dirty: false, outcomeUnknown: true, retryRequired: true, saving: false }); session.tick(); expect(await session.save(true)).toBe(false); expect(persist).toHaveBeenCalledTimes(1);
+});
+
+it("local restoration keeps the fresh server baseline and blocks timer, quote, context and deletion until explicit save", async () => {
+  const persist = vi.fn().mockResolvedValue(result("restored"));
+  const quote = vi.fn(); const context = vi.fn(); const remove = vi.fn();
+  const session = new NoteSession(initial, persist);
+  session.restoreLocalDraft({ title: "  名前  ", content: "人間の復元本文\r\n次の行" });
+  expect(session.getSnapshot()).toMatchObject({ title: "  名前  ", content: "人間の復元本文\r\n次の行", saved: { hash: "initial-hash", writeId: "w0" }, localRecoveryPending: true });
+  session.tick(); expect(await session.save()).toBe(false);
+  await expect(session.addQuote(session.getSnapshot().content, quote, vi.fn())).rejects.toThrow("明示保存");
+  await expect(session.updateContext(context)).rejects.toThrow("明示保存");
+  expect(await session.remove(remove)).toBe(false);
+  expect(persist).not.toHaveBeenCalled(); expect(quote).not.toHaveBeenCalled(); expect(context).not.toHaveBeenCalled(); expect(remove).not.toHaveBeenCalled();
+  expect(await session.save(true)).toBe(true);
+  expect(persist).toHaveBeenCalledWith({ title: "  名前  ", content: "人間の復元本文\r\n次の行", baseHash: "initial-hash", baseWriteId: "w0" });
+  expect(session.getSnapshot()).toMatchObject({ localRecoveryPending: false, retryRequired: false });
+});
+
+it("cancelling a local restoration restores both fields but keeps the redo write gate", async () => {
+  const persist = vi.fn(); const session = new NoteSession(initial, persist);
+  session.restoreLocalDraft({ title: " ", content: "復元本文" });
+  session.cancelLocalRestore(); session.tick();
+  expect(session.getSnapshot()).toMatchObject({ title: initial.title, content: initial.content, localRecoveryPending: true, localRecoveryCanceled: true, dirty: false });
+  session.edit({ content: "復元本文" }); session.tick();
+  expect(await session.save()).toBe(false);
+  expect(persist).not.toHaveBeenCalled();
+});
+
+it("redo during a canceled draft's in-flight explicit save keeps the newer write gate", async () => {
+  const pending = deferred<NoteSaveResult>();
+  const persist = vi.fn().mockReturnValue(pending.promise);
+  const session = new NoteSession(initial, persist);
+  session.restoreLocalDraft({ title: initial.title, content: "復元本文" });
+  session.cancelLocalRestore();
+  const saving = session.save(true);
+  await Promise.resolve();
+  session.requireExplicitLocalSave();
+  session.edit({ content: "復元本文" });
+  pending.resolve(result("baseline"));
+  expect(await saving).toBe(true);
+  session.tick();
+  expect(persist).toHaveBeenCalledTimes(1);
+  expect(session.getSnapshot()).toMatchObject({ content: "復元本文", saved: { content: initial.content }, localRecoveryPending: true, localRecoveryCanceled: false, retryRequired: true });
 });
