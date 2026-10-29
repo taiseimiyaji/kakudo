@@ -1,5 +1,5 @@
 import type { EditorView } from "@codemirror/view";
-import { expect, test } from "./manual-note-fixture";
+import { expect, test } from "@playwright/test";
 
 type EditorDOM = HTMLElement & { cmTile: { root: { view: EditorView } } };
 
@@ -22,8 +22,10 @@ for (const { name, lineBreak, clipboard } of [
         focused: view.hasFocus };
     });
     try {
+      await page.clock.install();
       await page.goto(`/workspaces/default/documents/${document.id}`);
       await page.getByRole("button", { name: "編集", exact: true }).click();
+      await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
       await editor.press("ControlOrMeta+End"); await editor.press("ArrowUp"); await editor.press("ArrowUp"); await editor.press("Home");
       await page.evaluate((text) => navigator.clipboard.writeText(text), clipboard);
       await editor.press("ControlOrMeta+V");
@@ -34,7 +36,7 @@ for (const { name, lineBreak, clipboard } of [
       await expect.poll(snapshot).toMatchObject({ content: original, lines: 6 });
       await editor.press("ControlOrMeta+Shift+Z");
       await expect.poll(snapshot).toMatchObject({ content: expected, lines: 7 });
-      await page.getByRole("button", { name: "保存", exact: true }).click();
+      await page.clock.runFor(1000);
       await expect(page.locator(".save-state")).toHaveText("保存済み");
       expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(expected);
       await page.reload();
