@@ -79,7 +79,7 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
           const insert = codePasteWithLineBreak(text, view.state.lineBreak);
           if (insert === text) return false;
           event.preventDefault();
-          view.dispatch({ ...view.state.replaceSelection(insert), userEvent: "input.paste" });
+          view.dispatch({ ...view.state.replaceSelection(insert), scrollIntoView: true, userEvent: "input.paste" });
           return true;
         }
         event.preventDefault();

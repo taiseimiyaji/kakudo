@@ -45,3 +45,26 @@ for (const { name, lineBreak, clipboard } of [
     } finally { await request.delete(`/api/documents/${document.id}`); }
   });
 }
+
+test("a long normalized code paste keeps its caret visible on a narrow screen", async ({ page, context, request }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const original = "# 人間のノート\r\n\r\n```ts\r\n\r\n```\r\n";
+  const clipboard = Array.from({ length: 80 }, (_, i) => `const line${i + 1} = ${i + 1};`).join("\n");
+  const { document } = await (await request.post("/api/documents", { data: { title: "長いコード貼り付け", content: original } })).json();
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await editor.press("ControlOrMeta+End"); await editor.press("ArrowUp"); await editor.press("ArrowUp"); await editor.press("Home");
+    await page.evaluate((text) => navigator.clipboard.writeText(text), clipboard);
+    await editor.press("ControlOrMeta+V");
+    await expect.poll(() => editor.evaluate((element) => {
+      const view = (element as EditorDOM).cmTile.root.view;
+      const caret = view.coordsAtPos(view.state.selection.main.head);
+      return { focused: view.hasFocus, lines: view.state.doc.lines,
+        caretAtPasteEnd: view.state.sliceDoc(0, view.state.selection.main.head).endsWith("const line80 = 80;"),
+        caretVisible: !!caret && caret.top >= 0 && caret.bottom <= innerHeight && caret.left >= 0 && caret.right <= innerWidth };
+    })).toEqual({ focused: true, lines: 85, caretAtPasteEnd: true, caretVisible: true });
+  } finally { await request.delete(`/api/documents/${document.id}`); }
+});
