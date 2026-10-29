@@ -23,11 +23,10 @@ for (const width of [390, 1440]) test(`reading position follows first edit at ${
       await page.getByRole("button", { name: "編集", exact: true }).click();
       const editor = page.getByRole("textbox", { name: "Markdown本文" });
       await expect(editor).toBeFocused();
-      const visible = await page.locator(".cm-line").evaluateAll((lines) => lines.filter((line) => {
+      await expect.poll(() => page.locator(".cm-line").evaluateAll((lines, expected) => lines.some((line) => {
         const rect = line.getBoundingClientRect();
-        return rect.bottom > document.querySelector(".note-header")!.getBoundingClientRect().bottom && rect.top < innerHeight;
-      }).map((line) => line.textContent ?? ""));
-      expect(visible.some((line) => line.includes(scenario.expected)), `${scenario.name}: ${visible.slice(0, 5).join(" | ")}`).toBe(true);
+        return rect.bottom > document.querySelector(".note-header")!.getBoundingClientRect().bottom && rect.top < innerHeight && (line.textContent ?? "").includes(expected);
+      }), scenario.expected), { message: `visible source near ${scenario.name}` }).toBe(true);
     }
     const saved = await (await request.get(`/api/documents/${document.id}`)).json();
     expect(saved.content).toBe(content);
