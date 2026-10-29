@@ -11,7 +11,7 @@ import { Feedback } from "../../components/common/feedback";
 import { PasteDialog } from "../../components/editor/paste-dialog";
 import type { InterceptedPaste } from "../../modules/editor/paste-policy";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Link, useBlocker, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useBlocker, useElementScrollRestoration, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { request } from "../api";
 import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "../../shared/document";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
@@ -29,6 +29,7 @@ export default function DocumentPage() {
 }
 function DocumentRead({ workspaceId, documentId }: { workspaceId: string; documentId: string }) {
   const navigate = useNavigate();
+  const savedScroll = useElementScrollRestoration({ getElement: () => window });
   const { reviewId, focusNewNote: focusNewNoteId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
   const [creationFocusIntent] = useState(() => focusNewNoteId === documentId);
   const [loaded, setLoaded] = useState<{ data: DocumentDetail; focusAvailable: boolean } | null>(null); const [error, setError] = useState("");
@@ -42,6 +43,12 @@ function DocumentRead({ workspaceId, documentId }: { workspaceId: string; docume
     load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === documentId && document.workspaceId === workspaceId).parse(await request(`/documents/${encodeURIComponent(documentId)}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })),
     onData: (data) => setLoaded({ data, focusAvailable: document.activeElement === document.body }), onError: (e) => setError(e.message),
   }), [documentId, workspaceId, version]);
+  useLayoutEffect(() => {
+    // The body mounts after the router's first scroll pass; its render event can still reset scrolling.
+    if (!loaded?.data.content || !loaded.focusAvailable || error || !savedScroll) return;
+    const frame = requestAnimationFrame(() => window.scrollTo(savedScroll.scrollX, savedScroll.scrollY));
+    return () => cancelAnimationFrame(frame);
+  }, [error, loaded, savedScroll]);
   if (error) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><h1>ノートを開けません</h1><p role="alert">{error}</p><button onClick={() => { setError(""); setVersion((value) => value + 1); }}>ノートを再取得</button><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ戻る</Link></main>;
   if (!loaded) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><p role="status">読み込み中…</p></main>;
   return <DocumentSession initial={loaded.data} focusOnEntry={creationFocusIntent && loaded.focusAvailable} />;
