@@ -23,4 +23,7 @@ export function pasteAction(state: EditorState, text: string): "allow" | "resour
   if (sourceUrlSchema.safeParse(text.trim()).success && !/\s/.test(text.trim())) return "resource";
   return "quote";
 }
+export function codePasteWithLineBreak(text: string, lineBreak: string): string {
+  return text.replace(/\r\n|\r|\n/g, lineBreak);
+}
 export type InterceptedPaste = { kind: "quote" | "resource"; text: string; content: string; from: number; to: number };

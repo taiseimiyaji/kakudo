@@ -1,6 +1,6 @@
 import { reviewHighlightField, setReviewHighlight } from "./highlight-extension";
 import type { FindingSelection, HighlightRange } from "../../modules/editor/review-highlight";
-import { pasteAction, type InterceptedPaste } from "../../modules/editor/paste-policy";
+import { codePasteWithLineBreak, pasteAction, type InterceptedPaste } from "../../modules/editor/paste-policy";
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { quoteEdit } from "../../modules/editor/quote-edit";
 import { Compartment, EditorState, StateEffect, StateField, Text } from "@codemirror/state";
@@ -75,7 +75,13 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
       EditorView.domEventHandlers({ compositionstart() { compositionCallback.current?.(true); }, compositionend() { compositionCallback.current?.(false); }, paste(event, view) {
         const text = event.clipboardData?.getData("text/plain") ?? "";
         const kind = pasteAction(view.state, text);
-        if (kind === "allow") return false;
+        if (kind === "allow") {
+          const insert = codePasteWithLineBreak(text, view.state.lineBreak);
+          if (insert === text) return false;
+          event.preventDefault();
+          view.dispatch({ ...view.state.replaceSelection(insert), userEvent: "input.paste" });
+          return true;
+        }
         event.preventDefault();
         if (text) pasteCallback.current({ kind, text, content: view.state.sliceDoc(), from: view.state.sliceDoc(0, view.state.selection.main.from).length, to: view.state.sliceDoc(0, view.state.selection.main.to).length });
         return true;
