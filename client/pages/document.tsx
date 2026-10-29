@@ -16,7 +16,7 @@ import { request } from "../api";
 import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "../../shared/document";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
 import { MarkdownPreview } from "../../components/editor/preview";
-import { captureReadingPosition, type ReadingPosition } from "../../modules/editor/read-position";
+import { captureReadingPosition, restoreReadingPosition, type ReadingPosition } from "../../modules/editor/read-position";
 import { checkResourceRegistration, registerResource } from "../resource-registration";
 import { readNote } from "../../modules/document/reading";
 import { NoteWriter } from "../note-write";
@@ -64,6 +64,7 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const readingRef = useRef<HTMLElement>(null);
   const readingPosition = useRef<ReadingPosition | null>(null);
+  const editPosition = useRef<ReadingPosition | null>(null);
   const [localRecovery] = useState(() => new NoteLocalRecovery(workspaceId, id));
   const [writer] = useState(() => new NoteWriter(workspaceId, id));
   useEffect(() => { writer.activate(); return () => writer.close(); }, [writer]);
@@ -108,6 +109,12 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
     if (position) editorRef.current?.restoreFocusAt(position);
     else editorRef.current?.restoreFocus();
   } }, [mode]);
+  useLayoutEffect(() => {
+    if (mode !== "read" || !editPosition.current) return;
+    const position = editPosition.current;
+    editPosition.current = null;
+    restoreReadingPosition(readingRef.current?.querySelector(".markdown-preview") ?? null, position);
+  }, [mode]);
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") === "visible"; } catch { return false; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);
   useEffect(() => { const timer = setInterval(() => session.tick(), 1000); return () => clearInterval(timer); }, [session]);
@@ -199,7 +206,7 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
       if (!busy && !outcomeUnknown && !paste && !composing && title.trim()) void save();
     }
   }}>
-    <header className="app-header note-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => { if (mode === "edit") editorRef.current?.rememberPosition(); setMode("read"); }}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={showEdit}>編集</button></div><span className="save-state" role="status" aria-atomic="true" data-attention={savePresentation.attention} title={savePresentation.detail}>{savePresentation.label}</span><button ref={saveButtonRef} className="secondary" disabled={busy || outcomeUnknown || !!paste || composing || !title.trim()} onClick={() => { void save(); }}>{localRecoveryCanceled ? "自動保存を再開" : localRecoveryPending ? "復元した下書きを保存" : retryRequired ? "保存を再試行" : "保存"}</button><details className="note-navigation"><summary>メニュー</summary><WorkspaceNav workspaceId={workspaceId} /></details></header>
+    <header className="app-header note-header"><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>← 学習マップ</Link><h1>ノート</h1><div className="mode-switch" role="group" aria-label="ノートの表示モード"><button className="secondary" aria-pressed={mode === "read"} disabled={!!paste} onClick={() => { if (mode === "edit") { editPosition.current = editorRef.current?.captureReadingAnchor(document.querySelector(".note-header")) ?? null; editorRef.current?.rememberPosition(); } setMode("read"); }}>閲覧</button><button className="secondary" aria-pressed={mode === "edit"} disabled={!!paste} onClick={showEdit}>編集</button></div><span className="save-state" role="status" aria-atomic="true" data-attention={savePresentation.attention} title={savePresentation.detail}>{savePresentation.label}</span><button ref={saveButtonRef} className="secondary" disabled={busy || outcomeUnknown || !!paste || composing || !title.trim()} onClick={() => { void save(); }}>{localRecoveryCanceled ? "自動保存を再開" : localRecoveryPending ? "復元した下書きを保存" : retryRequired ? "保存を再試行" : "保存"}</button><details className="note-navigation"><summary>メニュー</summary><WorkspaceNav workspaceId={workspaceId} /></details></header>
     {error && <p role="alert" className="error">{error} 自動保存を停止しています。入力内容はこの画面に残っています。{outcomeUnknown ? "直前の保存・引用がサーバーに反映されたかは不明です。タブを閉じたり再読み込みしたりすると、サーバーに反映されていない入力は復元できない可能性があります。「最新の保存内容を確認」で保存済みの本文と名前を確かめてください。この取得だけでは引用の成否は確定しません。現在の本文と名前を保存する場合だけ、「確認した内容を基準に再試行」の後に「保存を再試行」を押してください。確認だけでは保存しません。" : "再読み込みする前に本文と名前を確認してください。"}</p>}{recoveryError && <p role="alert" className="error">{recoveryError}</p>}
     {retryRequired && (!localRecoveryPending || error) && <button disabled={busy || !!paste} onClick={() => { const version = ++latestReadVersion.current; latestReadStop.current?.(); setLatest(null); setRecovering(true); setRecoveryError(""); latestReadStop.current = readNote({ load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === id && document.workspaceId === workspaceId).parse(await request(`/documents/${id}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })), onData: (data) => { if (version === latestReadVersion.current) { setLatest(data); setRecovering(false); } }, onError: (e) => { if (version === latestReadVersion.current) { setRecoveryError(e.message); setRecovering(false); } } }); }}>最新の保存内容を確認</button>}
     {latest && <button className="secondary" onClick={() => latestPanelRef.current?.scrollIntoView({ block: "start" })}>取得した保存内容を見る</button>}

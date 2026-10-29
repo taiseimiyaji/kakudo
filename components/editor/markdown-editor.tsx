@@ -10,9 +10,9 @@ import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
 import { noteSearch, openNoteSearch } from "./note-search";
-import type { ReadingPosition } from "../../modules/editor/read-position";
+import { readingViewportY, type ReadingPosition } from "../../modules/editor/read-position";
 
-export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; restoreFocus: () => void; restoreFocusAt: (position: ReadingPosition) => void };
+export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; captureReadingAnchor: (header: HTMLElement | null) => ReadingPosition | null; restoreFocus: () => void; restoreFocusAt: (position: ReadingPosition) => void };
 export function MarkdownEditor({ initialContent, focusOnMount = false, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; focusOnMount?: boolean; onChange: (content: string, historyEvent: "undo" | "redo" | null) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const keyboardReturn = useRef<KeyboardReturn | null>(null);
@@ -34,6 +34,14 @@ export function MarkdownEditor({ initialContent, focusOnMount = false, onChange,
   }, rememberPosition() {
     const view = viewRef.current;
     if (view) position.current = { pageY: window.scrollY, editorY: view.scrollDOM.scrollTop };
+  }, captureReadingAnchor(header) {
+    const view = viewRef.current;
+    if (!view || window.scrollY <= 32) return null;
+    const rect = view.contentDOM.getBoundingClientRect(), viewportY = readingViewportY(header);
+    if (rect.bottom <= (header?.getBoundingClientRect().bottom ?? 0) || rect.top >= window.innerHeight || rect.width <= 0) return null;
+    const y = Math.max(rect.top + 1, Math.min(viewportY, rect.bottom - 1));
+    const sourcePosition = view.posAtCoords({ x: Math.min(rect.right - 1, rect.left + 32), y });
+    return sourcePosition === null ? null : { offset: view.state.sliceDoc(0, sourcePosition).length, viewportY };
   }, restoreFocus() {
     const view = viewRef.current;
     if (!view) return;
