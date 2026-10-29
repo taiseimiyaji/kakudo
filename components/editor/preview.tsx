@@ -14,6 +14,23 @@ function rehypeReadPositions() {
           node.properties ??= {};
           node.properties["data-source-start"] = start;
           node.properties["data-source-end"] = end;
+          if (node.tagName !== "pre") {
+            const segments: number[][] = [];
+            let textOffset = 0, image = false;
+            function collect(child: Root["children"][number]) {
+              if (child.type === "text") {
+                const from = child.position?.start.offset, to = child.position?.end.offset;
+                if (from !== undefined && to !== undefined) segments.push([from, to, textOffset, textOffset + child.value.length]);
+                textOffset += child.value.length;
+              } else if (child.type === "element") {
+                if (child.tagName === "img") image = true;
+                else for (const nested of child.children) collect(nested);
+              }
+            }
+            for (const child of node.children) collect(child);
+            // The custom image placeholder has different text from the HAST img.
+            if (!image && segments.length) node.properties["data-source-text-map"] = JSON.stringify(segments);
+          }
         }
       }
       if ("children" in node) for (const child of node.children) visit(child);

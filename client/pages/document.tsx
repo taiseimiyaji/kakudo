@@ -113,8 +113,8 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
     if (mode !== "read" || !editPosition.current) return;
     const position = editPosition.current;
     editPosition.current = null;
-    restoreReadingPosition(readingRef.current?.querySelector(".markdown-preview") ?? null, position);
-  }, [mode]);
+    restoreReadingPosition(readingRef.current?.querySelector(".markdown-preview") ?? null, position, content);
+  }, [mode, content]);
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") === "visible"; } catch { return false; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);
   useEffect(() => { const timer = setInterval(() => session.tick(), 1000); return () => clearInterval(timer); }, [session]);
