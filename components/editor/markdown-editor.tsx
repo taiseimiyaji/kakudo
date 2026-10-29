@@ -10,8 +10,9 @@ import { markdown } from "@codemirror/lang-markdown";
 import { defaultHighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
 import { noteSearch, openNoteSearch } from "./note-search";
+import type { ReadingPosition } from "../../modules/editor/read-position";
 
-export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; restoreFocus: () => void };
+export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; restoreFocus: () => void; restoreFocusAt: (position: ReadingPosition) => void };
 export function MarkdownEditor({ initialContent, focusOnMount = false, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; focusOnMount?: boolean; onChange: (content: string, historyEvent: "undo" | "redo" | null) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const keyboardReturn = useRef<KeyboardReturn | null>(null);
@@ -41,6 +42,28 @@ export function MarkdownEditor({ initialContent, focusOnMount = false, onChange,
     position.current = null;
     view.focus();
     if (remembered) { view.scrollDOM.scrollTop = remembered.editorY; window.scrollTo({ top: remembered.pageY, behavior: "instant" }); }
+  }, restoreFocusAt({ offset, viewportY }) {
+    const view = viewRef.current;
+    if (!view) return;
+    if (position.current) {
+      // Returning to a draft keeps the exact caret, selection and writing scroll.
+      const remembered = position.current;
+      position.current = null;
+      keyboardReturn.current?.cancel();
+      view.focus();
+      view.scrollDOM.scrollTop = remembered.editorY;
+      window.scrollTo({ top: remembered.pageY, behavior: "instant" });
+      return;
+    }
+    keyboardReturn.current?.cancel();
+    const anchor = Math.max(0, Math.min(offset, view.state.doc.length));
+    view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+    view.focus();
+    requestAnimationFrame(() => {
+      if (viewRef.current !== view) return;
+      const rect = view.coordsAtPos(anchor);
+      if (rect) window.scrollBy({ top: rect.top - viewportY, behavior: "instant" });
+    });
   }, applyQuote(paste, after) {
     const view = viewRef.current;
     if (!view || view.state.sliceDoc() !== paste.content) throw new Error("編集中の本文が変わりました。最新の保存内容を確認してください。");

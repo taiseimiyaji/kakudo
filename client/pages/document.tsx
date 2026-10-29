@@ -16,6 +16,7 @@ import { request } from "../api";
 import { documentDetailSchema, documentLinksSchema, type DocumentDetail } from "../../shared/document";
 import { MarkdownEditor, type MarkdownEditorHandle } from "../../components/editor/markdown-editor";
 import { MarkdownPreview } from "../../components/editor/preview";
+import { captureReadingPosition, type ReadingPosition } from "../../modules/editor/read-position";
 import { checkResourceRegistration, registerResource } from "../resource-registration";
 import { readNote } from "../../modules/document/reading";
 import { NoteWriter } from "../note-write";
@@ -61,6 +62,8 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
   const [reviewProtected, setReviewProtected] = useState(false);
   const [paste, setPaste] = useState<InterceptedPaste | null>(null);
   const editorRef = useRef<MarkdownEditorHandle>(null);
+  const readingRef = useRef<HTMLElement>(null);
+  const readingPosition = useRef<ReadingPosition | null>(null);
   const [localRecovery] = useState(() => new NoteLocalRecovery(workspaceId, id));
   const [writer] = useState(() => new NoteWriter(workspaceId, id));
   useEffect(() => { writer.activate(); return () => writer.close(); }, [writer]);
@@ -98,7 +101,13 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
     const label = input.previousElementSibling; if (label) observer.observe(label);
     return () => { observer.disconnect(); cancelAnimationFrame(frame); };
   }, [title, mode]);
-  useLayoutEffect(() => { if (mode === "edit" && focusRequested.current) { focusRequested.current = false; editorRef.current?.restoreFocus(); } }, [mode]);
+  useLayoutEffect(() => { if (mode === "edit" && focusRequested.current) {
+    focusRequested.current = false;
+    const position = readingPosition.current;
+    readingPosition.current = null;
+    if (position) editorRef.current?.restoreFocusAt(position);
+    else editorRef.current?.restoreFocus();
+  } }, [mode]);
   const [showPreview, setShowPreview] = useState(() => { try { return localStorage.getItem("kakudo:note-preview") === "visible"; } catch { return false; } });
   const pasteRef = useRef<InterceptedPaste | null>(null);
   useEffect(() => { const timer = setInterval(() => session.tick(), 1000); return () => clearInterval(timer); }, [session]);
@@ -127,7 +136,10 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
   function invalidateLatest() { latestReadVersion.current++; latestReadStop.current?.(); setLatest(null); setRecovering(false); }
   const busy = saving || recovering;
   const savePresentation = noteSavePresentation(state, { recovering, composing, paste: !!paste });
-  function showEdit() { if (mode === "edit") editorRef.current?.restoreFocus(); else { focusRequested.current = true; setMode("edit"); } }
+  function showEdit() { if (mode === "edit") editorRef.current?.restoreFocus(); else {
+    readingPosition.current = captureReadingPosition(readingRef.current?.querySelector(".markdown-preview") ?? null, document.querySelector(".note-header"));
+    focusRequested.current = true; setMode("edit");
+  } }
   const highlight = useMemo(() => findingHighlight(selection, revisionId, content), [selection, revisionId, content]);
   const departureProtected = dirty || busy || outcomeUnknown || localRecoveryPending || !!paste || resourceProtected || associationProtected || reviewProtected;
   useBlocker({ shouldBlockFn: () => departureProtected && !window.confirm("未保存・保存中・保存結果不明の変更、未追加の引用、未登録・登録結果を確認中の資料、または受付・指摘更新の結果を確認中のレビューがあります。このまま移動しますか？"), enableBeforeUnload: departureProtected });
@@ -200,7 +212,7 @@ function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; f
     <label className="document-title" hidden={mode !== "edit"}><span className="visually-hidden">ノート名（必須）</span><textarea ref={titleRef} rows={1} value={title} onChange={(e) => editTitle(e.target.value)} onCompositionStart={() => compositionChange(true)} onCompositionEnd={() => compositionChange(false)} onKeyDown={(event) => { if (event.key === "Enter" && !composing && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); editorRef.current?.restoreFocus(); } }} maxLength={200} required /></label>{mode === "read" && <h2 className="note-reading-title">{title}</h2>}
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
     <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} focusOnMount={focusNewNote} editorRef={editorRef} onChange={editContent} onPaste={openPaste} onCompositionChange={compositionChange} highlight={highlight} highlightRequest={selection} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
-    {mode === "read" && <section className="note-reading" aria-label="閲覧モード">{content ? <MarkdownPreview content={content} label="ノート本文" /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
+    {mode === "read" && <section className="note-reading" aria-label="閲覧モード" ref={readingRef}>{content ? <MarkdownPreview content={content} label="ノート本文" trackSourcePosition /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
     {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown || localRecoveryPending} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={(_resource, message) => { if (pasteRef.current !== paste) return; setResourceConfirmation(message); setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
       await session.addQuote(paste.content, (draft) => writer.quote({ text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
         if (!editorRef.current) throw new Error("ノートを閉じています");
