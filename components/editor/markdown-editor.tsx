@@ -56,7 +56,9 @@ export function MarkdownEditor({ initialContent, focusOnMount = false, onChange,
       return;
     }
     keyboardReturn.current?.cancel();
-    const anchor = Math.max(0, Math.min(offset, view.state.doc.length));
+    // HAST positions count CRLF pairs; CodeMirror positions count one break.
+    const sourceOffset = Math.max(0, Math.min(offset, initialContent.length));
+    const anchor = Math.min(view.state.doc.length, initialContent.slice(0, sourceOffset).replace(/\r\n/g, "\n").length);
     view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
     view.focus();
     requestAnimationFrame(() => {

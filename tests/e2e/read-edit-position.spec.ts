@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import type { EditorView } from "@codemirror/view";
+
+type EditorDOM = HTMLElement & { cmTile: { root: { view: EditorView } } };
 
 const sections = Array.from({ length: 80 }, (_, index) => `## 見出し ${index + 1}\n\n人間が書いた内容 ${index + 1}。`).join("\n\n");
 const paragraph = `長い段落の始まり。${"自分の言葉で確かめたことを丁寧に書く。".repeat(90)}長い段落の終わり。`;
@@ -78,5 +81,34 @@ test("opening an existing note at the top keeps the start caret", async ({ page,
     await editor.press("ControlOrMeta+s");
     await expect(page.locator(".save-state")).toHaveText("保存済み");
     expect((await (await request.get(`/api/documents/${document.id}`)).json()).content).toBe(`自分の追記。${content}`);
+  } finally { await request.delete(`/api/documents/${document.id}`); }
+});
+
+for (const width of [390, 1440]) test(`CRLF reading offset reaches its Markdown heading at ${width}px`, async ({ page, request }) => {
+  await page.setViewportSize({ width, height: 844 });
+  const crlf = content.replaceAll("\n", "\r\n");
+  const { document } = await (await request.post("/api/documents", { data: { title: "CRLF位置確認", content: crlf } })).json();
+  try {
+    await page.goto(`/workspaces/default/documents/${document.id}`);
+    const target = page.locator(".note-reading h2").filter({ hasText: "見出し 40" });
+    await target.evaluate((element) => {
+      element.scrollIntoView({ block: "center" });
+      window.scrollBy(0, element.getBoundingClientRect().top - innerHeight * 0.42);
+    });
+    expect(Number(await target.getAttribute("data-source-start"))).toBe(crlf.indexOf("## 見出し 40"));
+    await page.getByRole("button", { name: "編集", exact: true }).click();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await expect(editor).toBeFocused();
+    const range = await editor.evaluate((element) => {
+      const view = (element as EditorDOM).cmTile.root.view;
+      const normalized = view.state.doc.toString(), heading = "## 見出し 40";
+      return { caret: view.state.selection.main.head, start: normalized.indexOf(heading), end: normalized.indexOf(heading) + heading.length,
+        lineBreak: view.state.lineBreak, docLength: view.state.doc.length, sliceLength: view.state.sliceDoc().length };
+    });
+    expect(range.lineBreak).toBe("\r\n");
+    expect(range.docLength).toBe(content.length);
+    expect(range.sliceLength).toBe(crlf.length);
+    expect(range.caret).toBeGreaterThanOrEqual(range.start);
+    expect(range.caret).toBeLessThanOrEqual(range.end);
   } finally { await request.delete(`/api/documents/${document.id}`); }
 });
