@@ -11,7 +11,7 @@ const home = createRoute({ getParentRoute: () => root, path: "/", component: Hom
 const workspace = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId", component: WorkspacePage });
 const maps = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/roadmaps", component: RoadmapPage });
 const map = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/roadmaps/$roadmapId", validateSearch: (search: Record<string, unknown>): { nodeId?: string } => ({ nodeId: typeof search.nodeId === "string" ? search.nodeId : undefined }), component: RoadmapPage });
-const document = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/documents/$documentId", validateSearch: (search: Record<string, unknown>): { reviewId?: string } => ({ reviewId: typeof search.reviewId === "string" ? search.reviewId : undefined }), component: DocumentPage });
+const document = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/documents/$documentId", validateSearch: (search: Record<string, unknown>): { reviewId?: string; focusNewNote?: string } => ({ reviewId: typeof search.reviewId === "string" ? search.reviewId : undefined, focusNewNote: typeof search.focusNewNote === "string" ? search.focusNewNote : undefined }), component: DocumentPage });
 const documents = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/documents", component: DocumentsPage });
 const resources = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/resources", component: ResourcesPage });
 const reviews = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/reviews", component: ReviewsPage });
