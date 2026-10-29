@@ -78,3 +78,80 @@ test("existing empty note and cancelled creation navigation never inherit initia
     await request.delete(`/api/roadmaps/${roadmap.id}`);
   }
 });
+
+test("a new note does not take focus from navigation chosen during a slow read", async ({ page, request }) => {
+  const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: "読込中のキーボード選択" } })).json();
+  const { node } = await (await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title: "作成元" } })).json();
+  let createdId = ""; let release!: () => void; let held = false;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/documents?*", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch(); createdId = (await response.json()).document.id;
+    await route.fulfill({ response });
+  });
+  await page.route(/\/api\/documents\/[^/?]+\?/, async (route) => {
+    if (!createdId || !new URL(route.request().url()).pathname.endsWith(`/${createdId}`)) return route.continue();
+    held = true; await gate; await route.continue();
+  });
+  try {
+    await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
+    await page.locator(`.react-flow__node[data-id="${node.id}"]`).click();
+    await page.getByLabel("新しいノート（必須）").fill("読込待ちのノート");
+    await page.getByRole("button", { name: "ノートを作成", exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    const navLink = page.getByRole("navigation", { name: "メインメニュー" }).getByRole("link").first();
+    for (let i = 0; i < 10 && !await navLink.evaluate((element) => element === document.activeElement); i++) await page.keyboard.press("Tab");
+    await expect(navLink).toBeFocused();
+    release();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await expect(editor).toBeVisible();
+    await expect(editor).not.toBeFocused();
+    await page.keyboard.press("Enter");
+    expect((await (await request.get(`/api/documents/${createdId}`)).json()).content).toBe("");
+  } finally {
+    release(); await page.unrouteAll({ behavior: "wait" });
+    if (createdId) await request.delete(`/api/documents/${createdId}`);
+    await request.delete(`/api/roadmaps/${roadmap.id}`);
+  }
+});
+
+test("an interrupted new-note read does not restore creation focus on Back and Forward", async ({ page, request }) => {
+  const { roadmap } = await (await request.post("/api/roadmaps", { data: { title: "読込を中断したノート" } })).json();
+  const { node } = await (await request.post("/api/nodes", { data: { roadmapId: roadmap.id, title: "作成元" } })).json();
+  let createdId = ""; let release!: () => void; let held = false; let reads = 0;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/documents?*", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch(); createdId = (await response.json()).document.id;
+    await route.fulfill({ response });
+  });
+  await page.route(/\/api\/documents\/[^/?]+\?/, async (route) => {
+    if (!createdId || !new URL(route.request().url()).pathname.endsWith(`/${createdId}`)) return route.continue();
+    reads++;
+    if (reads === 1) {
+      held = true; await gate;
+      try { await route.continue(); } catch { /* The first read is cancelled on Back. */ }
+      return;
+    }
+    await route.continue();
+  });
+  try {
+    await page.goto(`/workspaces/default/roadmaps/${roadmap.id}`);
+    await page.locator(`.react-flow__node[data-id="${node.id}"]`).click();
+    await page.getByLabel("新しいノート（必須）").fill("途中で戻るノート");
+    await page.getByRole("button", { name: "ノートを作成", exact: true }).click();
+    await expect.poll(() => held).toBe(true);
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`/roadmaps/${roadmap.id}$`));
+    release();
+    await page.goForward();
+    const editor = page.getByRole("textbox", { name: "Markdown本文" });
+    await expect(editor).toBeVisible();
+    await expect(editor).not.toBeFocused();
+    await expect(page).toHaveURL(new RegExp(`/documents/${createdId}$`));
+  } finally {
+    release(); await page.unrouteAll({ behavior: "wait" });
+    if (createdId) await request.delete(`/api/documents/${createdId}`);
+    await request.delete(`/api/roadmaps/${roadmap.id}`);
+  }
+});

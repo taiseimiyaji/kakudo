@@ -27,26 +27,29 @@ export default function DocumentPage() {
   return <DocumentRead key={`${workspaceId}:${documentId}`} workspaceId={workspaceId} documentId={documentId} />;
 }
 function DocumentRead({ workspaceId, documentId }: { workspaceId: string; documentId: string }) {
-  const [data, setData] = useState<DocumentDetail | null>(null); const [error, setError] = useState("");
-  const [version, setVersion] = useState(0);
-  useEffect(() => readNote({
-    load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === documentId && document.workspaceId === workspaceId).parse(await request(`/documents/${encodeURIComponent(documentId)}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })),
-    onData: setData, onError: (e) => setError(e.message),
-  }), [documentId, workspaceId, version]);
-  if (error) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><h1>ノートを開けません</h1><p role="alert">{error}</p><button onClick={() => { setError(""); setVersion((value) => value + 1); }}>ノートを再取得</button><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ戻る</Link></main>;
-  if (!data) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><p role="status">読み込み中…</p></main>;
-  return <DocumentSession initial={data} />;
-}
-function DocumentSession({ initial }: { initial: DocumentDetail }) {
-  const { id, workspaceId } = initial.document;
   const navigate = useNavigate();
-  const { reviewId: initialRunId, focusNewNote: focusNewNoteId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
-  // Keep the one-time intent stable while removing it from the URL.
-  const [focusNewNote] = useState(() => initial.content === "" && focusNewNoteId === id);
+  const { reviewId, focusNewNote: focusNewNoteId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
+  const [creationFocusIntent] = useState(() => focusNewNoteId === documentId);
+  const [loaded, setLoaded] = useState<{ data: DocumentDetail; focusAvailable: boolean } | null>(null); const [error, setError] = useState("");
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     if (focusNewNoteId === undefined) return;
-    void navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId: id }, search: { reviewId: initialRunId }, replace: true });
-  }, [focusNewNoteId, id, initialRunId, navigate, workspaceId]);
+    // Consume the instruction before a slow read can be interrupted by Back.
+    void navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId }, search: { reviewId }, replace: true });
+  }, [documentId, focusNewNoteId, navigate, reviewId, workspaceId]);
+  useEffect(() => readNote({
+    load: async (signal) => documentDetailSchema.refine(({ document }) => document.id === documentId && document.workspaceId === workspaceId).parse(await request(`/documents/${encodeURIComponent(documentId)}?workspaceId=${encodeURIComponent(workspaceId)}`, "GET", undefined, { signal })),
+    onData: (data) => setLoaded({ data, focusAvailable: document.activeElement === document.body }), onError: (e) => setError(e.message),
+  }), [documentId, workspaceId, version]);
+  if (error) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><h1>ノートを開けません</h1><p role="alert">{error}</p><button onClick={() => { setError(""); setVersion((value) => value + 1); }}>ノートを再取得</button><Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ戻る</Link></main>;
+  if (!loaded) return <main className="workspace"><WorkspaceNav workspaceId={workspaceId} /><p role="status">読み込み中…</p></main>;
+  return <DocumentSession initial={loaded.data} focusOnEntry={creationFocusIntent && loaded.focusAvailable} />;
+}
+function DocumentSession({ initial, focusOnEntry }: { initial: DocumentDetail; focusOnEntry: boolean }) {
+  const { id, workspaceId } = initial.document;
+  const navigate = useNavigate();
+  const { reviewId: initialRunId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
+  const focusNewNote = initial.content === "" && focusOnEntry;
   const [selection, setSelection] = useState<FindingSelection | null>(null);
   const [nodes, setNodes] = useState(initial.nodes);
   const [confirmedNodes, setConfirmedNodes] = useState({ version: 0, writeId: initial.document.lastWriteId });
