@@ -15,5 +15,5 @@ const document = createRoute({ getParentRoute: () => root, path: "/workspaces/$w
 const documents = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/documents", component: DocumentsPage });
 const resources = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/resources", component: ResourcesPage });
 const reviews = createRoute({ getParentRoute: () => root, path: "/workspaces/$workspaceId/reviews", component: ReviewsPage });
-export const router = createRouter({ routeTree: root.addChildren([home, workspace, maps, map, documents, document, resources, reviews]) });
+export const router = createRouter({ routeTree: root.addChildren([home, workspace, maps, map, documents, document, resources, reviews]), scrollRestoration: true });
 declare module "@tanstack/react-router" { interface Register { router: typeof router } }

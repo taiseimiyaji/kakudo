@@ -1,6 +1,6 @@
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
-import { useEffect, useState } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { Link, useElementScrollRestoration, useParams } from "@tanstack/react-router";
 import { z } from "zod";
 import { documentSchema, type DocumentMetadata } from "../../shared/document";
 import { request } from "../api";
@@ -10,6 +10,7 @@ export default function DocumentsPage() {
   return <DocumentsList key={workspaceId} workspaceId={workspaceId} />;
 }
 function DocumentsList({ workspaceId }: { workspaceId: string }) {
+  const savedScroll = useElementScrollRestoration({ getElement: () => window });
   const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,6 +20,10 @@ function DocumentsList({ workspaceId }: { workspaceId: string }) {
     onData: (documents) => { setDocuments(documents); setLoading(false); },
     onError: (e) => { setError(e.message); setLoading(false); },
   }), [workspaceId, version]);
+  useLayoutEffect(() => {
+    // The list arrives after the router's render event, so restore once its rows exist.
+    if (!loading && !error && savedScroll) window.scrollTo(savedScroll.scrollX, savedScroll.scrollY);
+  }, [error, loading, savedScroll]);
   return <main className="workspace">
     <WorkspaceNav workspaceId={workspaceId} /><h1>ノート</h1>
     <p className="intro">自分の言葉で書いた、学びの記録。学習項目を削除しても、ノートはここに残ります。</p>
