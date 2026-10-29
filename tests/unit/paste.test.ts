@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { EditorState, EditorSelection } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { pasteAction } from "../../modules/editor/paste-policy";
+import { codePasteWithLineBreak, pasteAction } from "../../modules/editor/paste-policy";
 import { reviewSpans } from "../../modules/review/claims";
 import { quoteInput, quoteMarkdown } from "../../shared/quote";
 function state(doc: string, anchor: number, head = anchor) { return EditorState.create({ doc, selection: { anchor, head }, extensions: [markdown()] }); }
 describe("paste policy", () => {
+  it("uses the note's line break for multiline code paste without changing code characters", () => {
+    expect(codePasteWithLineBreak("a\nb\r\nc\rd", "\r\n")).toBe("a\r\nb\r\nc\r\nd");
+    expect(codePasteWithLineBreak("a\r\nb", "\n")).toBe("a\nb");
+    expect(codePasteWithLineBreak("const exact = 42;", "\r\n")).toBe("const exact = 42;");
+  });
   it("routes prose to quotes and only a standalone HTTP URL to resources", () => {
     expect(pasteAction(state("text", 2), "copied prose")).toBe("quote");
     expect(pasteAction(state("", 0), " https://example.com/a ")).toBe("resource");
