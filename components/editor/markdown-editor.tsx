@@ -12,7 +12,7 @@ import { installKeyboardReturn, type KeyboardReturn } from "./keyboard-return";
 import { noteSearch, openNoteSearch } from "./note-search";
 
 export type MarkdownEditorHandle = { openSearch: () => void; applyQuote: (paste: InterceptedPaste, after: string) => void; restoreContent: (content: string) => void; undoRestore: () => boolean; rememberPosition: () => void; restoreFocus: () => void };
-export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; onChange: (content: string, historyEvent: "undo" | "redo" | null) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
+export function MarkdownEditor({ initialContent, focusOnMount = false, onChange, onPaste, onCompositionChange, highlight = null, highlightRequest = null, editorRef }: { initialContent: string; focusOnMount?: boolean; onChange: (content: string, historyEvent: "undo" | "redo" | null) => void; onPaste: (paste: InterceptedPaste) => void; onCompositionChange?: (composing: boolean) => void; highlight?: HighlightRange | null; highlightRequest?: FindingSelection | null; editorRef?: Ref<MarkdownEditorHandle> }) {
   const viewRef = useRef<EditorView | null>(null);
   const keyboardReturn = useRef<KeyboardReturn | null>(null);
   const lastHighlightRequest = useRef<FindingSelection | null>(null);
@@ -89,11 +89,13 @@ export function MarkdownEditor({ initialContent, onChange, onPaste, onCompositio
       EditorView.updateListener.of((update) => { if (update.docChanged) callback.current(update.state.sliceDoc(), update.transactions.some((transaction) => transaction.isUserEvent("redo")) ? "redo" : update.transactions.some((transaction) => transaction.isUserEvent("undo")) ? "undo" : null); }),
     ] }) });
     viewRef.current = view;
+    // A control chosen while the note loaded keeps the user's focus.
+    if (focusOnMount && document.activeElement === document.body) view.focus();
     const returning = installKeyboardReturn(view);
     keyboardReturn.current = returning;
     return () => { returning.destroy(); keyboardReturn.current = null; viewRef.current = null; view.destroy(); };
     // A document session owns its initial content; parent keys remount it on reload.
-  }, [initialContent]);
+  }, [initialContent, focusOnMount]);
   useEffect(() => {
     const view = viewRef.current; if (!view) return;
     keyboardReturn.current?.cancel();

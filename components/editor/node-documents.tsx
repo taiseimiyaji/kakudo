@@ -32,7 +32,7 @@ export function NodeDocuments({ nodeId, workspaceId, onCreationProtectionChange 
       void requestCreation(`/documents?${scope}`, { title, nodeIds: [nodeId] }, z.object({ document: documentSchema }).refine(({ document }) => document.workspaceId === workspaceId && document.title === title.trim())).then(({ document }) => {
         if (!mounted.current || activeScope.current !== scopeIdentity) return;
         form.reset(); setVersion((value) => value + 1); setStatus("ノートを作成しました。");
-        return navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId: document.id } });
+        return navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId: document.id }, search: { focusNewNote: document.id } });
       }).catch((e) => { if (mounted.current && activeScope.current === scopeIdentity) { if (e instanceof UnknownMutationOutcome) recovery.unknown(title); else setError(e.message); } }).finally(() => {
         if (pending.current === scopeIdentity) pending.current = null;
         if (mounted.current && activeScope.current === scopeIdentity) setBusy(false);

@@ -40,7 +40,13 @@ function DocumentRead({ workspaceId, documentId }: { workspaceId: string; docume
 function DocumentSession({ initial }: { initial: DocumentDetail }) {
   const { id, workspaceId } = initial.document;
   const navigate = useNavigate();
-  const { reviewId: initialRunId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
+  const { reviewId: initialRunId, focusNewNote: focusNewNoteId } = useSearch({ from: "/workspaces/$workspaceId/documents/$documentId" });
+  // Keep the one-time intent stable while removing it from the URL.
+  const [focusNewNote] = useState(() => initial.content === "" && focusNewNoteId === id);
+  useEffect(() => {
+    if (focusNewNoteId === undefined) return;
+    void navigate({ to: "/workspaces/$workspaceId/documents/$documentId", params: { workspaceId, documentId: id }, search: { reviewId: initialRunId }, replace: true });
+  }, [focusNewNoteId, id, initialRunId, navigate, workspaceId]);
   const [selection, setSelection] = useState<FindingSelection | null>(null);
   const [nodes, setNodes] = useState(initial.nodes);
   const [confirmedNodes, setConfirmedNodes] = useState({ version: 0, writeId: initial.document.lastWriteId });
@@ -190,7 +196,7 @@ function DocumentSession({ initial }: { initial: DocumentDetail }) {
     </div>
     <label className="document-title" hidden={mode !== "edit"}><span className="visually-hidden">ノート名（必須）</span><textarea ref={titleRef} rows={1} value={title} onChange={(e) => editTitle(e.target.value)} onCompositionStart={() => compositionChange(true)} onCompositionEnd={() => compositionChange(false)} onKeyDown={(event) => { if (event.key === "Enter" && !composing && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) { event.preventDefault(); editorRef.current?.restoreFocus(); } }} maxLength={200} required /></label>{mode === "read" && <h2 className="note-reading-title">{title}</h2>}
     {mode === "edit" && !title.trim() && <p className="muted">ノート名を入力すると自動保存できます。</p>}
-    <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} editorRef={editorRef} onChange={editContent} onPaste={openPaste} onCompositionChange={compositionChange} highlight={highlight} highlightRequest={selection} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
+    <div className={`editor-split${showPreview ? "" : " editor-only"}`} hidden={mode !== "edit"}><section><h2>本文（Markdown）</h2><MarkdownEditor initialContent={initial.content} focusOnMount={focusNewNote} editorRef={editorRef} onChange={editContent} onPaste={openPaste} onCompositionChange={compositionChange} highlight={highlight} highlightRequest={selection} /></section>{showPreview && <section><h2>プレビュー</h2><MarkdownPreview content={content} /></section>}</div>
     {mode === "read" && <section className="note-reading" aria-label="閲覧モード">{content ? <MarkdownPreview content={content} label="ノート本文" /> : <p className="empty-state">本文はまだありません。「編集」に切り替えて書き始めましょう。</p>}</section>}
     {paste && <PasteDialog paste={paste} quoteBlocked={outcomeUnknown || localRecoveryPending} onClose={() => closePaste(paste)} onResource={async (input) => { await registerResource(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input); setResourceVersion((v) => v + 1); closePaste(paste); }} onResourceCheck={(input) => checkResourceRegistration(`/documents/${id}/resources?workspaceId=${encodeURIComponent(workspaceId)}`, workspaceId, input)} onResourceConfirmed={(_resource, message) => { if (pasteRef.current !== paste) return; setResourceConfirmation(message); setResourceVersion((v) => v + 1); closePaste(paste); }} onQuote={async (sourceUrl, sourceTitle) => {
       await session.addQuote(paste.content, (draft) => writer.quote({ text: paste.text, sourceUrl, sourceTitle, from: paste.from, to: paste.to, ...draft }), (content) => {
