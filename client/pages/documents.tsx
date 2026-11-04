@@ -22,7 +22,8 @@ function DocumentsList({ workspaceId }: { workspaceId: string }) {
   }), [workspaceId, version]);
   useLayoutEffect(() => {
     // The list arrives after the router's render event, so restore once its rows exist.
-    if (!loading && !error && savedScroll) window.scrollTo(savedScroll.scrollX, savedScroll.scrollY);
+    // A keyboard choice in the loading shell must stay visible after the rows arrive.
+    if (!loading && !error && savedScroll && document.activeElement === document.body) window.scrollTo(savedScroll.scrollX, savedScroll.scrollY);
   }, [error, loading, savedScroll]);
   return <main className="workspace">
     <WorkspaceNav workspaceId={workspaceId} /><h1>ノート</h1>
