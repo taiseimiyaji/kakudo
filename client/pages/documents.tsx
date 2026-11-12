@@ -1,5 +1,5 @@
 import { WorkspaceNav } from "../../components/navigation/workspace-nav";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useElementScrollRestoration, useParams } from "@tanstack/react-router";
 import { z } from "zod";
 import { documentSchema, type DocumentMetadata } from "../../shared/document";
@@ -11,6 +11,8 @@ export default function DocumentsPage() {
 }
 function DocumentsList({ workspaceId }: { workspaceId: string }) {
   const savedScroll = useElementScrollRestoration({ getElement: () => window });
+  const listRef = useRef<HTMLUListElement>(null);
+  const keyboardRetry = useRef(false);
   const [documents, setDocuments] = useState<DocumentMetadata[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -23,16 +25,25 @@ function DocumentsList({ workspaceId }: { workspaceId: string }) {
   useLayoutEffect(() => {
     // The list arrives after the router's render event, so restore once its rows exist.
     // A keyboard choice in the loading shell must stay visible after the rows arrive.
-    if (!loading && !error && savedScroll && document.activeElement === document.body) window.scrollTo(savedScroll.scrollX, savedScroll.scrollY);
+    if (loading || error) return;
+    const focusIsFree = document.activeElement === document.body;
+    if (savedScroll && focusIsFree) window.scrollTo(savedScroll.scrollX, savedScroll.scrollY);
+    if (!keyboardRetry.current) return;
+    keyboardRetry.current = false;
+    if (!focusIsFree) return;
+    // The retry button was removed; resume keyboard navigation at the restored list position.
+    const links = Array.from(listRef.current?.querySelectorAll("a") ?? []);
+    const visible = links.find((link) => { const { top, bottom } = link.getBoundingClientRect(); return top >= 0 && bottom <= innerHeight; });
+    (visible ?? links[0])?.focus({ preventScroll: !!visible });
   }, [error, loading, savedScroll]);
   return <main className="workspace">
     <WorkspaceNav workspaceId={workspaceId} /><h1>ノート</h1>
     <p className="intro">自分の言葉で書いた、学びの記録。学習項目を削除しても、ノートはここに残ります。</p>
-    {error && <><p role="alert" className="error">{error}</p><button onClick={() => { setError(""); setLoading(true); setVersion((value) => value + 1); }}>ノート一覧を再読み込み</button></>}
+    {error && <><p role="alert" className="error">{error}</p><button onClick={(event) => { keyboardRetry.current = event.detail === 0; setError(""); setLoading(true); setVersion((value) => value + 1); }}>ノート一覧を再読み込み</button></>}
     {loading ? <p role="status">ノートを読み込んでいます…</p> : !error && !documents.length && <div className="empty-state">
       <h2>最初のノートを作りましょう</h2><p>学習マップで項目を選び、詳細にある「ノートを作成」から書き始められます。</p>
       <Link to="/workspaces/$workspaceId/roadmaps" params={{ workspaceId }}>学習マップへ進む →</Link>
     </div>}
-    <ul>{documents.map((doc) => <li key={doc.id}><Link to="/workspaces/$workspaceId/documents/$documentId" params={{ workspaceId, documentId: doc.id }} aria-describedby={`document-updated-${doc.id}`}>{doc.title}</Link><small className="document-updated" id={`document-updated-${doc.id}`}>最終更新 <time dateTime={doc.updatedAt}>{new Date(doc.updatedAt).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "short" })}</time></small></li>)}</ul>
+    <ul ref={listRef}>{documents.map((doc) => <li key={doc.id}><Link to="/workspaces/$workspaceId/documents/$documentId" params={{ workspaceId, documentId: doc.id }} aria-describedby={`document-updated-${doc.id}`}>{doc.title}</Link><small className="document-updated" id={`document-updated-${doc.id}`}>最終更新 <time dateTime={doc.updatedAt}>{new Date(doc.updatedAt).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "short" })}</time></small></li>)}</ul>
   </main>;
 }
